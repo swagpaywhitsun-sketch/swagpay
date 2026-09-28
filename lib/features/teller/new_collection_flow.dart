@@ -6,6 +6,7 @@ import '../../core/models/customer.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_thin_footer.dart';
 import '../../core/widgets/thermal_receipt_card.dart';
 
 class NewCollectionScreen extends ConsumerStatefulWidget {
@@ -176,6 +177,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           child: _buildCurrentContent(context),
         ),
       ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 

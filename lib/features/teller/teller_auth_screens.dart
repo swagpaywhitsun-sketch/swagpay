@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_thin_footer.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -171,7 +172,7 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'SwagPay POS Login',
+                'SwagPay Login',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 26,
@@ -326,6 +327,7 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 }
@@ -386,6 +388,7 @@ class DeviceUnauthorizedScreen extends ConsumerWidget {
           ),
         ),
       ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 }

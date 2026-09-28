@@ -136,5 +136,14 @@ class AppTheme {
         side: const BorderSide(color: AppColors.darkBorder),
       ),
     ),
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      backgroundColor: AppColors.darkSurface,
+      selectedItemColor: AppColors.primary,
+      unselectedItemColor: Color(0xFFC0C7D2),
+      selectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+      unselectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      type: BottomNavigationBarType.fixed,
+      elevation: 8,
+    ),
   );
 }

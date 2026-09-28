@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/customer.dart';
-import '../../core/models/user.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_thin_footer.dart';
+import '../../core/widgets/user_avatar_widget.dart';
 
 class TellerNotificationsScreen extends ConsumerWidget {
   const TellerNotificationsScreen({super.key});
@@ -43,6 +46,7 @@ class TellerNotificationsScreen extends ConsumerWidget {
                 );
               },
             ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 }
@@ -52,120 +56,130 @@ class TellerProfileScreen extends ConsumerWidget {
 
   void _showAvatarPicker(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final urlController = TextEditingController();
 
-    final presetAvatars = [
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200',
-      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200',
-      'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=200',
-    ];
+    Future<void> pickAndSave(ImageSource source) async {
+      try {
+        final picker = ImagePicker();
+        final XFile? image = await picker.pickImage(
+          source: source,
+          maxWidth: 512,
+          maxHeight: 512,
+          imageQuality: 85,
+        );
+        if (image != null) {
+          final bytes = await image.readAsBytes();
+          final b64 = base64Encode(bytes);
+          final dataUri = 'data:image/jpeg;base64,$b64';
+          ref.read(userAvatarProvider.notifier).setAvatar(dataUri);
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Profile picture uploaded successfully!'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to select image: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
       backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Set Profile Picture',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        final avatar = ref.watch(userAvatarProvider);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Upload Profile Picture',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Select an image from your device photo gallery or take a new photo with camera:',
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.photo_library_rounded, color: AppColors.primary),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(ctx),
+                  title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Pick an existing photo or image file'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => pickAndSave(ImageSource.gallery),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.camera_alt_rounded, color: AppColors.success),
+                  ),
+                  title: const Text('Take a Photo', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Use your device camera'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => pickAndSave(ImageSource.camera),
+                ),
+                if (avatar != null && avatar.isNotEmpty) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
+                    ),
+                    title: const Text('Remove Photo', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+                    subtitle: const Text('Reset back to name initials'),
+                    onTap: () {
+                      ref.read(userAvatarProvider.notifier).clearAvatar();
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Profile picture removed')),
+                      );
+                    },
                   ),
                 ],
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Choose a profile avatar preset or provide a custom image URL:',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 72,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: presetAvatars.length,
-                  separatorBuilder: (context, index) => const SizedBox(width: 12),
-                  itemBuilder: (context, idx) {
-                    final pUrl = presetAvatars[idx];
-                    return InkWell(
-                      onTap: () {
-                        ref.read(userAvatarProvider.notifier).setAvatar(pUrl);
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Profile photo updated!'),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(36),
-                      child: CircleAvatar(
-                        radius: 32,
-                        backgroundImage: NetworkImage(pUrl),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: urlController,
-                decoration: const InputDecoration(
-                  labelText: 'Custom Photo URL (https://...)',
-                  prefixIcon: Icon(Icons.link_rounded),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () {
-                  final text = urlController.text.trim();
-                  if (text.isNotEmpty) {
-                    ref.read(userAvatarProvider.notifier).setAvatar(text);
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Profile picture updated!'),
-                        backgroundColor: AppColors.success,
-                      ),
-                    );
-                  }
-                },
-                child: const Text('Save Custom Photo URL'),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () {
-                  ref.read(userAvatarProvider.notifier).clearAvatar();
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile photo reset to default initial')),
-                  );
-                },
-                child: const Text('Reset to Default Initial', style: TextStyle(color: AppColors.error)),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -191,18 +205,10 @@ class TellerProfileScreen extends ConsumerWidget {
                 children: [
                   Stack(
                     children: [
-                      CircleAvatar(
+                      UserAvatarWidget(
+                        avatarData: avatar,
+                        name: user?.fullName ?? 'Teller',
                         radius: 44,
-                        backgroundColor: AppColors.primary,
-                        backgroundImage: avatar != null && avatar.startsWith('http')
-                            ? NetworkImage(avatar)
-                            : null,
-                        child: avatar == null || !avatar.startsWith('http')
-                            ? Text(
-                                user?.fullName.isNotEmpty == true ? user!.fullName[0].toUpperCase() : 'T',
-                                style: const TextStyle(fontSize: 34, fontWeight: FontWeight.bold, color: Colors.white),
-                              )
-                            : null,
                       ),
                       Positioned(
                         bottom: 0,
@@ -310,20 +316,6 @@ class TellerProfileScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
 
-            // Switch to Admin POS
-            OutlinedButton.icon(
-              onPressed: () {
-                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.admin);
-                context.go('/admin/dashboard');
-              },
-              icon: const Icon(Icons.admin_panel_settings_rounded),
-              label: const Text('Open Admin Web / POS Terminal View'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-              ),
-            ),
-            const SizedBox(height: 12),
-
             // Logout
             ElevatedButton.icon(
               onPressed: () {
@@ -340,6 +332,7 @@ class TellerProfileScreen extends ConsumerWidget {
           ],
         ),
       ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 }
@@ -434,6 +427,7 @@ class TellerOfflineQueueScreen extends ConsumerWidget {
                 ),
               ],
             ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 }
@@ -535,6 +529,7 @@ class _CustomerLookupScreenState extends ConsumerState<CustomerLookupScreen> {
           ],
         ),
       ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 }

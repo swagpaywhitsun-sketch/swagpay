@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_thin_footer.dart';
 import '../../core/widgets/stat_card.dart';
 
 class TellerReportsScreen extends ConsumerWidget {
@@ -146,6 +147,7 @@ class TellerReportsScreen extends ConsumerWidget {
           ],
         ),
       ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 
@@ -354,6 +356,7 @@ class _TellerShiftScreenState extends ConsumerState<TellerShiftScreen> {
           ],
         ),
       ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 

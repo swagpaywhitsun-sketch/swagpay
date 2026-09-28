@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_thin_footer.dart';
 import '../../core/widgets/status_badge.dart';
 import '../../core/widgets/thermal_receipt_card.dart';
 
@@ -116,6 +117,7 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 
@@ -304,6 +306,7 @@ class TransactionDetailScreen extends ConsumerWidget {
           ],
         ),
       ),
+      bottomNavigationBar: const AppThinFooter(),
     );
   }
 }

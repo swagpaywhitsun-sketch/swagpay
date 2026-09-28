@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/models/user.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/user_avatar_widget.dart';
 
 class AdminLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -50,7 +51,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
             ),
             const SizedBox(width: 10),
             const Text(
-              'SwagPay POS',
+              'SwagPay',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
             ),
           ],
@@ -109,7 +110,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(
-                        'SUPER ADMIN POS',
+                        'SUPER ADMIN',
                         style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primaryLight),
                       ),
                     ),
@@ -181,13 +182,10 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircleAvatar(
+                    UserAvatarWidget(
+                      avatarData: ref.watch(userAvatarProvider),
+                      name: user?.fullName ?? 'Admin',
                       radius: 14,
-                      backgroundColor: AppColors.primaryLight,
-                      child: Text(
-                        user?.fullName.substring(0, 1).toUpperCase() ?? 'A',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -253,22 +251,40 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
         ],
       ),
       bottomNavigationBar: !isWide
-          ? BottomNavigationBar(
-              currentIndex: _getMobileNavIndex(widget.currentRoute),
-              onTap: (index) {
-                if (index == 0) context.go('/admin/dashboard');
-                if (index == 1) context.go('/admin/tellers');
-                if (index == 2) context.go('/admin/pos');
-                if (index == 3) context.go('/admin/transactions');
-                if (index == 4) context.go('/admin/settings');
-              },
-              items: const [
-                BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
-                BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded), label: 'Tellers'),
-                BottomNavigationBarItem(icon: Icon(Icons.point_of_sale_rounded), label: 'POS'),
-                BottomNavigationBarItem(icon: Icon(Icons.receipt_long_rounded), label: 'Txns'),
-                BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: 'Settings'),
-              ],
+          ? Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF262626) : Colors.white,
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? const Color(0xFF3E3E3E) : AppColors.border,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: BottomNavigationBar(
+                currentIndex: _getMobileNavIndex(widget.currentRoute),
+                backgroundColor: isDark ? const Color(0xFF262626) : Colors.white,
+                selectedItemColor: AppColors.primary,
+                unselectedItemColor: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF707579),
+                selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+                type: BottomNavigationBarType.fixed,
+                elevation: 0,
+                onTap: (index) {
+                  if (index == 0) context.go('/admin/dashboard');
+                  if (index == 1) context.go('/admin/tellers');
+                  if (index == 2) context.go('/admin/pos');
+                  if (index == 3) context.go('/admin/transactions');
+                  if (index == 4) context.go('/admin/settings');
+                },
+                items: const [
+                  BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
+                  BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded), label: 'Tellers'),
+                  BottomNavigationBarItem(icon: Icon(Icons.point_of_sale_rounded), label: 'POS'),
+                  BottomNavigationBarItem(icon: Icon(Icons.receipt_long_rounded), label: 'Txns'),
+                  BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: 'Settings'),
+                ],
+              ),
             )
           : null,
     );

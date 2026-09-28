@@ -7,6 +7,7 @@ import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/stat_card.dart';
 import '../../core/widgets/status_badge.dart';
+import '../../core/widgets/user_avatar_widget.dart';
 
 class TellerDashboardScreen extends ConsumerStatefulWidget {
   const TellerDashboardScreen({super.key});
@@ -29,7 +30,6 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
 
     final successfulTxns = txns.where((t) => t.status == TransactionStatus.success).toList();
     final todayTotal = successfulTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
-    final successRate = txns.isEmpty ? 100 : ((successfulTxns.length / txns.length) * 100).toInt();
 
     return Scaffold(
       appBar: AppBar(
@@ -45,8 +45,8 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
             ),
             const SizedBox(width: 10),
             const Text(
-              'SwagPay POS',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
+              'SwagPay',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3),
             ),
           ],
         ),
@@ -76,18 +76,10 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                 enabled: false,
                 child: Row(
                   children: [
-                    CircleAvatar(
+                    UserAvatarWidget(
+                      avatarData: avatar,
+                      name: user?.fullName ?? 'Teller',
                       radius: 20,
-                      backgroundColor: AppColors.primary,
-                      backgroundImage: avatar != null && avatar.startsWith('http')
-                          ? NetworkImage(avatar)
-                          : null,
-                      child: avatar == null || !avatar.startsWith('http')
-                          ? Text(
-                              user?.fullName.isNotEmpty == true ? user!.fullName[0].toUpperCase() : 'T',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                            )
-                          : null,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -167,18 +159,10 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
             ],
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14.0),
-              child: CircleAvatar(
+              child: UserAvatarWidget(
+                avatarData: avatar,
+                name: user?.fullName ?? 'Teller',
                 radius: 17,
-                backgroundColor: Colors.white,
-                backgroundImage: avatar != null && avatar.startsWith('http')
-                    ? NetworkImage(avatar)
-                    : null,
-                child: avatar == null || !avatar.startsWith('http')
-                    ? Text(
-                        user?.fullName.isNotEmpty == true ? user!.fullName[0].toUpperCase() : 'T',
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary),
-                      )
-                    : null,
               ),
             ),
           ),
@@ -261,29 +245,13 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
               }),
               const SizedBox(height: 16),
 
-              // KPI Cards
-              Row(
-                children: [
-                  Expanded(
-                    child: StatCard(
-                      title: "Today's Collections",
-                      value: 'GH₵ ${NumberFormat('#,##0.00').format(todayTotal)}',
-                      icon: Icons.payments_rounded,
-                      accentColor: AppColors.success,
-                      subtitle: '${successfulTxns.length} successful',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StatCard(
-                      title: 'Success Rate',
-                      value: '$successRate%',
-                      icon: Icons.speed_rounded,
-                      accentColor: AppColors.gold,
-                      subtitle: '${txns.length} total txns',
-                    ),
-                  ),
-                ],
+              // KPI Card: Full-width Today's Collections (supporting 6-10+ figures comfortably)
+              StatCard(
+                title: "Today's Total Collections",
+                value: 'GH₵ ${NumberFormat('#,##0.00').format(todayTotal)}',
+                icon: Icons.payments_rounded,
+                accentColor: AppColors.success,
+                subtitle: '${successfulTxns.length} successful payment transaction(s) today',
               ),
               const SizedBox(height: 20),
 
@@ -405,22 +373,47 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _bottomNavIndex,
-        onTap: (index) {
-          setState(() => _bottomNavIndex = index);
-          if (index == 1) context.push('/teller/history');
-          if (index == 2) context.push('/teller/reports');
-          if (index == 3) context.push('/teller/shift');
-          if (index == 4) context.push('/teller/profile');
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long_rounded), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded), label: 'Reports'),
-          BottomNavigationBarItem(icon: Icon(Icons.point_of_sale_rounded), label: 'Shift'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_circle_rounded), label: 'Profile'),
-        ],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF262626) : Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? const Color(0xFF3E3E3E) : AppColors.border,
+              width: 1,
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _bottomNavIndex,
+          backgroundColor: isDark ? const Color(0xFF262626) : Colors.white,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF707579),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
+          onTap: (index) {
+            setState(() => _bottomNavIndex = index);
+            if (index == 1) context.push('/teller/history');
+            if (index == 2) context.push('/teller/reports');
+            if (index == 3) context.push('/teller/shift');
+            if (index == 4) context.push('/teller/profile');
+          },
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
+            BottomNavigationBarItem(icon: Icon(Icons.receipt_long_rounded), label: 'History'),
+            BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded), label: 'Reports'),
+            BottomNavigationBarItem(icon: Icon(Icons.point_of_sale_rounded), label: 'Shift'),
+            BottomNavigationBarItem(icon: Icon(Icons.account_circle_rounded), label: 'Profile'),
+          ],
+        ),
       ),
     );
   }
