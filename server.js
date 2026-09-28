@@ -3,11 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 
+const path = require('path');
+const fs = require('fs');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 5050;
+const PORT = process.env.PORT || 8080;
 
 // WhitsunPay Config
 const WHITSUNPAY_CONFIG = {
@@ -451,7 +454,20 @@ app.get('/api/audit-logs', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`SwagPay Backend API running on http://localhost:${PORT}`);
+// ─── STATIC FLUTTER WEB (IF PRESENT) ────────────────
+const webBuildPath = path.join(__dirname, 'build', 'web');
+if (fs.existsSync(webBuildPath)) {
+  console.log(`Serving SwagPay Web build from ${webBuildPath}`);
+  app.use(express.static(webBuildPath));
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/health')) {
+      return res.sendFile(path.join(webBuildPath, 'index.html'));
+    }
+    next();
+  });
+}
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`SwagPay Backend API running on port ${PORT} (0.0.0.0:${PORT})`);
   console.log(`Connected to WhitsunPay at: ${WHITSUNPAY_CONFIG.baseUrl}`);
 });

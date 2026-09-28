@@ -1,5 +1,16 @@
+import 'package:flutter/foundation.dart';
+
 class ApiConfig {
-  static String baseUrl = 'http://localhost:5050';
+  static String _resolveBaseUrl() {
+    const envUrl = String.fromEnvironment('API_URL');
+    if (envUrl.isNotEmpty) return envUrl;
+    if (kIsWeb) {
+      return Uri.base.origin;
+    }
+    return 'http://localhost:8080';
+  }
+
+  static String baseUrl = _resolveBaseUrl();
   static const int connectTimeoutSeconds = 15;
   static const int receiveTimeoutSeconds = 20;
 
