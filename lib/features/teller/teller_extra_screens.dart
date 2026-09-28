@@ -51,54 +51,41 @@ class TellerNotificationsScreen extends ConsumerWidget {
   }
 }
 
-class TellerProfileScreen extends ConsumerWidget {
+class TellerProfileScreen extends ConsumerStatefulWidget {
   const TellerProfileScreen({super.key});
 
-  void _showAvatarPicker(BuildContext context, WidgetRef ref) {
+  @override
+  ConsumerState<TellerProfileScreen> createState() => _TellerProfileScreenState();
+}
+
+class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
+  void _showAvatarPicker(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Future<void> pickAndSave(ImageSource source) async {
       try {
         final picker = ImagePicker();
-        final XFile? image = await picker.pickImage(
-          source: source,
-          maxWidth: 512,
-          maxHeight: 512,
-          imageQuality: 85,
-        );
+        final XFile? image = await picker.pickImage(source: source, maxWidth: 512, maxHeight: 512, imageQuality: 85);
         if (image != null) {
           final bytes = await image.readAsBytes();
           final b64 = base64Encode(bytes);
-          final dataUri = 'data:image/jpeg;base64,$b64';
-          ref.read(userAvatarProvider.notifier).setAvatar(dataUri);
+          ref.read(userAvatarProvider.notifier).setAvatar('data:image/jpeg;base64,$b64');
           if (context.mounted) {
             Navigator.pop(context);
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Profile picture uploaded successfully!'),
-                backgroundColor: AppColors.success,
-              ),
+              const SnackBar(content: Text('Profile picture updated!'), backgroundColor: AppColors.success),
             );
           }
         }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to select image: $e'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
+      } catch (_) {
+        if (context.mounted) Navigator.pop(context);
       }
     }
 
     showModalBottomSheet(
       context: context,
       backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         final avatar = ref.watch(userAvatarProvider);
         return SafeArea(
@@ -111,33 +98,18 @@ class TellerProfileScreen extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Upload Profile Picture',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
+                    const Text('Profile Picture', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                    IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(ctx)),
                   ],
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Select an image from your device photo gallery or take a new photo with camera:',
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.12), shape: BoxShape.circle),
                     child: const Icon(Icons.photo_library_rounded, color: AppColors.primary),
                   ),
                   title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Pick an existing photo or image file'),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => pickAndSave(ImageSource.gallery),
                 ),
@@ -145,14 +117,10 @@ class TellerProfileScreen extends ConsumerWidget {
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.12), shape: BoxShape.circle),
                     child: const Icon(Icons.camera_alt_rounded, color: AppColors.success),
                   ),
                   title: const Text('Take a Photo', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Use your device camera'),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => pickAndSave(ImageSource.camera),
                 ),
@@ -161,20 +129,13 @@ class TellerProfileScreen extends ConsumerWidget {
                   ListTile(
                     leading: Container(
                       padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
+                      decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.12), shape: BoxShape.circle),
                       child: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
                     ),
                     title: const Text('Remove Photo', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
-                    subtitle: const Text('Reset back to name initials'),
                     onTap: () {
                       ref.read(userAvatarProvider.notifier).clearAvatar();
                       Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Profile picture removed')),
-                      );
                     },
                   ),
                 ],
@@ -187,131 +148,113 @@ class TellerProfileScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
     final user = auth.currentUser;
     final avatar = ref.watch(userAvatarProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Teller Profile & Settings')),
+      appBar: AppBar(title: const Text('Settings')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Avatar & Name Card
-            Center(
-              child: Column(
-                children: [
-                  Stack(
-                    children: [
-                      UserAvatarWidget(
-                        avatarData: avatar,
-                        name: user?.fullName ?? 'Teller',
-                        radius: 44,
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: InkWell(
-                          onTap: () => _showAvatarPicker(context, ref),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: const BoxDecoration(
-                              color: AppColors.primaryDark,
-                              shape: BoxShape.circle,
+            // Profile Card
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _showAvatarPicker(context),
+                      child: Stack(
+                        children: [
+                          UserAvatarWidget(avatarData: avatar, name: user?.fullName ?? 'Teller', radius: 48),
+                          Positioned(
+                            bottom: 2, right: 2,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                              child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
                             ),
-                            child: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: () => _showAvatarPicker(context, ref),
-                    icon: const Icon(Icons.photo_camera_rounded, size: 16),
-                    label: const Text('Change Profile Picture', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user?.fullName ?? 'Teller Cashier',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                  ),
-                  Text(
-                    '${user?.roleDisplay} • ${user?.branch ?? 'Accra Mall Hub'}',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(user?.fullName ?? 'Teller Cashier', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 3),
+                    Text(
+                      user?.email ?? 'teller@swagpay.com',
+                      style: TextStyle(fontSize: 13, color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        user?.roleDisplay ?? 'Teller',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: () => _showAvatarPicker(context),
+                      icon: const Icon(Icons.photo_camera_outlined, size: 16),
+                      label: const Text('Change Profile Photo'),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // Profile info cards
+            // Account Information
+            _sectionLabel('Account Information'),
             Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Column(
                 children: [
-                  ListTile(
-                    leading: const Icon(Icons.badge_outlined),
-                    title: const Text('Teller Identifier'),
-                    subtitle: Text(user?.id ?? 'TEL-001'),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.email_outlined),
-                    title: const Text('Email Address'),
-                    subtitle: Text(user?.email ?? 'teller@swagpay.com'),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.point_of_sale_outlined),
-                    title: const Text('Assigned POS Terminal'),
-                    subtitle: Text(user?.assignedPos.firstOrNull ?? 'POS-01'),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.tune_rounded),
-                    title: const Text('Single Transaction Limit'),
-                    subtitle: Text('GH₵ ${user?.singleTxnLimit.toStringAsFixed(0) ?? '10,000'}'),
-                  ),
+                  _infoTile(Icons.badge_outlined, AppColors.primary, 'Teller ID', user?.id ?? 'TEL-001'),
+                  const Divider(height: 1, indent: 56),
+                  _infoTile(Icons.email_outlined, AppColors.primaryLight, 'Email', user?.email ?? 'teller@swagpay.com'),
+                  const Divider(height: 1, indent: 56),
+                  _infoTile(Icons.phone_outlined, AppColors.success, 'Phone', user?.phone.isNotEmpty == true ? user!.phone : 'Not set'),
+                  const Divider(height: 1, indent: 56),
+                  _infoTile(Icons.store_outlined, AppColors.gold, 'Branch', user?.branch ?? 'Accra Mall Hub'),
+                  const Divider(height: 1, indent: 56),
+                  _infoTile(Icons.point_of_sale_outlined, AppColors.primaryDark, 'Assigned POS', user?.assignedPos.firstOrNull ?? 'POS-01'),
                 ],
               ),
             ),
             const SizedBox(height: 20),
 
-            // Hardware & Settings (Biometrics removed per instructions)
+            // App Preferences
+            _sectionLabel('App Preferences'),
             Card(
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.print_rounded, color: AppColors.primary),
-                    title: const Text('Bluetooth Thermal Printer'),
-                    subtitle: const Text('Connected: ESC/POS Thermal 80mm'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Bluetooth printer paired and ready')),
-                      );
-                    },
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
-                    title: const Text('Profile Picture'),
-                    subtitle: const Text('Tap to change or upload avatar'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => _showAvatarPicker(context, ref),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.dark_mode_outlined, color: AppColors.gold),
-                    title: const Text('Dark Mode Display'),
-                    trailing: Switch(
-                      value: isDark,
-                      onChanged: (_) => ref.read(themeModeProvider.notifier).toggleTheme(),
-                    ),
-                  ),
-                ],
+                  child: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined, color: AppColors.gold, size: 20),
+                ),
+                title: Text(isDark ? 'Light Mode' : 'Dark Mode', style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(isDark ? 'Switch to light theme' : 'Switch to dark theme', style: const TextStyle(fontSize: 12)),
+                trailing: Switch(
+                  value: isDark,
+                  activeThumbColor: AppColors.primary,
+                  onChanged: (_) => ref.read(themeModeProvider.notifier).toggleTheme(),
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -323,10 +266,12 @@ class TellerProfileScreen extends ConsumerWidget {
                 context.go('/teller/login');
               },
               icon: const Icon(Icons.logout_rounded),
-              label: const Text('Logout of Counter'),
+              label: const Text('Logout', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.error,
-                minimumSize: const Size.fromHeight(48),
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
           ],
@@ -335,6 +280,25 @@ class TellerProfileScreen extends ConsumerWidget {
       bottomNavigationBar: const AppThinFooter(),
     );
   }
+
+  Widget _sectionLabel(String label) => Padding(
+    padding: const EdgeInsets.only(left: 4, bottom: 8),
+    child: Text(
+      label.toUpperCase(),
+      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: AppColors.textSecondary),
+    ),
+  );
+
+  Widget _infoTile(IconData icon, Color color, String title, String value) => ListTile(
+    leading: Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+      child: Icon(icon, color: color, size: 18),
+    ),
+    title: Text(title, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+    subtitle: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+    dense: true,
+  );
 }
 
 class TellerOfflineQueueScreen extends ConsumerWidget {

@@ -39,26 +39,79 @@ class TellerReportsScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // KPI Summary Row
+            // Total Collections — full width, big display for 6-10 figure amounts
+            Card(
+              color: AppColors.success.withValues(alpha: 0.08),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: AppColors.success.withValues(alpha: 0.25)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.account_balance_wallet_rounded, color: AppColors.success, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Total Collections',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.success),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)}',
+                        style: const TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${successTxns.length} settled transaction(s)',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Transactions count row
             Row(
               children: [
                 Expanded(
                   child: StatCard(
-                    title: 'Total Collections',
-                    value: 'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)}',
-                    icon: Icons.account_balance_wallet_rounded,
-                    accentColor: AppColors.success,
-                    subtitle: '${successTxns.length} settled',
+                    title: 'Total Transactions',
+                    value: '${txns.length}',
+                    icon: Icons.receipt_long_rounded,
+                    accentColor: AppColors.primaryLight,
+                    subtitle: '${failedTxns.length} failed / void',
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: StatCard(
-                    title: 'Transactions',
-                    value: '${txns.length}',
-                    icon: Icons.receipt_long_rounded,
-                    accentColor: AppColors.primaryLight,
-                    subtitle: '${failedTxns.length} failed/void',
+                    title: 'Successful',
+                    value: '${successTxns.length}',
+                    icon: Icons.check_circle_outline_rounded,
+                    accentColor: AppColors.success,
+                    subtitle: '${failedTxns.length} failed',
                   ),
                 ),
               ],

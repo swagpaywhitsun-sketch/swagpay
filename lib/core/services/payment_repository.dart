@@ -39,15 +39,15 @@ class PaymentRepository {
 
   Future<void> refreshFromBackend() async {
     try {
-      // 1. Fetch real transactions
+      // 1. Fetch real transactions — only replace if we got results back
       final txRes = await apiClient.get<List<dynamic>>(ApiConfig.transactions);
-      if (txRes.data != null) {
+      if (txRes.data != null && txRes.data!.isNotEmpty) {
         _transactions = txRes.data!.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
       }
 
-      // 2. Fetch real tellers
+      // 2. Fetch real tellers — only replace if we got results back
       final telRes = await apiClient.get<List<dynamic>>(ApiConfig.tellers);
-      if (telRes.data != null) {
+      if (telRes.data != null && telRes.data!.isNotEmpty) {
         _tellers = telRes.data!.map((e) {
           final m = e as Map<String, dynamic>;
           return AppUser(
@@ -62,9 +62,9 @@ class PaymentRepository {
         }).toList();
       }
 
-      // 3. Fetch real POS terminals
+      // 3. Fetch real POS terminals — only replace if we got results back
       final posRes = await apiClient.get<List<dynamic>>(ApiConfig.posDevices);
-      if (posRes.data != null) {
+      if (posRes.data != null && posRes.data!.isNotEmpty) {
         _posDevices = posRes.data!.map((e) {
           final m = e as Map<String, dynamic>;
           return PosDevice(
@@ -81,23 +81,23 @@ class PaymentRepository {
         }).toList();
       }
 
-      // 4. Fetch real refund requests
+      // 4. Fetch real refund requests — only replace if we got results back
       final refRes = await apiClient.get<List<dynamic>>(ApiConfig.refunds);
-      if (refRes.data != null) {
+      if (refRes.data != null && refRes.data!.isNotEmpty) {
         _refundRequests = refRes.data!.map((e) => RefundRequest.fromJson(e as Map<String, dynamic>)).toList();
       }
 
       // 5. Fetch real settlements
       try {
         final setRes = await apiClient.get<List<dynamic>>(ApiConfig.settlements);
-        if (setRes.data != null) {
+        if (setRes.data != null && setRes.data!.isNotEmpty) {
           _settlements = setRes.data!.map((e) => SettlementRecord.fromJson(e as Map<String, dynamic>)).toList();
         }
       } catch (_) {}
 
-      // 6. Fetch real audit logs
+      // 6. Fetch real audit logs — only replace if we got results back
       final audRes = await apiClient.get<List<dynamic>>(ApiConfig.auditLogs);
-      if (audRes.data != null) {
+      if (audRes.data != null && audRes.data!.isNotEmpty) {
         _auditLogs = audRes.data!.map((e) {
           final m = e as Map<String, dynamic>;
           return AuditLog(
@@ -114,7 +114,7 @@ class PaymentRepository {
         }).toList();
       }
     } catch (_) {
-      // Non-fatal if offline
+      // Non-fatal if offline — keep existing data intact
     } finally {
       _isLoading = false;
       onChanged?.call();

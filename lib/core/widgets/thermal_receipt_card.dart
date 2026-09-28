@@ -14,9 +14,50 @@ class ThermalReceiptCard extends StatelessWidget {
     this.onPrint,
   });
 
+  Color get _statusColor {
+    switch (transaction.status) {
+      case TransactionStatus.success:
+        return AppColors.success;
+      case TransactionStatus.pending:
+        return AppColors.gold;
+      case TransactionStatus.failed:
+        return AppColors.error;
+      case TransactionStatus.refunded:
+        return AppColors.primaryLight;
+    }
+  }
+
+  String get _statusLabel {
+    switch (transaction.status) {
+      case TransactionStatus.success:
+        return 'PAYMENT SUCCESSFUL';
+      case TransactionStatus.pending:
+        return 'PAYMENT PENDING';
+      case TransactionStatus.failed:
+        return 'PAYMENT DECLINED';
+      case TransactionStatus.refunded:
+        return 'PAYMENT REFUNDED';
+    }
+  }
+
+  String get _amountLabel {
+    switch (transaction.status) {
+      case TransactionStatus.success:
+        return 'TOTAL PAID';
+      case TransactionStatus.pending:
+        return 'AMOUNT PENDING';
+      case TransactionStatus.failed:
+        return 'AMOUNT (NOT CHARGED)';
+      case TransactionStatus.refunded:
+        return 'AMOUNT REFUNDED';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
+    final isPending = transaction.status == TransactionStatus.pending;
+    final isFailed = transaction.status == TransactionStatus.failed;
 
     return Container(
       decoration: BoxDecoration(
@@ -77,6 +118,33 @@ class ThermalReceiptCard extends StatelessWidget {
             ),
           ),
 
+          // Status Banner — only shown for non-success transactions
+          if (isPending || isFailed)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+              color: _statusColor.withValues(alpha: 0.12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isPending ? Icons.hourglass_top_rounded : Icons.cancel_outlined,
+                    color: _statusColor,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _statusLabel,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: _statusColor,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Dashed Divider / Cut Line
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -86,7 +154,7 @@ class ThermalReceiptCard extends StatelessWidget {
                 (i) => Expanded(
                   child: Container(
                     height: 1.5,
-                    color: i % 2 == 0 ? Colors.grey.shade400 : Colors.transparent,
+                    color: i % 2 == 0 ? Colors.grey.shade300 : Colors.transparent,
                   ),
                 ),
               ),
@@ -110,27 +178,52 @@ class ThermalReceiptCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 const Divider(thickness: 1, color: Color(0xFFE2E8F0)),
                 const SizedBox(height: 12),
+
+                // Amount section — status-aware label and color
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'TOTAL PAID',
+                    Text(
+                      _amountLabel,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF64748B),
+                        color: _statusColor,
                       ),
                     ),
                     Text(
                       '${transaction.currency} ${transaction.amount.toStringAsFixed(2)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
-                        color: AppColors.primary,
+                        color: _statusColor,
                       ),
                     ),
                   ],
                 ),
+
+                // Status pill
+                const SizedBox(height: 10),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _statusColor.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      _statusLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: _statusColor,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ),
+
                 const SizedBox(height: 16),
                 // Simulated Barcode
                 Center(
@@ -162,6 +255,34 @@ class ThermalReceiptCard extends StatelessWidget {
                           letterSpacing: 2,
                           color: Color(0xFF64748B),
                           fontFamily: 'Courier',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Footer message
+                const SizedBox(height: 16),
+                const Divider(thickness: 1, color: Color(0xFFE2E8F0)),
+                const SizedBox(height: 10),
+                const Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        'Thank You For Your Business',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'System developed by Whitsun',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -208,7 +329,7 @@ class ThermalReceiptCard extends StatelessWidget {
                         () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Receipt printed via POS Thermal node'),
+                              content: Text('Receipt sent to POS Thermal printer'),
                               backgroundColor: AppColors.success,
                             ),
                           );
@@ -243,12 +364,15 @@ class ThermalReceiptCard extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF0F172A),
-              fontWeight: FontWeight.w700,
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF0F172A),
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],

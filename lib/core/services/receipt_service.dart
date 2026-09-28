@@ -7,6 +7,22 @@ class ReceiptService {
     final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
     final formattedDate = dateFormat.format(txn.timestamp);
 
+    String amountLabel;
+    switch (txn.status) {
+      case TransactionStatus.success:
+        amountLabel = 'TOTAL PAID';
+        break;
+      case TransactionStatus.pending:
+        amountLabel = 'AMOUNT PENDING';
+        break;
+      case TransactionStatus.failed:
+        amountLabel = 'AMOUNT (NOT CHARGED)';
+        break;
+      case TransactionStatus.refunded:
+        amountLabel = 'AMOUNT REFUNDED';
+        break;
+    }
+
     return '''
 ================================
           SWAGPAY
@@ -23,13 +39,13 @@ Customer:   ${txn.customerName}
 Number:     ${txn.customerNumber}
 Network:    ${txn.networkDisplay}
 --------------------------------
-AMOUNT PAID: ${txn.currency} ${txn.amount.toStringAsFixed(2)}
 STATUS:     ${txn.status.name.toUpperCase()}
+$amountLabel: ${txn.currency} ${txn.amount.toStringAsFixed(2)}
 --------------------------------
 Idempotency: ${txn.idempotencyKey.substring(0, 8)}...
 ================================
-   THANK YOU FOR YOUR PAYMENT
-      Powered by SwagPay
+  Thank You For Your Business
+  System developed by Whitsun
 ================================
 ''';
   }

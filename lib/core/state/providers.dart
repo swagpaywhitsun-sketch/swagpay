@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,7 +17,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient();
 });
 
-// Notifier to trigger UI rebuilds when payment repository data changes
+// Notifier to track UI rebuild version (separate from repository lifecycle)
 class PaymentVersionNotifier extends Notifier<int> {
   @override
   int build() => 0;
@@ -26,16 +27,43 @@ class PaymentVersionNotifier extends Notifier<int> {
 
 final paymentVersionProvider = NotifierProvider<PaymentVersionNotifier, int>(PaymentVersionNotifier.new);
 
-// PaymentRepository provider (reacts to paymentVersionProvider)
+// PaymentRepository Notifier — keeps repository alive across data refreshes.
+// Using a Notifier ensures the PaymentRepository instance is created ONCE and
+// never destroyed/recreated when onChanged fires (which was causing data loss).
+class PaymentRepositoryNotifier extends Notifier<int> {
+  late PaymentRepository _repo;
+  Timer? _refreshTimer;
+
+  @override
+  int build() {
+    final client = ref.read(apiClientProvider);
+    final prefs = ref.read(sharedPreferencesProvider);
+    _repo = PaymentRepository(
+      apiClient: client,
+      prefs: prefs,
+      onChanged: () => state++, // bump version to rebuild consumers without destroying repo
+    );
+    // Auto-refresh every 30 seconds to keep data live
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _repo.refreshFromBackend();
+    });
+    ref.onDispose(() => _refreshTimer?.cancel());
+    return 0;
+  }
+
+  PaymentRepository get repo => _repo;
+
+  Future<void> manualRefresh() => _repo.refreshFromBackend();
+}
+
+final paymentRepositoryNotifierProvider =
+    NotifierProvider<PaymentRepositoryNotifier, int>(PaymentRepositoryNotifier.new);
+
+// Public provider — consumers watch this and get the stable repository instance.
+// Reading paymentRepositoryNotifierProvider ensures consumers rebuild when data changes.
 final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
-  ref.watch(paymentVersionProvider);
-  final client = ref.watch(apiClientProvider);
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return PaymentRepository(
-    apiClient: client,
-    prefs: prefs,
-    onChanged: () => ref.read(paymentVersionProvider.notifier).bump(),
-  );
+  ref.watch(paymentRepositoryNotifierProvider); // react to data changes
+  return ref.read(paymentRepositoryNotifierProvider.notifier).repo;
 });
 
 // Theme Mode Provider using modern Riverpod Notifier
