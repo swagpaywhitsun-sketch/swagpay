@@ -6,7 +6,6 @@ import '../../core/models/customer.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/numeric_keypad.dart';
 import '../../core/widgets/thermal_receipt_card.dart';
 
 class NewCollectionScreen extends ConsumerStatefulWidget {
@@ -25,9 +24,9 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   int _currentStep = 1;
 
   final _phoneController = TextEditingController();
+  final _amountController = TextEditingController();
   Customer? _lookupCustomer;
   bool _isLookingUp = false;
-  String _amountString = '0';
   String? _detectedNetwork;
 
   String? _activeReference;
@@ -41,6 +40,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   void dispose() {
     _pollingTimer?.cancel();
     _phoneController.dispose();
+    _amountController.dispose();
     super.dispose();
   }
 
@@ -76,33 +76,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     }
   }
 
-  double get _currentAmount => double.tryParse(_amountString) ?? 0.0;
-
-  void _handleKeypadPress(String key) {
-    setState(() {
-      if (_amountString == '0') {
-        _amountString = key;
-      } else if (_amountString.length < 9) {
-        _amountString += key;
-      }
-    });
-  }
-
-  void _handleKeypadDelete() {
-    setState(() {
-      if (_amountString.length > 1) {
-        _amountString = _amountString.substring(0, _amountString.length - 1);
-      } else {
-        _amountString = '0';
-      }
-    });
-  }
-
-  void _handleKeypadClear() {
-    setState(() {
-      _amountString = '0';
-    });
-  }
+  double get _currentAmount => double.tryParse(_amountController.text.trim()) ?? 0.0;
 
   void _startMoMoCollection() async {
     final auth = ref.read(authProvider);
@@ -175,7 +149,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     setState(() {
       _currentStep = 1;
       _phoneController.clear();
-      _amountString = '0';
+      _amountController.clear();
       _lookupCustomer = null;
       _detectedNetwork = null;
       _activeReference = null;
@@ -198,7 +172,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: _buildCurrentContent(context),
         ),
       ),
@@ -222,8 +196,6 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
   // --- STEP 1: PHONE NUMBER & AMOUNT ENTRY ---
   Widget _buildStep1Entry() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -258,7 +230,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                     : null),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
 
         // Verified Account Holder Banner
         if (_lookupCustomer != null) ...[
@@ -285,58 +257,32 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           const SizedBox(height: 12),
         ],
 
-        // Prominent Amount Box (in GH₵)
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : AppColors.primary.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-          ),
-          alignment: Alignment.center,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'AMOUNT TO COLLECT (GHS)',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 2),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  'GH₵ $_amountString',
-                  style: const TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.primary,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ),
-            ],
+        // Amount Input Field (Native Keyboard)
+        TextField(
+          controller: _amountController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (_) => setState(() {}),
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.primary),
+          decoration: InputDecoration(
+            labelText: 'Amount to Collect (GHS) *',
+            hintText: '0.00',
+            prefixText: 'GH₵ ',
+            prefixStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.primary),
+            prefixIcon: const Icon(Icons.payments_rounded),
           ),
         ),
-        const SizedBox(height: 8),
-
-        // Keypad
-        NumericKeypad(
-          onKeyPress: _handleKeypadPress,
-          onDelete: _handleKeypadDelete,
-          onClear: _handleKeypadClear,
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 24),
 
         // Request Payment Button
         ElevatedButton.icon(
           onPressed: (_currentAmount <= 0 || _phoneController.text.trim().length < 9)
               ? null
               : _startMoMoCollection,
-          icon: const Icon(Icons.send_rounded, size: 18),
+          icon: const Icon(Icons.send_rounded, size: 20),
           label: const Text('Send MoMo Prompt to Customer'),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(vertical: 16),
           ),
         ),
       ],
