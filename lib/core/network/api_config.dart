@@ -23,5 +23,6 @@ class ApiConfig {
   static const String tellers = '/api/tellers';
   static const String posDevices = '/api/pos';
   static const String refunds = '/api/refunds';
+  static const String settlements = '/api/settlements';
   static const String auditLogs = '/api/audit-logs';
 }

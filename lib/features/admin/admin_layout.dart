@@ -82,17 +82,144 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
             icon: const Icon(Icons.brightness_6_outlined),
             onPressed: () => ref.read(themeModeProvider.notifier).toggleTheme(),
           ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => context.go('/admin/settings'),
-          ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: AppColors.primaryLight,
-            child: Text(
-              user?.fullName.substring(0, 1).toUpperCase() ?? 'A',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+          const SizedBox(width: 4),
+          // User Avatar with Settings Dropdown
+          PopupMenuButton<String>(
+            tooltip: 'Account Menu & Settings',
+            offset: const Offset(0, 48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            color: isDark ? AppColors.darkSurfaceElevated : Colors.white,
+            onSelected: (val) {
+              if (val == 'settings') {
+                context.go('/admin/settings');
+              } else if (val == 'reports') {
+                context.go('/admin/reports');
+              } else if (val == 'theme') {
+                ref.read(themeModeProvider.notifier).toggleTheme();
+              } else if (val == 'teller_mode') {
+                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.teller);
+                context.go('/teller/dashboard');
+              } else if (val == 'logout') {
+                ref.read(authProvider.notifier).logout();
+                context.go('/teller/login');
+              }
+            },
+            itemBuilder: (ctx) => [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user?.fullName ?? 'Administrator',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      user?.email ?? 'admin@swagpay.com',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'SUPER ADMIN POS',
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primaryLight),
+                      ),
+                    ),
+                    const Divider(height: 16),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings_outlined, size: 18, color: AppColors.primaryLight),
+                    SizedBox(width: 10),
+                    Text('System Settings & API', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'reports',
+                child: Row(
+                  children: [
+                    Icon(Icons.insights_rounded, size: 18, color: AppColors.success),
+                    SizedBox(width: 10),
+                    Text('Reports & Analytics', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'theme',
+                child: Row(
+                  children: [
+                    Icon(Icons.brightness_6_outlined, size: 18),
+                    SizedBox(width: 10),
+                    Text('Toggle Dark / Light Mode', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'teller_mode',
+                child: Row(
+                  children: [
+                    Icon(Icons.phone_android_rounded, size: 18, color: AppColors.gold),
+                    SizedBox(width: 10),
+                    Text('Switch to Teller Mobile App', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, size: 18, color: AppColors.error),
+                    SizedBox(width: 10),
+                    Text('Sign Out', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.error)),
+                  ],
+                ),
+              ),
+            ],
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: AppColors.primaryLight,
+                      child: Text(
+                        user?.fullName.substring(0, 1).toUpperCase() ?? 'A',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      user?.fullName ?? 'Admin',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70, size: 20),
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 16),

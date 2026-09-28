@@ -44,8 +44,8 @@ class SettlementRecord {
         variance: (json['variance'] as num).toDouble(),
         transactionCount: json['transactionCount'] as int,
         status: SettlementStatus.values.firstWhere(
-          (s) => s.name == json['status'],
-          orElse: () => SettlementStatus.unsettled,
+          (s) => s.name.toLowerCase() == (json['status'] as String? ?? '').toLowerCase(),
+          orElse: () => SettlementStatus.settled,
         ),
         notes: json['notes'] as String?,
       );

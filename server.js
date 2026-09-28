@@ -386,10 +386,88 @@ app.get('/api/tellers', async (req, res) => {
   }
 });
 
+app.post('/api/tellers', async (req, res) => {
+  const { id, name, email, phone, role, posId } = req.body;
+  const tellerId = id || `usr_${Date.now()}`;
+  try {
+    await pool.query(
+      `INSERT INTO users (id, name, email, phone, pin, role, "posId", active, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, '1234', $5, $6, 1, NOW(), NOW())
+       ON CONFLICT (id) DO UPDATE SET name = $2, email = $3, phone = $4, role = $5, "posId" = $6`,
+      [tellerId, name, email, phone || '', role || 'TELLER', posId || 'pos_01']
+    );
+    res.json({ success: true, id: tellerId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/pos', async (req, res) => {
   try {
     const result = await pool.query('SELECT id, code, name, location, active, "createdAt" FROM pos_terminals ORDER BY "createdAt" ASC');
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pos', async (req, res) => {
+  const { id, code, name, location } = req.body;
+  const posId = id || `pos_${Date.now()}`;
+  const posCode = code || `POS-${Math.floor(1000 + Math.random() * 9000)}`;
+  try {
+    await pool.query(
+      `INSERT INTO pos_terminals (id, code, name, location, active, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, 1, NOW(), NOW())
+       ON CONFLICT (id) DO UPDATE SET code = $2, name = $3, location = $4`,
+      [posId, posCode, name, location || 'Counter']
+    );
+    res.json({ success: true, id: posId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── SETTLEMENTS & RECONCILIATION ─────────────────────
+app.get('/api/settlements', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        TO_CHAR("createdAt", 'YYYY-MM-DD') as date_str,
+        COUNT(*) as "transactionCount",
+        COALESCE(SUM(CASE WHEN status = 'SUCCESS' THEN amount ELSE 0 END), 0) as "totalCollected",
+        COALESCE(SUM(CASE WHEN status = 'SUCCESS' THEN (amount - fee) ELSE 0 END), 0) as "totalSettled"
+      FROM transactions
+      GROUP BY TO_CHAR("createdAt", 'YYYY-MM-DD')
+      ORDER BY date_str DESC
+    `);
+
+    const settlements = result.rows.map((row) => ({
+      id: `SET-${row.date_str.replace(/-/g, '')}`,
+      date: new Date(row.date_str).toISOString(),
+      totalCollected: parseFloat(row.totalCollected),
+      totalSettled: parseFloat(row.totalSettled),
+      variance: 0.0,
+      transactionCount: parseInt(row.transactionCount, 10),
+      status: 'SETTLED',
+      discrepancies: []
+    }));
+
+    if (settlements.length === 0) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      settlements.push({
+        id: `SET-${todayStr.replace(/-/g, '')}`,
+        date: new Date().toISOString(),
+        totalCollected: 0.0,
+        totalSettled: 0.0,
+        variance: 0.0,
+        transactionCount: 0,
+        status: 'SETTLED',
+        discrepancies: []
+      });
+    }
+
+    res.json(settlements);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

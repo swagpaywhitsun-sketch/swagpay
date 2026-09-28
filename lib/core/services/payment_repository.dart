@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_records.dart';
 import '../models/customer.dart';
@@ -13,17 +14,21 @@ import '../network/api_config.dart';
 class PaymentRepository {
   final ApiClient apiClient;
   final SharedPreferences prefs;
+  final VoidCallback? onChanged;
 
   List<PaymentTransaction> _transactions = [];
   List<AppUser> _tellers = [];
   List<PosDevice> _posDevices = [];
   List<RefundRequest> _refundRequests = [];
-  final List<SettlementRecord> _settlements = [];
+  List<SettlementRecord> _settlements = [];
   List<AuditLog> _auditLogs = [];
   final List<AppNotificationItem> _notifications = [];
   ShiftRecord? _activeShift;
+  bool _isLoading = false;
 
-  PaymentRepository({required this.apiClient, required this.prefs}) {
+  bool get isLoading => _isLoading;
+
+  PaymentRepository({required this.apiClient, required this.prefs, this.onChanged}) {
     final savedBaseUrl = prefs.getString('custom_base_url');
     if (savedBaseUrl != null && savedBaseUrl.isNotEmpty) {
       apiClient.updateBaseUrl(savedBaseUrl);
@@ -82,7 +87,15 @@ class PaymentRepository {
         _refundRequests = refRes.data!.map((e) => RefundRequest.fromJson(e as Map<String, dynamic>)).toList();
       }
 
-      // 5. Fetch real audit logs
+      // 5. Fetch real settlements
+      try {
+        final setRes = await apiClient.get<List<dynamic>>(ApiConfig.settlements);
+        if (setRes.data != null) {
+          _settlements = setRes.data!.map((e) => SettlementRecord.fromJson(e as Map<String, dynamic>)).toList();
+        }
+      } catch (_) {}
+
+      // 6. Fetch real audit logs
       final audRes = await apiClient.get<List<dynamic>>(ApiConfig.auditLogs);
       if (audRes.data != null) {
         _auditLogs = audRes.data!.map((e) {
@@ -102,6 +115,9 @@ class PaymentRepository {
       }
     } catch (_) {
       // Non-fatal if offline
+    } finally {
+      _isLoading = false;
+      onChanged?.call();
     }
   }
 
@@ -252,12 +268,49 @@ class PaymentRepository {
   List<AppNotificationItem> getNotifications() => List.unmodifiable(_notifications);
 
   Future<void> addTeller(AppUser teller) async {
-    _tellers.add(teller);
+    try {
+      await apiClient.post(
+        ApiConfig.tellers,
+        data: {
+          'id': teller.id,
+          'name': teller.fullName,
+          'email': teller.email,
+          'phone': teller.phone,
+          'role': teller.role == UserRole.admin ? 'ADMIN' : 'TELLER',
+          'posId': teller.assignedPos.isNotEmpty ? teller.assignedPos.first : 'pos_01',
+        },
+      );
+      await refreshFromBackend();
+    } catch (_) {
+      _tellers.add(teller);
+      onChanged?.call();
+    }
+  }
+
+  Future<void> addPosDevice(PosDevice pos) async {
+    try {
+      await apiClient.post(
+        ApiConfig.posDevices,
+        data: {
+          'id': pos.id,
+          'code': pos.serialNumber,
+          'name': pos.name,
+          'location': pos.location,
+        },
+      );
+      await refreshFromBackend();
+    } catch (_) {
+      _posDevices.add(pos);
+      onChanged?.call();
+    }
   }
 
   Future<void> updatePosDevice(PosDevice pos) async {
     final idx = _posDevices.indexWhere((p) => p.id == pos.id);
-    if (idx != -1) _posDevices[idx] = pos;
+    if (idx != -1) {
+      _posDevices[idx] = pos;
+      onChanged?.call();
+    }
   }
 
   // --- OFFLINE QUEUE ---

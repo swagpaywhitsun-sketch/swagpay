@@ -144,7 +144,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 4),
                             const Text(
-                              'Volume in ₦ thousands across all branch counters',
+                              'Volume in GH₵ across all active counter nodes',
                               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                             const SizedBox(height: 24),
@@ -204,17 +204,17 @@ class AdminDashboardScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 16),
                             _buildAlertItem(
-                              icon: Icons.warning_amber_rounded,
-                              color: AppColors.gold,
-                              title: 'Reconciliation Discrepancy',
-                              subtitle: 'SET-2026-0927 has ₦2,000 variance.',
+                              icon: Icons.check_circle_rounded,
+                              color: AppColors.success,
+                              title: 'Reconciliation Clean',
+                              subtitle: 'All counter collections match settlement pool.',
                             ),
                             const Divider(height: 20),
                             _buildAlertItem(
-                              icon: Icons.phonelink_erase_rounded,
-                              color: AppColors.error,
-                              title: 'Terminal Offline',
-                              subtitle: 'POS-IKEJA-01 inactive for >18 hrs.',
+                              icon: Icons.wifi_rounded,
+                              color: AppColors.success,
+                              title: 'POS-01 Connected',
+                              subtitle: 'Accra Mall Food Court active on MoMo gateway.',
                             ),
                             const Divider(height: 20),
                             _buildAlertItem(
@@ -255,33 +255,41 @@ class AdminDashboardScreen extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(
-                        isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
-                      ),
-                      columns: const [
-                        DataColumn(label: Text('REFERENCE', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('CUSTOMER', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('AMOUNT', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('NETWORK', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('TELLER / POS', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
-                      ],
-                      rows: txns.take(5).map((t) {
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(t.reference, style: const TextStyle(fontWeight: FontWeight.w600))),
-                            DataCell(Text('${t.customerName} (${t.customerNumber})')),
-                            DataCell(Text('GH₵ ${t.amount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold))),
-                            DataCell(Text(t.networkDisplay)),
-                            DataCell(Text('${t.tellerName} • ${t.posId}')),
-                            DataCell(StatusBadge(status: t.status)),
-                          ],
-                        );
-                      }).toList(),
-                    ),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: DataTable(
+                            columnSpacing: 28,
+                            headingRowColor: WidgetStateProperty.all(
+                              isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
+                            ),
+                            columns: const [
+                              DataColumn(label: Text('REFERENCE', style: TextStyle(fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('CUSTOMER', style: TextStyle(fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('AMOUNT (GHS)', style: TextStyle(fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('NETWORK', style: TextStyle(fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('CASHIER / POS', style: TextStyle(fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
+                            ],
+                            rows: txns.take(5).map((t) {
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(t.reference, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                  DataCell(Text('${t.customerName} (${t.customerNumber})')),
+                                  DataCell(Text('GH₵ ${t.amount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                                  DataCell(Text(t.networkDisplay)),
+                                  DataCell(Text('${t.tellerName} • ${t.posId}')),
+                                  DataCell(StatusBadge(status: t.status)),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

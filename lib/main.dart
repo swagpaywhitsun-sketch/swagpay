@@ -128,7 +128,7 @@ final _router = GoRouter(
       path: '/admin/reports',
       builder: (context, state) => const AdminLayout(
         currentRoute: '/admin/reports',
-        child: TellerReportsScreen(),
+        child: AdminReportsScreen(),
       ),
     ),
     GoRoute(

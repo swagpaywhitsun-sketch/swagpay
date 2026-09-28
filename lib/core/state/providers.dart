@@ -16,11 +16,26 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient();
 });
 
-// PaymentRepository provider
+// Notifier to trigger UI rebuilds when payment repository data changes
+class PaymentVersionNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final paymentVersionProvider = NotifierProvider<PaymentVersionNotifier, int>(PaymentVersionNotifier.new);
+
+// PaymentRepository provider (reacts to paymentVersionProvider)
 final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
+  ref.watch(paymentVersionProvider);
   final client = ref.watch(apiClientProvider);
   final prefs = ref.watch(sharedPreferencesProvider);
-  return PaymentRepository(apiClient: client, prefs: prefs);
+  return PaymentRepository(
+    apiClient: client,
+    prefs: prefs,
+    onChanged: () => ref.read(paymentVersionProvider.notifier).bump(),
+  );
 });
 
 // Theme Mode Provider using modern Riverpod Notifier

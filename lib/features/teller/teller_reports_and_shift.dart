@@ -19,6 +19,18 @@ class TellerReportsScreen extends ConsumerWidget {
     final failedTxns = txns.where((t) => t.status == TransactionStatus.failed).toList();
     final totalAmount = successTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
 
+    final mtnTxns = successTxns.where((t) => t.network == MoMoNetwork.mtn).toList();
+    final telecelTxns = successTxns.where((t) => t.network == MoMoNetwork.vodafone).toList();
+    final atTxns = successTxns.where((t) => t.network == MoMoNetwork.airtel).toList();
+
+    final mtnAmount = mtnTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
+    final telecelAmount = telecelTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
+    final atAmount = atTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
+
+    final mtnFraction = totalAmount > 0 ? (mtnAmount / totalAmount) : 0.0;
+    final telecelFraction = totalAmount > 0 ? (telecelAmount / totalAmount) : 0.0;
+    final atFraction = totalAmount > 0 ? (atAmount / totalAmount) : 0.0;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Teller Performance Reports')),
       body: SingleChildScrollView(
@@ -122,11 +134,11 @@ class TellerReportsScreen extends ConsumerWidget {
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 16),
-                    _buildChannelProgress('MTN MoMo', 0.70, 'GH₵ 15,200', AppColors.gold),
+                    _buildChannelProgress('MTN MoMo (${mtnTxns.length})', mtnFraction, 'GH₵ ${NumberFormat('#,##0.00').format(mtnAmount)} (${(mtnFraction * 100).toStringAsFixed(1)}%)', AppColors.gold),
                     const SizedBox(height: 12),
-                    _buildChannelProgress('Telecel Cash', 0.20, 'GH₵ 4,350', AppColors.error),
+                    _buildChannelProgress('Telecel Cash (${telecelTxns.length})', telecelFraction, 'GH₵ ${NumberFormat('#,##0.00').format(telecelAmount)} (${(telecelFraction * 100).toStringAsFixed(1)}%)', AppColors.error),
                     const SizedBox(height: 12),
-                    _buildChannelProgress('AT Money', 0.10, 'GH₵ 2,100', AppColors.primaryLight),
+                    _buildChannelProgress('AT Money (${atTxns.length})', atFraction, 'GH₵ ${NumberFormat('#,##0.00').format(atAmount)} (${(atFraction * 100).toStringAsFixed(1)}%)', AppColors.primaryLight),
                   ],
                 ),
               ),
