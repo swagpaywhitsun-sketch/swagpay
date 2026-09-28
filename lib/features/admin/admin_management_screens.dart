@@ -102,7 +102,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
     final avgLimit = allTellers.isNotEmpty ? totalLimit / allTellers.length : 0.0;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -451,7 +451,7 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
     final whitelistedCount = allDevices.where((p) => p.isWhitelisted).length;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -724,7 +724,7 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
     final successRate = allTxns.isEmpty ? 100 : ((successfulTxns.length / allTxns.length) * 100).toInt();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

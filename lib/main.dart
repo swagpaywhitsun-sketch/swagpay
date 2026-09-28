@@ -88,10 +88,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const TellerReportsScreen(),
       ),
       GoRoute(
-        path: '/teller/shift',
-        builder: (context, state) => const TellerShiftScreen(),
-      ),
-      GoRoute(
         path: '/teller/profile',
         builder: (context, state) => const TellerProfileScreen(),
       ),
@@ -187,6 +183,11 @@ class SwagPayApp extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) {
+        return SelectionArea(
+          child: child ?? const SizedBox(),
+        );
+      },
     );
   }
 }

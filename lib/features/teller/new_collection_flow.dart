@@ -428,11 +428,37 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
 
         ElevatedButton(
           onPressed: () => setState(() => _currentStep = 1),
           child: const Text('Try Again'),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: () {
+            final auth = ref.read(authProvider);
+            final user = auth.currentUser;
+            final repo = ref.read(paymentRepositoryProvider);
+            final txn = repo.recordOfflineTransaction(
+              momoNumber: _phoneController.text.trim(),
+              amount: _currentAmount,
+              customerName: _lookupCustomer?.name,
+              tellerId: user?.id ?? 'usr_teller',
+              posId: user?.assignedPos.firstOrNull ?? 'pos_01',
+            );
+            _pollingTimer?.cancel();
+            setState(() {
+              _completedTransaction = txn;
+              _currentStep = 3; // Success (Receipt)
+            });
+          },
+          icon: const Icon(Icons.cloud_off_rounded),
+          label: const Text('Complete via Offline Counter Queue'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.gold,
+            foregroundColor: Colors.white,
+          ),
         ),
         const SizedBox(height: 12),
         OutlinedButton(

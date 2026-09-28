@@ -47,7 +47,7 @@ class _AdminRefundsScreenState extends ConsumerState<AdminRefundsScreen> {
         .fold<double>(0.0, (acc, r) => acc + r.amount);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -343,7 +343,7 @@ class _AdminSettlementsScreenState extends ConsumerState<AdminSettlementsScreen>
     final variance = totalCollected - totalSettled;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -572,7 +572,7 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
     }).toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -828,7 +828,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1273,7 +1273,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

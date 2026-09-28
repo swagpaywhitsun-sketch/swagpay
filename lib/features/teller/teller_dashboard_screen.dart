@@ -116,16 +116,6 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                 ),
               ),
               const PopupMenuItem<String>(
-                value: 'shift',
-                child: Row(
-                  children: [
-                    Icon(Icons.point_of_sale_rounded, size: 20, color: AppColors.primary),
-                    SizedBox(width: 12),
-                    Text('Active Shift Reconciliation'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem<String>(
                 value: 'reports',
                 child: Row(
                   children: [
@@ -175,75 +165,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Shift Banner
-              Builder(builder: (context) {
-                final shift = repo.activeShift ?? repo.getOrCreateActiveShift(tellerId: user?.id, tellerName: user?.fullName);
-                final isShiftActive = !shift.isClosed;
-                final timeFormat = DateFormat('hh:mm a');
 
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.2),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: isShiftActive ? AppColors.success : Colors.white70,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                isShiftActive ? 'ACTIVE SHIFT • OPEN' : 'SHIFT CLOSED',
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.5),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            isShiftActive
-                                ? 'Started ${timeFormat.format(shift.startTime)} • GH₵ ${shift.totalCollected.toStringAsFixed(2)}'
-                                : 'Counter: ${user?.branch ?? 'Accra Mall Hub'}',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                        ],
-                      ),
-                      ElevatedButton(
-                        onPressed: () => context.push('/teller/shift'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          minimumSize: Size.zero,
-                        ),
-                        child: Text(
-                          isShiftActive ? 'Reconcile' : 'Manage Shift',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-              const SizedBox(height: 16),
 
               // KPI Card: Full-width Today's Collections (supporting 6-10+ figures comfortably)
               StatCard(
@@ -319,10 +241,10 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                 children: [
                   _buildQuickActionTile(
                     context,
-                    title: 'Counter Shift',
-                    icon: Icons.point_of_sale_rounded,
+                    title: 'History',
+                    icon: Icons.receipt_long_rounded,
                     color: AppColors.primary,
-                    onTap: () => context.push('/teller/shift'),
+                    onTap: () => context.push('/teller/history'),
                   ),
                   const SizedBox(width: 10),
                   _buildQuickActionTile(
@@ -403,14 +325,12 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
             setState(() => _bottomNavIndex = index);
             if (index == 1) context.push('/teller/history');
             if (index == 2) context.push('/teller/reports');
-            if (index == 3) context.push('/teller/shift');
-            if (index == 4) context.push('/teller/profile');
+            if (index == 3) context.push('/teller/profile');
           },
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
             BottomNavigationBarItem(icon: Icon(Icons.receipt_long_rounded), label: 'History'),
             BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded), label: 'Reports'),
-            BottomNavigationBarItem(icon: Icon(Icons.point_of_sale_rounded), label: 'Shift'),
             BottomNavigationBarItem(icon: Icon(Icons.account_circle_rounded), label: 'Profile'),
           ],
         ),

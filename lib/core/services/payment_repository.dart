@@ -314,8 +314,50 @@ class PaymentRepository {
   }
 
   // --- OFFLINE QUEUE ---
-  List<PaymentTransaction> getOfflineQueue() => const [];
-  Future<int> syncOfflineQueue() async => 0;
+  final List<PaymentTransaction> _offlineQueue = [];
+
+  List<PaymentTransaction> getOfflineQueue() => List.unmodifiable(_offlineQueue);
+
+  PaymentTransaction recordOfflineTransaction({
+    required String momoNumber,
+    required double amount,
+    String? customerName,
+    required String tellerId,
+    required String posId,
+    MoMoNetwork? network,
+  }) {
+    final now = DateTime.now();
+    final ref = 'OFF-${now.millisecondsSinceEpoch}-${(1000 + (now.microsecond % 9000))}';
+    final rcpt = 'RCPT-OFF-${now.millisecondsSinceEpoch % 1000000}';
+    final txn = PaymentTransaction(
+      id: 'tx_off_${now.millisecondsSinceEpoch}',
+      reference: ref,
+      amount: amount,
+      currency: 'GH₵',
+      status: TransactionStatus.success,
+      network: network ?? MoMoNetwork.mtn,
+      customerNumber: momoNumber,
+      customerPhone: momoNumber,
+      customerName: customerName ?? 'Counter Customer',
+      tellerId: tellerId,
+      tellerName: 'Teller Cashier',
+      posId: posId,
+      timestamp: now,
+      receiptNumber: rcpt,
+      idempotencyKey: 'idemp_off_${now.millisecondsSinceEpoch}',
+    );
+    _offlineQueue.insert(0, txn);
+    _transactions.insert(0, txn);
+    onChanged?.call();
+    return txn;
+  }
+
+  Future<int> syncOfflineQueue() async {
+    final count = _offlineQueue.length;
+    _offlineQueue.clear();
+    onChanged?.call();
+    return count;
+  }
 
   // --- SHIFTS ---
   ShiftRecord? get activeShift {

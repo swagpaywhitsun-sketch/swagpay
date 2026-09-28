@@ -34,6 +34,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         elevation: 0,
+        toolbarHeight: 48,
         title: Row(
           children: [
             if (isWide)
@@ -208,7 +209,15 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
           if (isWide)
             Container(
               width: _isSidebarCollapsed ? 70 : 240,
-              color: isDark ? AppColors.darkSurface : const Color(0xFF061829),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF262626) : const Color(0xFF303030),
+                border: const Border(
+                  right: BorderSide(
+                    color: Color(0xFF3E3E3E),
+                    width: 1,
+                  ),
+                ),
+              ),
               child: Column(
                 children: [
                   Expanded(
@@ -303,13 +312,16 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: isSelected ? AppColors.primaryLight.withValues(alpha: 0.3) : Colors.transparent,
+        color: isSelected ? AppColors.primary.withValues(alpha: 0.18) : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
+        border: isSelected
+            ? Border.all(color: AppColors.primary.withValues(alpha: 0.35), width: 1)
+            : null,
       ),
       child: ListTile(
         leading: Icon(
           icon,
-          color: isSelected ? AppColors.success : Colors.white70,
+          color: isSelected ? AppColors.primary : const Color(0xFFB0B8C1),
           size: 20,
         ),
         title: _isSidebarCollapsed
@@ -319,7 +331,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? Colors.white : Colors.white70,
+                  color: isSelected ? Colors.white : const Color(0xFFE0E0E0),
                 ),
               ),
         dense: true,
