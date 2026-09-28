@@ -4,10 +4,11 @@ class ApiConfig {
   static String _resolveBaseUrl() {
     const envUrl = String.fromEnvironment('API_URL');
     if (envUrl.isNotEmpty) return envUrl;
-    if (kIsWeb) {
+    if (kIsWeb && Uri.base.origin.contains('swagpay.fly.dev')) {
       return Uri.base.origin;
     }
-    return 'http://localhost:8080';
+    // Production Fly.io gateway for APK, iOS and Web testing
+    return 'https://swagpay.fly.dev';
   }
 
   static String baseUrl = _resolveBaseUrl();

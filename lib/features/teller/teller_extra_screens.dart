@@ -50,10 +50,133 @@ class TellerNotificationsScreen extends ConsumerWidget {
 class TellerProfileScreen extends ConsumerWidget {
   const TellerProfileScreen({super.key});
 
+  void _showAvatarPicker(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final urlController = TextEditingController();
+
+    final presetAvatars = [
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200',
+      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200',
+      'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=200',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Set Profile Picture',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Choose a profile avatar preset or provide a custom image URL:',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 72,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: presetAvatars.length,
+                  separatorBuilder: (context, index) => const SizedBox(width: 12),
+                  itemBuilder: (context, idx) {
+                    final pUrl = presetAvatars[idx];
+                    return InkWell(
+                      onTap: () {
+                        ref.read(userAvatarProvider.notifier).setAvatar(pUrl);
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Profile photo updated!'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(36),
+                      child: CircleAvatar(
+                        radius: 32,
+                        backgroundImage: NetworkImage(pUrl),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: urlController,
+                decoration: const InputDecoration(
+                  labelText: 'Custom Photo URL (https://...)',
+                  prefixIcon: Icon(Icons.link_rounded),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () {
+                  final text = urlController.text.trim();
+                  if (text.isNotEmpty) {
+                    ref.read(userAvatarProvider.notifier).setAvatar(text);
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Profile picture updated!'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Save Custom Photo URL'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  ref.read(userAvatarProvider.notifier).clearAvatar();
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Profile photo reset to default initial')),
+                  );
+                },
+                child: const Text('Reset to Default Initial', style: TextStyle(color: AppColors.error)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authProvider);
     final user = auth.currentUser;
+    final avatar = ref.watch(userAvatarProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -66,27 +189,57 @@ class TellerProfileScreen extends ConsumerWidget {
             Center(
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: AppColors.primary,
-                    child: Text(
-                      user?.fullName.substring(0, 1).toUpperCase() ?? 'T',
-                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 44,
+                        backgroundColor: AppColors.primary,
+                        backgroundImage: avatar != null && avatar.startsWith('http')
+                            ? NetworkImage(avatar)
+                            : null,
+                        child: avatar == null || !avatar.startsWith('http')
+                            ? Text(
+                                user?.fullName.isNotEmpty == true ? user!.fullName[0].toUpperCase() : 'T',
+                                style: const TextStyle(fontSize: 34, fontWeight: FontWeight.bold, color: Colors.white),
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: InkWell(
+                          onTap: () => _showAvatarPicker(context, ref),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: AppColors.primaryDark,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => _showAvatarPicker(context, ref),
+                    icon: const Icon(Icons.photo_camera_rounded, size: 16),
+                    label: const Text('Change Profile Picture', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  ),
+                  const SizedBox(height: 4),
                   Text(
                     user?.fullName ?? 'Teller Cashier',
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                   ),
                   Text(
-                    '${user?.roleDisplay} • ${user?.branch ?? 'Victoria Island'}',
+                    '${user?.roleDisplay} • ${user?.branch ?? 'Accra Mall Hub'}',
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
 
             // Profile info cards
             Card(
@@ -107,7 +260,7 @@ class TellerProfileScreen extends ConsumerWidget {
                   ListTile(
                     leading: const Icon(Icons.point_of_sale_outlined),
                     title: const Text('Assigned POS Terminal'),
-                    subtitle: Text(user?.assignedPos.firstOrNull ?? 'POS-IKOYI-01'),
+                    subtitle: Text(user?.assignedPos.firstOrNull ?? 'POS-01'),
                   ),
                   const Divider(height: 1),
                   ListTile(
@@ -120,7 +273,7 @@ class TellerProfileScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
 
-            // Hardware & Settings
+            // Hardware & Settings (Biometrics removed per instructions)
             Card(
               child: Column(
                 children: [
@@ -137,10 +290,11 @@ class TellerProfileScreen extends ConsumerWidget {
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading: const Icon(Icons.fingerprint_rounded, color: AppColors.success),
-                    title: const Text('Biometric Authentication'),
-                    subtitle: const Text('Enabled for instant payment sign-off'),
-                    trailing: Switch(value: true, onChanged: (_) {}),
+                    leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
+                    title: const Text('Profile Picture'),
+                    subtitle: const Text('Tap to change or upload avatar'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => _showAvatarPicker(context, ref),
                   ),
                   const Divider(height: 1),
                   ListTile(

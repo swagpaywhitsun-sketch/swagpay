@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/models/user.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -113,8 +112,8 @@ class TellerLoginScreen extends ConsumerStatefulWidget {
 }
 
 class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
-  final _emailController = TextEditingController(text: 'john.doe@swagpay.com');
-  final _passwordController = TextEditingController(text: 'pass1234');
+  final _emailController = TextEditingController(text: 'teller@swagpay.com');
+  final _passwordController = TextEditingController(text: '1234');
   bool _obscurePassword = true;
   bool _rememberMe = true;
 
@@ -126,12 +125,19 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
   }
 
   void _submit() async {
-    final success = await ref.read(authProvider.notifier).loginTeller(
-          _emailController.text.trim(),
-          _passwordController.text.trim(),
-        );
-    if (success && mounted) {
-      context.go('/teller/dashboard');
+    final identifier = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (identifier.toLowerCase().contains('admin')) {
+      final success = await ref.read(authProvider.notifier).loginAdmin(identifier, password);
+      if (success && mounted) {
+        context.go('/admin/dashboard');
+      }
+    } else {
+      final success = await ref.read(authProvider.notifier).loginTeller(identifier, password);
+      if (success && mounted) {
+        context.go('/teller/dashboard');
+      }
     }
   }
 
@@ -147,25 +153,25 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               // Brand logo
               Center(
                 child: Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
+                    color: AppColors.primary.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.point_of_sale_rounded,
-                    size: 44,
+                    size: 48,
                     color: AppColors.primary,
                   ),
                 ),
               ),
               const SizedBox(height: 16),
               const Text(
-                'SwagPay Teller Login',
+                'SwagPay POS Login',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 26,
@@ -175,14 +181,14 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Sign in to your assigned collection counter',
+                'Please sign in to access your POS terminal portal',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
                   color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
                 ),
               ),
-              const SizedBox(height: 36),
+              const SizedBox(height: 32),
 
               if (auth.errorMessage != null) ...[
                 Container(
@@ -208,12 +214,12 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
                 const SizedBox(height: 20),
               ],
 
-              // Email / Teller ID
+              // Email / Identifier
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
-                  labelText: 'Email or Teller ID',
+                  labelText: 'Email or Teller / Admin ID',
                   prefixIcon: Icon(Icons.badge_outlined),
                 ),
               ),
@@ -268,18 +274,53 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
                         width: 22,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
-                    : const Text('Login to Counter'),
+                    : const Text('Login to Portal'),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
-              // Quick demo switchers
-              OutlinedButton.icon(
-                onPressed: () {
-                  ref.read(authProvider.notifier).switchRoleForDemo(UserRole.admin);
-                  context.go('/admin/dashboard');
-                },
-                icon: const Icon(Icons.admin_panel_settings_rounded, size: 18),
-                label: const Text('Switch to Admin POS Web Mode'),
+              // Quick login convenience buttons
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: Text('OR QUICK SIGN IN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        _emailController.text = 'teller@swagpay.com';
+                        _passwordController.text = '1234';
+                        _submit();
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Teller Demo', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        _emailController.text = 'admin@swagpay.com';
+                        _passwordController.text = 'admin123';
+                        _submit();
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Admin Demo', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

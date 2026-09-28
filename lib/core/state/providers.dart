@@ -103,40 +103,33 @@ class AuthState {
   }
 }
 
+// User Avatar Provider for custom profile picture
+class UserAvatarNotifier extends Notifier<String?> {
+  @override
+  String? build() {
+    final prefs = ref.watch(sharedPreferencesProvider);
+    return prefs.getString('user_profile_avatar');
+  }
+
+  void setAvatar(String avatarUrlOrAsset) {
+    state = avatarUrlOrAsset;
+    ref.read(sharedPreferencesProvider).setString('user_profile_avatar', avatarUrlOrAsset);
+  }
+
+  void clearAvatar() {
+    state = null;
+    ref.read(sharedPreferencesProvider).remove('user_profile_avatar');
+  }
+}
+
+final userAvatarProvider = NotifierProvider<UserAvatarNotifier, String?>(UserAvatarNotifier.new);
+
 class AuthNotifier extends Notifier<AuthState> {
   @override
   AuthState build() {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    final savedEmail = prefs.getString('auth_user_email');
-    if (savedEmail != null && savedEmail.contains('admin')) {
-      return const AuthState(
-        currentUser: AppUser(
-          id: 'usr_admin',
-          fullName: 'Administrator',
-          email: 'admin@swagpay.com',
-          phone: '0240000001',
-          role: UserRole.admin,
-          branch: 'Accra Central Hub',
-          assignedPos: ['pos_01'],
-          singleTxnLimit: 50000.0,
-          dailyLimit: 200000.0,
-        ),
-        isDeviceAuthorized: true,
-      );
-    }
-    // Default session: Real active teller from Supabase
+    // Require login whenever app is launched
     return const AuthState(
-      currentUser: AppUser(
-        id: 'usr_teller1',
-        fullName: 'Kofi Mensah',
-        email: 'teller@swagpay.com',
-        phone: '0550402859',
-        role: UserRole.teller,
-        branch: 'Accra Mall Food Court',
-        assignedPos: ['pos_01'],
-        singleTxnLimit: 10000.0,
-        dailyLimit: 50000.0,
-      ),
+      currentUser: null,
       isDeviceAuthorized: true,
     );
   }

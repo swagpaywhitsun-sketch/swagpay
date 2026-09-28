@@ -203,19 +203,14 @@ class _TellerShiftScreenState extends ConsumerState<TellerShiftScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = ref.watch(authProvider);
+    final user = auth.currentUser;
     final repo = ref.watch(paymentRepositoryProvider);
-    final shift = repo.activeShift;
+    final shift = repo.activeShift ?? repo.getOrCreateActiveShift(tellerId: user?.id, tellerName: user?.fullName);
     final timeFormat = DateFormat('hh:mm a');
 
-    if (shift == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Shift Status')),
-        body: const Center(child: Text('No active shift currently open')),
-      );
-    }
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Active Shift Reconciliation')),
+      appBar: AppBar(title: const Text('Counter Shift Reconciliation')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -331,6 +326,28 @@ class _TellerShiftScreenState extends ConsumerState<TellerShiftScreen> {
                 },
                 icon: const Icon(Icons.lock_clock_rounded),
                 label: const Text('Reconcile & Close Shift'),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              ),
+            ] else ...[
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await ref.read(paymentRepositoryProvider).startShift(
+                        tellerId: user?.id ?? 'usr_teller',
+                        tellerName: user?.fullName ?? 'Teller Cashier',
+                      );
+                  setState(() {});
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('New shift opened successfully!'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.add_circle_outline_rounded),
+                label: const Text('Start New Shift Session'),
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
               ),
             ],

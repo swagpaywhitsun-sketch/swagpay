@@ -18,18 +18,18 @@ class NumericKeypad extends StatelessWidget {
 
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.all(5.0),
+        padding: const EdgeInsets.symmetric(horizontal: 3.0, vertical: 2.5),
         child: Material(
           color: isDark ? AppColors.darkSurface : AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           elevation: 0,
           child: InkWell(
             onTap: customTap ?? () => onKeyPress(label),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             child: Container(
-              height: 60,
+              height: 44,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: isDark ? AppColors.darkBorder : AppColors.border,
                 ),
@@ -39,7 +39,7 @@ class NumericKeypad extends StatelessWidget {
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 20,
                       fontWeight: FontWeight.w700,
                       color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
                     ),

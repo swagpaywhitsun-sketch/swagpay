@@ -198,7 +198,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: _buildCurrentContent(context),
         ),
       ),
@@ -287,36 +287,37 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
         // Prominent Amount Box (in GH₵)
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
           decoration: BoxDecoration(
             color: isDark ? AppColors.darkSurface : AppColors.primary.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
           ),
           alignment: Alignment.center,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
                 'AMOUNT TO COLLECT (GHS)',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 2),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
                   'GH₵ $_amountString',
                   style: const TextStyle(
-                    fontSize: 44,
+                    fontSize: 30,
                     fontWeight: FontWeight.w900,
                     color: AppColors.primary,
-                    letterSpacing: -1,
+                    letterSpacing: -0.5,
                   ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
 
         // Keypad
         NumericKeypad(
@@ -324,18 +325,18 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           onDelete: _handleKeypadDelete,
           onClear: _handleKeypadClear,
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 10),
 
         // Request Payment Button
         ElevatedButton.icon(
           onPressed: (_currentAmount <= 0 || _phoneController.text.trim().length < 9)
               ? null
               : _startMoMoCollection,
-          icon: const Icon(Icons.send_rounded, size: 20),
+          icon: const Icon(Icons.send_rounded, size: 18),
           label: const Text('Send MoMo Prompt to Customer'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.success,
-            padding: const EdgeInsets.symmetric(vertical: 18),
+            backgroundColor: AppColors.primary,
+            padding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
       ],

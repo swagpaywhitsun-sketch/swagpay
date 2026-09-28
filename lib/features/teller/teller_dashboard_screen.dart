@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/transaction.dart';
-import '../../core/models/user.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/stat_card.dart';
@@ -23,6 +22,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
     final user = auth.currentUser;
+    final avatar = ref.watch(userAvatarProvider);
     final repo = ref.watch(paymentRepositoryProvider);
     final txns = repo.getTransactions();
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -33,52 +33,154 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(
-              'Hi, ${user?.fullName ?? 'Teller'}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.point_of_sale_rounded, color: Colors.white, size: 20),
             ),
-            Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.success,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  '${user?.assignedPos.firstOrNull ?? 'POS-01'} • Online',
-                  style: const TextStyle(fontSize: 12, color: Colors.white70),
-                ),
-              ],
+            const SizedBox(width: 10),
+            const Text(
+              'SwagPay POS',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
             ),
           ],
         ),
         actions: [
-          // Role switcher button (for quick preview of Admin POS Web vs Mobile Teller)
-          TextButton.icon(
-            onPressed: () {
-              ref.read(authProvider.notifier).switchRoleForDemo(UserRole.admin);
-              context.go('/admin/dashboard');
+          // User Avatar with Settings and Logout Dropdown
+          PopupMenuButton<String>(
+            tooltip: 'Settings & Profile',
+            offset: const Offset(0, 48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            color: isDark ? AppColors.darkSurfaceElevated : Colors.white,
+            onSelected: (val) {
+              if (val == 'settings' || val == 'profile') {
+                context.push('/teller/profile');
+              } else if (val == 'shift') {
+                context.push('/teller/shift');
+              } else if (val == 'reports') {
+                context.push('/teller/reports');
+              } else if (val == 'theme') {
+                ref.read(themeModeProvider.notifier).toggleTheme();
+              } else if (val == 'logout') {
+                ref.read(authProvider.notifier).logout();
+                context.go('/teller/login');
+              }
             },
-            icon: const Icon(Icons.swap_horiz_rounded, color: Colors.amber, size: 18),
-            label: const Text(
-              'Admin Web',
-              style: TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold),
+            itemBuilder: (ctx) => [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: AppColors.primary,
+                      backgroundImage: avatar != null && avatar.startsWith('http')
+                          ? NetworkImage(avatar)
+                          : null,
+                      child: avatar == null || !avatar.startsWith('http')
+                          ? Text(
+                              user?.fullName.isNotEmpty == true ? user!.fullName[0].toUpperCase() : 'T',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user?.fullName ?? 'Teller Cashier',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: isDark ? Colors.white : AppColors.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            user?.email ?? 'teller@swagpay.com',
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings_outlined, size: 20, color: AppColors.primary),
+                    SizedBox(width: 12),
+                    Text('Settings & Profile'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'shift',
+                child: Row(
+                  children: [
+                    Icon(Icons.point_of_sale_rounded, size: 20, color: AppColors.primary),
+                    SizedBox(width: 12),
+                    Text('Active Shift Reconciliation'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'reports',
+                child: Row(
+                  children: [
+                    Icon(Icons.bar_chart_rounded, size: 20, color: AppColors.primary),
+                    SizedBox(width: 12),
+                    Text('Performance Reports'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'theme',
+                child: Row(
+                  children: [
+                    Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined, size: 20),
+                    const SizedBox(width: 12),
+                    Text(isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, size: 20, color: AppColors.error),
+                    SizedBox(width: 12),
+                    Text('Logout', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14.0),
+              child: CircleAvatar(
+                radius: 17,
+                backgroundColor: Colors.white,
+                backgroundImage: avatar != null && avatar.startsWith('http')
+                    ? NetworkImage(avatar)
+                    : null,
+                child: avatar == null || !avatar.startsWith('http')
+                    ? Text(
+                        user?.fullName.isNotEmpty == true ? user!.fullName[0].toUpperCase() : 'T',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary),
+                      )
+                    : null,
+              ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications_none_rounded),
-            onPressed: () => context.push('/teller/notifications'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.brightness_6_outlined),
-            onPressed: () => ref.read(themeModeProvider.notifier).toggleTheme(),
           ),
         ],
       ),
@@ -90,49 +192,73 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Shift Banner
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'ACTIVE SHIFT',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white70),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Counter: ${user?.branch ?? 'Victoria Island'}',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
-                      ],
-                    ),
-                    ElevatedButton(
-                      onPressed: () => context.push('/teller/shift'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        minimumSize: Size.zero,
+              Builder(builder: (context) {
+                final shift = repo.activeShift ?? repo.getOrCreateActiveShift(tellerId: user?.id, tellerName: user?.fullName);
+                final isShiftActive = !shift.isClosed;
+                final timeFormat = DateFormat('hh:mm a');
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                      child: const Text('Shift Status', style: TextStyle(fontSize: 12)),
-                    ),
-                  ],
-                ),
-              ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: isShiftActive ? AppColors.success : Colors.white70,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                isShiftActive ? 'ACTIVE SHIFT • OPEN' : 'SHIFT CLOSED',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.5),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            isShiftActive
+                                ? 'Started ${timeFormat.format(shift.startTime)} • GH₵ ${shift.totalCollected.toStringAsFixed(2)}'
+                                : 'Counter: ${user?.branch ?? 'Accra Mall Hub'}',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                      ElevatedButton(
+                        onPressed: () => context.push('/teller/shift'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          minimumSize: Size.zero,
+                        ),
+                        child: Text(
+                          isShiftActive ? 'Reconcile' : 'Manage Shift',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
               const SizedBox(height: 16),
 
               // KPI Cards
@@ -220,15 +346,15 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Quick Actions Grid
+              // Quick Actions Grid (Simplified without Lookup Customer)
               Row(
                 children: [
                   _buildQuickActionTile(
                     context,
-                    title: 'Lookup Customer',
-                    icon: Icons.person_search_rounded,
-                    color: AppColors.info,
-                    onTap: () => context.push('/teller/customer-lookup'),
+                    title: 'Counter Shift',
+                    icon: Icons.point_of_sale_rounded,
+                    color: AppColors.primary,
+                    onTap: () => context.push('/teller/shift'),
                   ),
                   const SizedBox(width: 10),
                   _buildQuickActionTile(

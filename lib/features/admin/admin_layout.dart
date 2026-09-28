@@ -31,7 +31,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.primary,
         elevation: 0,
         title: Row(
           children: [
@@ -43,40 +43,19 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: AppColors.success,
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.shield_rounded, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 10),
             const Text(
-              'SWAGPAY ADMIN POS',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.2),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text('POS TERMINAL ONLY', style: TextStyle(fontSize: 10, color: AppColors.success, fontWeight: FontWeight.bold)),
+              'SwagPay POS',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
             ),
           ],
         ),
         actions: [
-          // Switch to Teller Mobile View
-          TextButton.icon(
-            onPressed: () {
-              ref.read(authProvider.notifier).switchRoleForDemo(UserRole.teller);
-              context.go('/teller/dashboard');
-            },
-            icon: const Icon(Icons.phone_android_rounded, color: Colors.white, size: 18),
-            label: const Text(
-              'Switch to Teller Mobile App',
-              style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-            ),
-          ),
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.brightness_6_outlined),

@@ -318,28 +318,71 @@ class PaymentRepository {
   Future<int> syncOfflineQueue() async => 0;
 
   // --- SHIFTS ---
-  ShiftRecord? get activeShift => _activeShift;
+  ShiftRecord? get activeShift {
+    if (_activeShift != null) {
+      final successTxns = _transactions.where((t) => t.status == TransactionStatus.success).toList();
+      final totalCollected = successTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
+      return _activeShift!.copyWith(
+        totalCollected: totalCollected,
+        totalCount: _transactions.length,
+        successCount: successTxns.length,
+        failedCount: _transactions.length - successTxns.length,
+        cashExpected: totalCollected,
+      );
+    }
+    return null;
+  }
+
+  ShiftRecord getOrCreateActiveShift({String? tellerId, String? tellerName}) {
+    if (_activeShift != null && !_activeShift!.isClosed) {
+      return activeShift!;
+    }
+    final successTxns = _transactions.where((t) => t.status == TransactionStatus.success).toList();
+    final totalCollected = successTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
+    _activeShift = ShiftRecord(
+      id: 'shift_${DateTime.now().millisecondsSinceEpoch}',
+      tellerId: tellerId ?? 'usr_teller',
+      tellerName: tellerName ?? 'Teller Cashier',
+      startTime: DateTime.now().subtract(const Duration(hours: 3)),
+      totalCollected: totalCollected,
+      totalCount: _transactions.length,
+      successCount: successTxns.length,
+      failedCount: _transactions.length - successTxns.length,
+      cashExpected: totalCollected,
+      isClosed: false,
+    );
+    return _activeShift!;
+  }
+
+  Future<ShiftRecord> startShift({required String tellerId, required String tellerName}) async {
+    final successTxns = _transactions.where((t) => t.status == TransactionStatus.success).toList();
+    final totalCollected = successTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
+    _activeShift = ShiftRecord(
+      id: 'shift_${DateTime.now().millisecondsSinceEpoch}',
+      tellerId: tellerId,
+      tellerName: tellerName,
+      startTime: DateTime.now(),
+      totalCollected: totalCollected,
+      totalCount: _transactions.length,
+      successCount: successTxns.length,
+      failedCount: _transactions.length - successTxns.length,
+      cashExpected: totalCollected,
+      isClosed: false,
+    );
+    onChanged?.call();
+    return _activeShift!;
+  }
 
   Future<ShiftRecord> closeShift({required double cashActual, String? notes}) async {
-    final shift = _activeShift ??
-        ShiftRecord(
-          id: 'shift_${DateTime.now().millisecondsSinceEpoch}',
-          tellerId: 'usr_teller1',
-          tellerName: 'Kofi Mensah',
-          startTime: DateTime.now().subtract(const Duration(hours: 4)),
-          totalCollected: _transactions.where((t) => t.status == TransactionStatus.success).fold(0.0, (acc, t) => acc + t.amount),
-          totalCount: _transactions.length,
-          successCount: _transactions.where((t) => t.status == TransactionStatus.success).length,
-          failedCount: _transactions.where((t) => t.status == TransactionStatus.failed).length,
-          cashExpected: 0.0,
-        );
-
-    _activeShift = shift.copyWith(
+    final current = getOrCreateActiveShift();
+    _activeShift = current.copyWith(
       endTime: DateTime.now(),
       cashActual: cashActual,
+      variance: cashActual - current.cashExpected,
       isClosed: true,
       notes: notes,
     );
+    onChanged?.call();
     return _activeShift!;
   }
 }
