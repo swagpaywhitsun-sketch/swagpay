@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/widgets/status_badge.dart';
 import '../../core/widgets/user_avatar_widget.dart';
 
@@ -35,41 +34,61 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final successTxns = txns.where((t) => t.status == TransactionStatus.success).toList();
-    final pendingTxns = txns.where((t) => t.status == TransactionStatus.pending).toList();
-    final failedTxns = txns.where((t) => t.status == TransactionStatus.failed).toList();
     final todayTotal = successTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
-    final pendingTotal = pendingTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
 
-    final bgColor = isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF4F6FA);
+    final bgColor = isDark ? const Color(0xFF121214) : const Color(0xFFF6F6F8);
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
 
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF303030),
+        elevation: 0,
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'logo.png',
+                height: 28,
+                width: 28,
+                fit: BoxFit.contain,
+                errorBuilder: (ctx, err, stack) => Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.point_of_sale_outlined, color: Colors.white, size: 18),
+                ),
               ),
-              child: const Icon(Icons.point_of_sale_rounded, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 10),
             const Text(
               'SwagPay',
-              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                letterSpacing: -0.3,
+              ),
             ),
           ],
         ),
         actions: [
+          // ── Account Dropdown ────────────────────────────────────
           PopupMenuButton<String>(
-            tooltip: 'Account',
+            tooltip: 'Account Menu',
             offset: const Offset(0, 52),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: isDark ? AppColors.darkSurfaceElevated : Colors.white,
-            elevation: 8,
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(color: borderColor),
+            ),
+            color: cardBg,
+            elevation: 10,
             onSelected: (val) {
               if (val == 'settings') {
                 context.push('/teller/profile');
@@ -83,55 +102,120 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
               }
             },
             itemBuilder: (ctx) => [
+              // Branded profile header
               PopupMenuItem<String>(
                 enabled: false,
-                height: 72,
+                height: 92,
+                child: SizedBox(
+                  width: 254,
+                  child: Container(
+                    margin: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF229ED9), Color(0xFF1B82B3)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
+                        ),
+                        child: UserAvatarWidget(
+                          avatarData: avatar,
+                          name: user?.fullName ?? 'Teller',
+                          radius: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              user?.fullName ?? 'Teller Cashier',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                color: Colors.white,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              user?.email ?? 'teller@swagpay.com',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withValues(alpha: 0.85),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                user?.roleDisplay ?? 'Teller Cashier',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const PopupMenuDivider(height: 1),
+              _buildMenuItem('settings', Icons.settings_outlined, 'Account Settings', isDark),
+              _buildMenuItem('reports', Icons.analytics_outlined, 'Shift Reports', isDark),
+              PopupMenuItem<String>(
+                value: 'theme',
+                height: 42,
                 child: Row(
                   children: [
-                    UserAvatarWidget(avatarData: avatar, name: user?.fullName ?? 'Teller', radius: 24),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(user?.fullName ?? 'Teller Cashier',
-                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: isDark ? Colors.white : AppColors.textPrimary)),
-                          const SizedBox(height: 2),
-                          Text(user?.email ?? 'teller@swagpay.com',
-                              style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary)),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                            child: Text(user?.roleDisplay ?? 'Teller',
-                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primary)),
-                          ),
-                        ],
+                    Icon(
+                      isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                      size: 18,
+                      color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      isDark ? 'Light Theme' : 'Dark Theme',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: isDark ? Colors.white : const Color(0xFF303030),
                       ),
                     ),
                   ],
                 ),
               ),
-              const PopupMenuDivider(),
-              _menuItem('settings', Icons.settings_outlined, 'Settings', AppColors.primary),
-              _menuItem('reports', Icons.analytics_outlined, 'Reports', AppColors.success),
-              PopupMenuItem<String>(
-                value: 'theme',
-                height: 46,
-                child: Row(children: [
-                  Container(padding: const EdgeInsets.all(7), decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(8)),
-                      child: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined, size: 17, color: AppColors.gold)),
-                  const SizedBox(width: 12),
-                  Text(isDark ? 'Light Mode' : 'Dark Mode', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                ]),
-              ),
-              const PopupMenuDivider(),
-              _menuItem('logout', Icons.logout_rounded, 'Logout', AppColors.error, isDestructive: true),
+              const PopupMenuDivider(height: 1),
+              _buildMenuItem('logout', Icons.logout_rounded, 'Log Out', isDark, isDestructive: true),
             ],
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14.0),
-              child: UserAvatarWidget(avatarData: avatar, name: user?.fullName ?? 'Teller', radius: 17),
+              child: UserAvatarWidget(
+                avatarData: avatar,
+                name: user?.fullName ?? 'Teller',
+                radius: 16,
+              ),
             ),
           ),
         ],
@@ -150,34 +234,40 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
 
-                    // ── Hero Collection Card ─────────────────────────────
-                    _buildHeroCard(todayTotal, successTxns.length, isDark),
-                    const SizedBox(height: 12),
+                    // ── Compact Shopify KPI Card (Size Reduced) ─────────────
+                    _buildCompactKpiCard(todayTotal, successTxns.length, isDark, cardBg, borderColor),
+                    const SizedBox(height: 14),
 
-                    // ── Stats Row ────────────────────────────────────────
-                    Row(
-                      children: [
-                        _buildMiniStat('Pending', pendingTxns.length, pendingTotal, AppColors.gold, Icons.hourglass_top_rounded, isDark),
-                        const SizedBox(width: 10),
-                        _buildMiniStat('Failed', failedTxns.length, 0, AppColors.error, Icons.cancel_outlined, isDark),
-                        const SizedBox(width: 10),
-                        _buildMiniStat('Total Txns', txns.length, 0, AppColors.primaryLight, Icons.receipt_long_rounded, isDark),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── PAYMENT Button ───────────────────────────────────
+                    // ── Main Payment Button (Shopify Action Bar) ────────────
                     _buildPaymentButton(context),
                     const SizedBox(height: 14),
 
-                    // ── Quick Actions ────────────────────────────────────
+                    // ── Quick Navigation Actions ───────────────────────────
                     Row(
                       children: [
-                        _buildQuickAction(context, 'History', Icons.receipt_long_rounded, AppColors.primary, () => context.push('/teller/history')),
+                        _buildQuickAction(
+                          context,
+                          'History',
+                          Icons.receipt_long_outlined,
+                          () => context.push('/teller/history'),
+                          isDark, cardBg, borderColor,
+                        ),
                         const SizedBox(width: 10),
-                        _buildQuickAction(context, 'Offline Queue', Icons.cloud_off_rounded, AppColors.gold, () => context.push('/teller/offline-queue')),
+                        _buildQuickAction(
+                          context,
+                          'Offline Queue',
+                          Icons.cloud_off_outlined,
+                          () => context.push('/teller/offline-queue'),
+                          isDark, cardBg, borderColor,
+                        ),
                         const SizedBox(width: 10),
-                        _buildQuickAction(context, 'My Reports', Icons.bar_chart_rounded, AppColors.primaryLight, () => context.push('/teller/reports')),
+                        _buildQuickAction(
+                          context,
+                          'Reports',
+                          Icons.bar_chart_outlined,
+                          () => context.push('/teller/reports'),
+                          isDark, cardBg, borderColor,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -186,11 +276,19 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Recent Collections', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                        Text(
+                          'Recent Collections',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : const Color(0xFF303030),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
                         TextButton.icon(
                           onPressed: () => context.push('/teller/history'),
-                          icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                          label: const Text('View All', style: TextStyle(fontWeight: FontWeight.w700)),
+                          icon: const Icon(Icons.arrow_forward_rounded, size: 15),
+                          label: const Text('View All', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                         ),
                       ],
                     ),
@@ -200,16 +298,23 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
               ),
             ),
 
-            // ── Transaction list ─────────────────────────────────────────
+            // ── Recent Transaction list ──────────────────────────────────
             if (txns.isEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(40),
                   child: Column(
                     children: [
-                      Icon(Icons.inbox_rounded, size: 56, color: Colors.grey.shade400),
+                      Icon(Icons.inbox_outlined, size: 48, color: isDark ? const Color(0xFF4B5563) : const Color(0xFF9CA3AF)),
                       const SizedBox(height: 12),
-                      Text('No transactions yet', style: TextStyle(fontSize: 15, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                      Text(
+                        'No transactions recorded',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -219,7 +324,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildTxnCard(context, txns[index], isDark),
+                    (context, index) => _buildTxnCard(context, txns[index], isDark, cardBg, borderColor),
                     childCount: txns.take(8).length,
                   ),
                 ),
@@ -228,137 +333,143 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
         ),
       ),
 
-      // ── Bottom Nav — always stays on Dashboard (index 0) ──────────────
+      // ── Bottom Nav ───────────────────────────────────────────────────
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF262626) : Colors.white,
-          border: Border(top: BorderSide(color: isDark ? const Color(0xFF3E3E3E) : AppColors.border)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06), blurRadius: 8, offset: const Offset(0, -2))],
+          color: cardBg,
+          border: Border(top: BorderSide(color: borderColor, width: 1)),
         ),
         child: BottomNavigationBar(
-          currentIndex: 0, // always 0 — sub-pages are pushed, not tab-switched
-          backgroundColor: isDark ? const Color(0xFF262626) : Colors.white,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF707579),
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+          currentIndex: 0,
+          backgroundColor: cardBg,
+          selectedItemColor: const Color(0xFF229ED9),
+          unselectedItemColor: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
           type: BottomNavigationBarType.fixed,
           elevation: 0,
           onTap: (index) {
-            // Never mutate local index — sub-pages are full push routes
             if (index == 1) context.push('/teller/history');
             if (index == 2) context.push('/teller/reports');
             if (index == 3) context.push('/teller/profile');
           },
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
-            BottomNavigationBarItem(icon: Icon(Icons.receipt_long_rounded), label: 'History'),
-            BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded), label: 'Reports'),
-            BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: 'Settings'),
+            BottomNavigationBarItem(icon: Icon(Icons.space_dashboard_outlined), activeIcon: Icon(Icons.space_dashboard_rounded), label: 'Dashboard'),
+            BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long_rounded), label: 'History'),
+            BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), activeIcon: Icon(Icons.analytics_rounded), label: 'Reports'),
+            BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings_rounded), label: 'Settings'),
           ],
         ),
       ),
     );
   }
 
-  // ── Hero collection card ─────────────────────────────────────────────────
-  Widget _buildHeroCard(double total, int count, bool isDark) {
+  // ── Reduced Compact KPI Card (Shopify Polaris style) ─────────────────────
+  Widget _buildCompactKpiCard(double total, int count, bool isDark, Color cardBg, Color borderColor) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0, 8)),
-        ],
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Today's Collections", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(20)),
-                child: Text('$count txns', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+              Row(
+                children: [
+                  Text(
+                    "Today's Collections",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'GH₵ ${NumberFormat('#,##0.00').format(total)}',
+                style: TextStyle(
+                  color: isDark ? Colors.white : const Color(0xFF303030),
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'GH₵ ${NumberFormat('#,##0.00').format(total)}',
-              style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: -1),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.receipt_outlined,
+                  size: 14,
+                  color: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF374151),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$count txns',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF303030),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          const Text('Successful MoMo collections', style: TextStyle(color: Colors.white60, fontSize: 12)),
         ],
       ),
     );
   }
 
-  // ── Mini stat cards ──────────────────────────────────────────────────────
-  Widget _buildMiniStat(String label, int count, double amount, Color color, IconData icon, bool isDark) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(height: 6),
-            Text('$count', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: color)),
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── PAYMENT action button ────────────────────────────────────────────────
+  // ── PAYMENT Primary Action Button ─────────────────────────────────────────
   Widget _buildPaymentButton(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push('/teller/collection'),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppColors.success, AppColors.successDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [BoxShadow(color: AppColors.success.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 6))],
+    return SizedBox(
+      height: 52,
+      child: ElevatedButton(
+        onPressed: () => context.push('/teller/collection'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF229ED9), // Shopify Dark Emerald
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        child: Row(
+        child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-              child: const Icon(Icons.add_rounded, color: Colors.white, size: 26),
-            ),
-            const SizedBox(width: 16),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('PAYMENT', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                Text('Collect MoMo payment', style: TextStyle(color: Colors.white70, fontSize: 12)),
-              ],
+            Icon(Icons.add_circle_outline_rounded, size: 20),
+            SizedBox(width: 10),
+            Text(
+              'COLLECT PAYMENT',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
             ),
           ],
         ),
@@ -366,29 +477,46 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
     );
   }
 
-  // ── Quick action tiles ───────────────────────────────────────────────────
-  Widget _buildQuickAction(BuildContext context, String title, IconData icon, Color color, VoidCallback onTap) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  // ── Quick action navigation tile ─────────────────────────────────────────
+  Widget _buildQuickAction(
+    BuildContext context,
+    String title,
+    IconData icon,
+    VoidCallback onTap,
+    bool isDark,
+    Color cardBg,
+    Color borderColor,
+  ) {
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
+            color: cardBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor, width: 1),
           ),
           child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-                child: Icon(icon, color: color, size: 20),
+              Icon(
+                icon,
+                color: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF374151),
+                size: 20,
               ),
-              const SizedBox(height: 8),
-              Text(title, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : const Color(0xFF303030),
+                ),
+              ),
             ],
           ),
         ),
@@ -396,51 +524,64 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
     );
   }
 
-  // ── Transaction card ─────────────────────────────────────────────────────
-  Widget _buildTxnCard(BuildContext context, PaymentTransaction txn, bool isDark) {
+  // ── Transaction Card Item ────────────────────────────────────────────────
+  Widget _buildTxnCard(
+    BuildContext context,
+    PaymentTransaction txn,
+    bool isDark,
+    Color cardBg,
+    Color borderColor,
+  ) {
     final timeFormat = DateFormat('hh:mm a');
 
-    final statusColor = txn.status == TransactionStatus.success
-        ? AppColors.success
-        : txn.status == TransactionStatus.failed
-            ? AppColors.error
-            : AppColors.gold;
-
-    final statusIcon = txn.status == TransactionStatus.success
-        ? Icons.check_rounded
-        : txn.status == TransactionStatus.failed
-            ? Icons.close_rounded
-            : Icons.hourglass_top_rounded;
-
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: 1),
       ),
       child: InkWell(
         onTap: () => context.push('/teller/transaction/${txn.id}'),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
+              // Clean line icon container
               Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), shape: BoxShape.circle),
-                child: Icon(statusIcon, color: statusColor, size: 18),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.payments_outlined,
+                  color: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF4B5563),
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(txn.customerName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                    Text(
+                      txn.customerName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: isDark ? Colors.white : const Color(0xFF303030),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       '${txn.customerNumber} · ${txn.networkDisplay} · ${timeFormat.format(txn.timestamp)}',
-                      style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                      ),
                     ),
                   ],
                 ),
@@ -449,8 +590,14 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('${txn.currency} ${NumberFormat('#,##0.00').format(txn.amount)}',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: statusColor)),
+                  Text(
+                    '${txn.currency} ${NumberFormat('#,##0.00').format(txn.amount)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: isDark ? Colors.white : const Color(0xFF303030),
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   StatusBadge(status: txn.status),
                 ],
@@ -462,20 +609,37 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
     );
   }
 
-  // ── Helper: menu item ────────────────────────────────────────────────────
-  PopupMenuItem<String> _menuItem(String value, IconData icon, String label, Color color, {bool isDestructive = false}) {
+  // ── Helper: Popup Menu Item ──────────────────────────────────────────────
+  PopupMenuItem<String> _buildMenuItem(
+    String value,
+    IconData icon,
+    String label,
+    bool isDark, {
+    bool isDestructive = false,
+  }) {
+    final color = isDestructive
+        ? const Color(0xFFDC2626)
+        : (isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563));
+
     return PopupMenuItem<String>(
       value: value,
-      height: 46,
-      child: Row(children: [
-        Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, size: 17, color: color),
-        ),
-        const SizedBox(width: 12),
-        Text(label, style: TextStyle(fontWeight: isDestructive ? FontWeight.w700 : FontWeight.w600, fontSize: 14, color: isDestructive ? color : null)),
-      ]),
+      height: 42,
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: isDestructive ? FontWeight.w700 : FontWeight.w600,
+              fontSize: 13,
+              color: isDestructive
+                  ? const Color(0xFFDC2626)
+                  : (isDark ? Colors.white : const Color(0xFF303030)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -12,58 +12,62 @@ class StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color bg;
     Color fg;
-    IconData icon;
     String label;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Polaris badges: soft tint fill, dark text, no heavy border
     switch (status) {
       case TransactionStatus.success:
-        bg = AppColors.success.withValues(alpha: 0.15);
-        fg = AppColors.successDark;
-        icon = Icons.check_circle_rounded;
-        label = 'SUCCESS';
+        bg = isDark ? const Color(0xFF0D3320) : AppColors.badgeSuccessBg;
+        fg = isDark ? const Color(0xFF6FD5A4) : AppColors.badgeSuccessFg;
+        label = 'Success';
         break;
       case TransactionStatus.pending:
-        bg = AppColors.warning.withValues(alpha: 0.15);
-        fg = const Color(0xFFB7791F);
-        icon = Icons.hourglass_top_rounded;
-        label = 'PENDING';
+        bg = isDark ? const Color(0xFF3B2500) : AppColors.badgePendingBg;
+        fg = isDark ? const Color(0xFFFBBF24) : AppColors.badgePendingFg;
+        label = 'Pending';
         break;
       case TransactionStatus.failed:
-        bg = AppColors.error.withValues(alpha: 0.15);
-        fg = AppColors.error;
-        icon = Icons.cancel_rounded;
-        label = 'FAILED';
+        bg = isDark ? const Color(0xFF381010) : AppColors.badgeFailedBg;
+        fg = isDark ? const Color(0xFFFCA5A5) : AppColors.badgeFailedFg;
+        label = 'Failed';
         break;
       case TransactionStatus.refunded:
-        bg = AppColors.primaryLight.withValues(alpha: 0.15);
-        fg = AppColors.primaryLight;
-        icon = Icons.replay_rounded;
-        label = 'REFUNDED';
+        bg = isDark ? const Color(0xFF102A45) : AppColors.badgeRefundedBg;
+        fg = isDark ? const Color(0xFF93C5FD) : AppColors.badgeRefundedFg;
+        label = 'Refunded';
         break;
     }
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isLarge ? 14 : 10,
-        vertical: isLarge ? 8 : 4,
+        horizontal: isLarge ? 12 : 9,
+        vertical: isLarge ? 6 : 3,
       ),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: fg.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: isLarge ? 16 : 13, color: fg),
+          Container(
+            width: isLarge ? 7 : 6,
+            height: isLarge ? 7 : 6,
+            decoration: BoxDecoration(
+              color: fg,
+              shape: BoxShape.circle,
+            ),
+          ),
           const SizedBox(width: 5),
           Text(
             label,
             style: TextStyle(
-              fontSize: isLarge ? 13 : 11,
-              fontWeight: FontWeight.w700,
+              fontSize: isLarge ? 12 : 11,
+              fontWeight: FontWeight.w600,
               color: fg,
-              letterSpacing: 0.5,
+              letterSpacing: 0.1,
             ),
           ),
         ],

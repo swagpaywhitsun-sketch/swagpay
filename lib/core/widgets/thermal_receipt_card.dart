@@ -168,7 +168,7 @@ class ThermalReceiptCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildReceiptRow('Customer Name', transaction.customerName),
-                _buildReceiptRow('MoMo Number', transaction.customerNumber),
+                _buildReceiptRow('Customer Number', transaction.customerNumber),
                 _buildReceiptRow('Network', transaction.networkDisplay),
                 _buildReceiptRow('Reference', transaction.reference),
                 if (transaction.receiptNumber != null)

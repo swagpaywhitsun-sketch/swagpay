@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/models/customer.dart';
@@ -161,19 +162,39 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF121214) : const Color(0xFFF6F6F8);
+
     return Scaffold(
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: const Text('MoMo Payment Collection'),
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF303030),
+        automaticallyImplyLeading: false,
+        title: Text(
+          _currentStep == 1
+              ? 'Collect Payment'
+              : _currentStep == 2
+                  ? 'Awaiting Authorization'
+                  : _currentStep == 3
+                      ? 'Collection Complete'
+                      : 'Collection Failed',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.close_rounded),
+            icon: const Icon(Icons.close_rounded, color: Colors.white),
             onPressed: () => context.go('/teller/dashboard'),
           ),
         ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: _buildCurrentContent(context),
         ),
       ),
@@ -198,93 +219,157 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
   // --- STEP 1: PHONE NUMBER & AMOUNT ENTRY ---
   Widget _buildStep1Entry() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF707579);
+    final heading = isDark ? Colors.white : const Color(0xFF303030);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Phone Number Input
-        TextField(
-          controller: _phoneController,
-          keyboardType: TextInputType.phone,
-          onChanged: _onPhoneChanged,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          decoration: InputDecoration(
-            labelText: 'Customer MoMo Number *',
-            hintText: 'e.g. 0550402859',
-            prefixIcon: const Icon(Icons.phone_android_rounded),
-            suffixIcon: _isLookingUp
-                ? const Padding(
-                    padding: EdgeInsets.all(12.0),
-                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                  )
-                : (_detectedNetwork != null
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+        // ── Customer card ──────────────────────────────────────────
+        _card(
+          cardBg: cardBg,
+          borderColor: borderColor,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _sectionLabel('CUSTOMER NUMBER', muted),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                maxLength: 10,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                onChanged: _onPhoneChanged,
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: heading),
+                decoration: InputDecoration(
+                  hintText: 'e.g. 0550402859',
+                  counterText: '',
+                  hintStyle: TextStyle(color: muted.withValues(alpha: 0.6), fontSize: 15),
+                  prefixIcon: Icon(Icons.phone_android_rounded, size: 20, color: muted),
+                  suffixIcon: _isLookingUp
+                      ? const Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                        )
+                      : (_detectedNetwork != null
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF229ED9).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                _detectedNetwork!,
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF229ED9)),
+                              ),
+                            )
+                          : null),
+                  filled: true,
+                  fillColor: isDark ? const Color(0xFF27272A) : const Color(0xFFF7F8F9),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFF229ED9), width: 1.5),
+                  ),
+                ),
+              ),
+              if (_lookupCustomer != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: isDark ? 0.15 : 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.verified_rounded, color: AppColors.success, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
                         child: Text(
-                          _detectedNetwork!,
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.successDark),
+                          _lookupCustomer!.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                            color: isDark ? AppColors.success : AppColors.successDark,
+                          ),
                         ),
-                      )
-                    : null),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         const SizedBox(height: 12),
 
-        // Verified Account Holder Banner
-        if (_lookupCustomer != null) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.verified_rounded, color: AppColors.success, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Verified Name: ${_lookupCustomer!.name}',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.successDark),
+        // ── Amount card ────────────────────────────────────────────
+        _card(
+          cardBg: cardBg,
+          borderColor: borderColor,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _sectionLabel('AMOUNT TO COLLECT (GHS)', muted),
+              TextField(
+                controller: _amountController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFF229ED9)),
+                decoration: InputDecoration(
+                  hintText: '0.00',
+                  hintStyle: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: muted.withValues(alpha: 0.4)),
+                  prefixText: 'GH₵ ',
+                  prefixStyle: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFF229ED9)),
+                  filled: true,
+                  fillColor: isDark ? const Color(0xFF27272A) : const Color(0xFFF7F8F9),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFF229ED9), width: 1.5),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-
-        // Amount Input Field (Native Keyboard)
-        TextField(
-          controller: _amountController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          onChanged: (_) => setState(() {}),
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.primary),
-          decoration: InputDecoration(
-            labelText: 'Amount to Collect (GHS) *',
-            hintText: '0.00',
-            prefixText: 'GH₵ ',
-            prefixStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.primary),
-            prefixIcon: const Icon(Icons.payments_rounded),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
-        // Request Payment Button
-        ElevatedButton.icon(
-          onPressed: (_currentAmount <= 0 || _phoneController.text.trim().length < 9)
-              ? null
-              : _startMoMoCollection,
-          icon: const Icon(Icons.send_rounded, size: 20),
-          label: const Text('Send MoMo Prompt to Customer'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            padding: const EdgeInsets.symmetric(vertical: 16),
+        // ── Primary action ─────────────────────────────────────────
+        SizedBox(
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: (_currentAmount <= 0 || _phoneController.text.trim().length < 9)
+                ? null
+                : _startMoMoCollection,
+            icon: const Icon(Icons.send_rounded, size: 18),
+            label: const Text(
+              'Send MoMo Prompt to Customer',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF229ED9),
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: isDark ? const Color(0xFF27272A) : const Color(0xFFE1E3E5),
+              disabledForegroundColor: muted,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
           ),
         ),
       ],
@@ -293,63 +378,75 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
   // --- STEP 2: AWAITING CUSTOMER PIN ---
   Widget _buildStep2AwaitingPin() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF707579);
+    final heading = isDark ? Colors.white : const Color(0xFF303030);
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const SizedBox(height: 40),
+        const SizedBox(height: 32),
         Stack(
           alignment: Alignment.center,
           children: [
-            const SizedBox(
-              width: 140,
-              height: 140,
+            SizedBox(
+              width: 130,
+              height: 130,
               child: CircularProgressIndicator(
-                strokeWidth: 8,
-                backgroundColor: AppColors.border,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.warning),
+                strokeWidth: 7,
+                backgroundColor: borderColor,
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF229ED9)),
               ),
             ),
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.touch_app_rounded, size: 40, color: AppColors.warning),
+                const Icon(Icons.touch_app_rounded, size: 34, color: Color(0xFF229ED9)),
                 const SizedBox(height: 4),
                 Text(
                   '${_pollingElapsedSeconds}s',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.warning),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF229ED9)),
                 ),
               ],
             ),
           ],
         ),
-        const SizedBox(height: 32),
-        const Text(
+        const SizedBox(height: 28),
+        Text(
           'Awaiting Customer MoMo PIN',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: heading),
         ),
         const SizedBox(height: 8),
         Text(
           'USSD debit prompt of GH₵ ${_currentAmount.toStringAsFixed(2)} was sent to ${_phoneController.text}.\nCustomer is entering their PIN on their phone.',
           textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.4),
+          style: TextStyle(color: muted, fontSize: 13.5, height: 1.5),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: AppColors.border.withValues(alpha: 0.3),
+            color: cardBg,
             borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: borderColor),
           ),
           child: Text(
             'Ref: ${_activeReference ?? ''}',
-            style: const TextStyle(fontSize: 12, fontFamily: 'Courier', fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 12, fontFamily: 'Courier', fontWeight: FontWeight.w700, color: heading),
           ),
         ),
-        const SizedBox(height: 40),
-
+        const SizedBox(height: 32),
         OutlinedButton(
           onPressed: _resetFlow,
-          child: const Text('Cancel Request'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: muted,
+            side: BorderSide(color: borderColor),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+          ),
+          child: const Text('Cancel Request', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
         ),
       ],
     );
@@ -358,45 +455,70 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   // --- STEP 3: PAYMENT SUCCESS ---
   Widget _buildStep3Success() {
     if (_completedTransaction == null) return const SizedBox();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF707579);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.success.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: isDark ? 0.15 : 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check_circle_rounded, size: 56, color: AppColors.success),
           ),
-          child: const Icon(Icons.check_circle_rounded, size: 64, color: AppColors.success),
         ),
-        const SizedBox(height: 16),
-        const Text(
-          'Payment Successful!',
+        const SizedBox(height: 14),
+        Text(
+          'Payment Successful',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.successDark),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.white : const Color(0xFF303030),
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           'Ref: ${_completedTransaction!.reference}',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontFamily: 'Courier'),
+          style: TextStyle(fontSize: 13, color: muted, fontFamily: 'Courier'),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
         ThermalReceiptCard(transaction: _completedTransaction!),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
-        ElevatedButton.icon(
-          onPressed: _resetFlow,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('New Collection'),
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+        SizedBox(
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: _resetFlow,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('New Collection', style: TextStyle(fontWeight: FontWeight.w800)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF229ED9),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
         ),
-        const SizedBox(height: 12),
-        OutlinedButton(
-          onPressed: () => context.go('/teller/dashboard'),
-          child: const Text('Back to Dashboard'),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 48,
+          child: OutlinedButton(
+            onPressed: () => context.go('/teller/dashboard'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: isDark ? Colors.white : const Color(0xFF303030),
+              side: BorderSide(color: borderColor),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Back to Dashboard', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+          ),
         ),
       ],
     );
@@ -404,68 +526,111 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
   // --- STEP 4: PAYMENT FAILED ---
   Widget _buildStep4Failed() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF707579);
+    final heading = isDark ? Colors.white : const Color(0xFF303030);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 20),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: Color(0xFFFDE8E8),
-            shape: BoxShape.circle,
+        const SizedBox(height: 24),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: isDark ? 0.15 : 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.close_rounded, size: 52, color: AppColors.error),
           ),
-          child: const Icon(Icons.close_rounded, size: 64, color: AppColors.error),
         ),
-        const SizedBox(height: 20),
-        const Text(
+        const SizedBox(height: 16),
+        Text(
           'Payment Failed',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.error),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.error),
         ),
         const SizedBox(height: 8),
         Text(
           _errorMessage ?? 'Customer declined authorization or transaction timed out.',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 14, color: muted),
         ),
         const SizedBox(height: 24),
 
-        ElevatedButton(
-          onPressed: () => setState(() => _currentStep = 1),
-          child: const Text('Try Again'),
-        ),
-        const SizedBox(height: 12),
-        ElevatedButton.icon(
-          onPressed: () {
-            final auth = ref.read(authProvider);
-            final user = auth.currentUser;
-            final repo = ref.read(paymentRepositoryProvider);
-            final txn = repo.recordOfflineTransaction(
-              momoNumber: _phoneController.text.trim(),
-              amount: _currentAmount,
-              customerName: _lookupCustomer?.name,
-              tellerId: user?.id ?? 'usr_teller',
-              posId: user?.assignedPos.firstOrNull ?? 'pos_01',
-            );
-            _pollingTimer?.cancel();
-            setState(() {
-              _completedTransaction = txn;
-              _currentStep = 3; // Success (Receipt)
-            });
-          },
-          icon: const Icon(Icons.cloud_off_rounded),
-          label: const Text('Complete via Offline Counter Queue'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.gold,
-            foregroundColor: Colors.white,
+        SizedBox(
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: () => setState(() => _currentStep = 1),
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w800)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF303030),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
           ),
         ),
-        const SizedBox(height: 12),
-        OutlinedButton(
-          onPressed: _resetFlow,
-          child: const Text('Cancel & Start New'),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              final auth = ref.read(authProvider);
+              final user = auth.currentUser;
+              final repo = ref.read(paymentRepositoryProvider);
+              final txn = repo.recordOfflineTransaction(
+                momoNumber: _phoneController.text.trim(),
+                amount: _currentAmount,
+                customerName: _lookupCustomer?.name,
+                tellerId: user?.id ?? 'usr_teller',
+                posId: user?.assignedPos.firstOrNull ?? 'pos_01',
+              );
+              _pollingTimer?.cancel();
+              setState(() {
+                _completedTransaction = txn;
+                _currentStep = 3; // Success (Receipt)
+              });
+            },
+            icon: const Icon(Icons.cloud_off_rounded, size: 18),
+            label: const Text(
+              'Complete via Offline Counter Queue',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: heading,
+              side: BorderSide(color: borderColor),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
         ),
       ],
     );
   }
+
+  Widget _card({
+    required Color cardBg,
+    required Color borderColor,
+    required Widget child,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _sectionLabel(String label, Color color) => Padding(
+    padding: const EdgeInsets.only(left: 2, bottom: 8),
+    child: Text(
+      label,
+      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: color),
+    ),
+  );
 }

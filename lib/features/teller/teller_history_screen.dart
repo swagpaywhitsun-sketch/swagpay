@@ -26,20 +26,6 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
     super.dispose();
   }
 
-  Color _statusColor(TransactionStatus? s) {
-    if (s == TransactionStatus.success) return AppColors.success;
-    if (s == TransactionStatus.failed) return AppColors.error;
-    if (s == TransactionStatus.refunded) return AppColors.primaryLight;
-    return AppColors.gold;
-  }
-
-  IconData _statusIcon(TransactionStatus s) {
-    if (s == TransactionStatus.success) return Icons.check_circle_rounded;
-    if (s == TransactionStatus.failed) return Icons.cancel_rounded;
-    if (s == TransactionStatus.refunded) return Icons.undo_rounded;
-    return Icons.hourglass_top_rounded;
-  }
-
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(paymentRepositoryProvider);
@@ -49,7 +35,9 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
       statusFilter: _selectedStatus,
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF4F6FA);
+    final bgColor = isDark ? const Color(0xFF121214) : const Color(0xFFF6F6F8);
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
 
     // Summary stats
     final successCount = allTxns.where((t) => t.status == TransactionStatus.success).length;
@@ -62,12 +50,16 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        // Back button goes to dashboard, not the previous page
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF303030),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
           onPressed: () => context.go('/teller/dashboard'),
         ),
-        title: const Text('Collection History'),
+        title: const Text(
+          'Collection History',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Colors.white),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
@@ -78,54 +70,75 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
       body: Column(
         children: [
 
-          // ── Summary Header ─────────────────────────────────────
+          // ── Compact Summary KPI Banner (Reduced Size) ────────────
           Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.primary, AppColors.primaryDark],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 14, offset: const Offset(0, 5))],
+              color: cardBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: borderColor, width: 1),
             ),
             child: Column(
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('All Collections', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                    Text('${allTxns.length} total', style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'All Collections',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)}',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : const Color(0xFF303030),
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${allTxns.length} total',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : const Color(0xFF303030),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)}',
-                      style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: -0.5),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Row(
                   children: [
-                    _summaryPill('$successCount Success', AppColors.success),
+                    _summaryBadge('$successCount Success', const Color(0xFF229ED9), isDark),
                     const SizedBox(width: 8),
-                    _summaryPill('$pendingCount Pending', AppColors.gold),
+                    _summaryBadge('$pendingCount Pending', const Color(0xFFD97706), isDark),
                     const SizedBox(width: 8),
-                    _summaryPill('$failedCount Failed', AppColors.error),
+                    _summaryBadge('$failedCount Failed', const Color(0xFFDC2626), isDark),
                   ],
                 ),
               ],
             ),
           ),
 
-          // ── Search & Filter ─────────────────────────────────────
+          // ── Search & Filter Section ─────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: Column(
@@ -135,29 +148,44 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     hintText: 'Search by name, phone, reference...',
-                    prefixIcon: const Icon(Icons.search_rounded),
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                    ),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear_rounded),
+                            icon: const Icon(Icons.clear_rounded, size: 18),
                             onPressed: () { _searchController.clear(); setState(() {}); },
                           )
                         : null,
                     filled: true,
-                    fillColor: isDark ? AppColors.darkSurface : Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                    fillColor: cardBg,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF229ED9), width: 1.5),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _filterChip('All', null, isDark),
-                      _filterChip('✓ Success', TransactionStatus.success, isDark),
-                      _filterChip('⏳ Pending', TransactionStatus.pending, isDark),
-                      _filterChip('✖ Failed', TransactionStatus.failed, isDark),
-                      _filterChip('↩ Refunded', TransactionStatus.refunded, isDark),
+                      _filterChip('All', null, isDark, cardBg, borderColor),
+                      _filterChip('Success', TransactionStatus.success, isDark, cardBg, borderColor),
+                      _filterChip('Pending', TransactionStatus.pending, isDark, cardBg, borderColor),
+                      _filterChip('Failed', TransactionStatus.failed, isDark, cardBg, borderColor),
+                      _filterChip('Refunded', TransactionStatus.refunded, isDark, cardBg, borderColor),
                     ],
                   ),
                 ),
@@ -172,11 +200,24 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off_rounded, size: 60, color: Colors.grey.shade400),
+                        Icon(Icons.search_off_rounded, size: 48, color: isDark ? const Color(0xFF4B5563) : const Color(0xFF9CA3AF)),
                         const SizedBox(height: 12),
-                        Text('No transactions found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
-                        const SizedBox(height: 6),
-                        Text('Try adjusting your search or filter', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                        Text(
+                          'No collections match filter',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : const Color(0xFF303030),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Try clearing your search or status filter',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                          ),
+                        ),
                       ],
                     ),
                   )
@@ -184,7 +225,6 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                     itemCount: txns.length,
                     itemBuilder: (context, index) {
-                      // Group by date
                       final txn = txns[index];
                       final prevTxn = index > 0 ? txns[index - 1] : null;
                       final showDateHeader = prevTxn == null ||
@@ -194,7 +234,7 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (showDateHeader) _buildDateHeader(txn.timestamp, isDark),
-                          _buildTxnCard(context, txn, isDark),
+                          _buildTxnCard(context, txn, isDark, cardBg, borderColor),
                         ],
                       );
                     },
@@ -214,73 +254,113 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
     final isToday = _sameDay(date, now);
     final isYesterday = _sameDay(date, now.subtract(const Duration(days: 1)));
     final label = isToday ? 'Today' : isYesterday ? 'Yesterday' : DateFormat('EEEE, dd MMM yyyy').format(date);
+
     return Padding(
-      padding: const EdgeInsets.only(top: 14, bottom: 8),
+      padding: const EdgeInsets.only(top: 12, bottom: 6, left: 2),
       child: Text(
-        label,
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5,
-            color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+          color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+        ),
       ),
     );
   }
 
-  Widget _buildTxnCard(BuildContext context, PaymentTransaction txn, bool isDark) {
+  Widget _buildTxnCard(
+    BuildContext context,
+    PaymentTransaction txn,
+    bool isDark,
+    Color cardBg,
+    Color borderColor,
+  ) {
     final timeFormat = DateFormat('hh:mm a');
-    final statusColor = _statusColor(txn.status);
-    final statusIco = _statusIcon(txn.status);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: statusColor.withValues(alpha: 0.15)),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: 1),
       ),
       child: InkWell(
         onTap: () => context.push('/teller/transaction/${txn.id}'),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
-              // Status icon circle
+              // Clean icon box
               Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), shape: BoxShape.circle),
-                child: Icon(statusIco, color: statusColor, size: 18),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.receipt_outlined,
+                  color: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF4B5563),
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 12),
-              // Middle info
+              // Customer & reference info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(txn.customerName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14), overflow: TextOverflow.ellipsis),
+                    Text(
+                      txn.customerName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: isDark ? Colors.white : const Color(0xFF303030),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       '${txn.customerNumber} · ${txn.networkDisplay}',
-                      style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       txn.reference,
-                      style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary, letterSpacing: 0.3),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF9CA3AF),
+                        letterSpacing: 0.3,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              // Right — amount + time + badge
+              // Amount + status badge
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
                     'GH₵ ${NumberFormat('#,##0.00').format(txn.amount)}',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: statusColor),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: isDark ? Colors.white : const Color(0xFF303030),
+                    ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(timeFormat.format(txn.timestamp),
-                      style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary)),
+                  const SizedBox(height: 2),
+                  Text(
+                    timeFormat.format(txn.timestamp),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   StatusBadge(status: txn.status),
                 ],
@@ -292,27 +372,40 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
     );
   }
 
-  Widget _filterChip(String label, TransactionStatus? status, bool isDark) {
+  // ── Clean Filter Chip Without Emoji ─────────────────────────────────────
+  Widget _filterChip(
+    String label,
+    TransactionStatus? status,
+    bool isDark,
+    Color cardBg,
+    Color borderColor,
+  ) {
     final isSelected = _selectedStatus == status;
-    final color = _statusColor(status);
+
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: 6),
       child: GestureDetector(
         onTap: () => setState(() => _selectedStatus = status),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: isSelected ? color : (isDark ? AppColors.darkSurface : Colors.white),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: isSelected ? color : (isDark ? AppColors.darkBorder : AppColors.border)),
+            color: isSelected
+                ? const Color(0xFF229ED9)
+                : cardBg,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF229ED9) : borderColor,
+            ),
           ),
           child: Text(
             label,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: isSelected ? Colors.white : (isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
+              color: isSelected
+                  ? Colors.white
+                  : (isDark ? const Color(0xFFD1D5DB) : const Color(0xFF374151)),
             ),
           ),
         ),
@@ -320,11 +413,22 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
     );
   }
 
-  Widget _summaryPill(String label, Color color) {
+  Widget _summaryBadge(String label, Color color, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(20)),
-      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.2 : 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

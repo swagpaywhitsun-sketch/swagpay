@@ -156,15 +156,24 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
         // Brand logo
         Center(
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.12),
+              color: AppColors.primary.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.point_of_sale_rounded,
-              size: 52,
-              color: AppColors.primary,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(40),
+              child: Image.asset(
+                'logo.png',
+                width: 64,
+                height: 64,
+                fit: BoxFit.contain,
+                errorBuilder: (ctx, err, stack) => const Icon(
+                  Icons.point_of_sale_rounded,
+                  size: 52,
+                  color: AppColors.primary,
+                ),
+              ),
             ),
           ),
         ),
@@ -245,22 +254,33 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Checkbox(
-                  value: _rememberMe,
-                  onChanged: (val) => setState(() => _rememberMe = val ?? true),
-                ),
-                const Text('Remember me', style: TextStyle(fontSize: 13)),
-              ],
+            Flexible(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox(
+                    value: _rememberMe,
+                    onChanged: (val) => setState(() => _rememberMe = val ?? true),
+                  ),
+                  const Flexible(
+                    child: Text(
+                      'Remember me',
+                      style: TextStyle(fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('OTP sent to registered phone number for password reset')),
-                );
-              },
-              child: const Text('Forgot PIN/Pass?'),
+            Flexible(
+              child: TextButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('OTP sent to registered phone number for password reset')),
+                  );
+                },
+                child: const Text('Forgot PIN/Pass?', overflow: TextOverflow.ellipsis),
+              ),
             ),
           ],
         ),

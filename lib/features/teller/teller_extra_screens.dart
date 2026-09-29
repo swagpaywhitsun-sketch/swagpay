@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/customer.dart';
 import '../../core/state/providers.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_thin_footer.dart';
 import '../../core/widgets/user_avatar_widget.dart';
 
@@ -18,29 +17,47 @@ class TellerNotificationsScreen extends ConsumerWidget {
     final repo = ref.watch(paymentRepositoryProvider);
     final notifications = repo.getNotifications();
     final dateFormat = DateFormat('dd MMM, hh:mm a');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      backgroundColor: isDark ? const Color(0xFF121214) : const Color(0xFFF6F6F8),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF303030),
+        title: const Text('Notifications', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
+      ),
       body: notifications.isEmpty
-          ? const Center(child: Text('No notifications at this time'))
+          ? Center(
+              child: Text(
+                'No notifications at this time',
+                style: TextStyle(fontSize: 14, color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280)),
+              ),
+            )
           : ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: notifications.length,
               separatorBuilder: (context, index) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 final item = notifications[index];
-                return Card(
+                return Container(
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: borderColor, width: 1),
+                  ),
                   child: ListTile(
                     leading: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: AppColors.primaryLight,
-                        shape: BoxShape.circle,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF229ED9).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 20),
+                      child: const Icon(Icons.notifications_active_outlined, color: Color(0xFF229ED9), size: 18),
                     ),
-                    title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    subtitle: Text('${item.message}\n${dateFormat.format(item.timestamp)}'),
+                    title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    subtitle: Text('${item.message}\n${dateFormat.format(item.timestamp)}', style: const TextStyle(fontSize: 11)),
                     isThreeLine: true,
                   ),
                 );
@@ -61,6 +78,8 @@ class TellerProfileScreen extends ConsumerStatefulWidget {
 class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
   void _showAvatarPicker(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
 
     Future<void> pickAndSave(ImageSource source) async {
       try {
@@ -73,7 +92,7 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
           if (context.mounted) {
             Navigator.pop(context);
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Profile picture updated!'), backgroundColor: AppColors.success),
+              const SnackBar(content: Text('Profile picture updated!'), backgroundColor: Color(0xFF229ED9)),
             );
           }
         }
@@ -84,13 +103,13 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      backgroundColor: cardBg,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (ctx) {
         final avatar = ref.watch(userAvatarProvider);
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -98,41 +117,57 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Profile Picture', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                    IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(ctx)),
+                    Text(
+                      'Profile Picture',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF303030),
+                      ),
+                    ),
+                    IconButton(icon: const Icon(Icons.close_rounded, size: 20), onPressed: () => Navigator.pop(ctx)),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 ListTile(
                   leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.12), shape: BoxShape.circle),
-                    child: const Icon(Icons.photo_library_rounded, color: AppColors.primary),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF229ED9).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.photo_library_outlined, color: Color(0xFF229ED9), size: 18),
                   ),
-                  title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.bold)),
-                  trailing: const Icon(Icons.chevron_right_rounded),
+                  title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 18),
                   onTap: () => pickAndSave(ImageSource.gallery),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1, color: borderColor),
                 ListTile(
                   leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.12), shape: BoxShape.circle),
-                    child: const Icon(Icons.camera_alt_rounded, color: AppColors.success),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF229ED9).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.camera_alt_outlined, color: Color(0xFF229ED9), size: 18),
                   ),
-                  title: const Text('Take a Photo', style: TextStyle(fontWeight: FontWeight.bold)),
-                  trailing: const Icon(Icons.chevron_right_rounded),
+                  title: const Text('Take a Photo', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 18),
                   onTap: () => pickAndSave(ImageSource.camera),
                 ),
                 if (avatar != null && avatar.isNotEmpty) ...[
-                  const Divider(height: 1),
+                  Divider(height: 1, color: borderColor),
                   ListTile(
                     leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.12), shape: BoxShape.circle),
-                      child: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 18),
                     ),
-                    title: const Text('Remove Photo', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+                    title: const Text('Remove Photo', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFFDC2626))),
                     onTap: () {
                       ref.read(userAvatarProvider.notifier).clearAvatar();
                       Navigator.pop(ctx);
@@ -153,125 +188,176 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
     final user = auth.currentUser;
     final avatar = ref.watch(userAvatarProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF121214) : const Color(0xFFF6F6F8);
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF303030),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          onPressed: () => context.go('/teller/dashboard'),
+        ),
+        title: const Text('Settings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Profile Card
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    GestureDetector(
-                      onTap: () => _showAvatarPicker(context),
-                      child: Stack(
-                        children: [
-                          UserAvatarWidget(avatarData: avatar, name: user?.fullName ?? 'Teller', radius: 48),
-                          Positioned(
-                            bottom: 2, right: 2,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                              child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(user?.fullName ?? 'Teller Cashier', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 3),
-                    Text(
-                      user?.email ?? 'teller@swagpay.com',
-                      style: TextStyle(fontSize: 13, color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        user?.roleDisplay ?? 'Teller',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: () => _showAvatarPicker(context),
-                      icon: const Icon(Icons.photo_camera_outlined, size: 16),
-                      label: const Text('Change Profile Photo'),
-                    ),
-                  ],
-                ),
+            // ── Profile Card ─────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor, width: 1),
               ),
-            ),
-            const SizedBox(height: 20),
-
-            // Account Information
-            _sectionLabel('Account Information'),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Column(
                 children: [
-                  _infoTile(Icons.badge_outlined, AppColors.primary, 'Teller ID', user?.id ?? 'TEL-001'),
-                  const Divider(height: 1, indent: 56),
-                  _infoTile(Icons.email_outlined, AppColors.primaryLight, 'Email', user?.email ?? 'teller@swagpay.com'),
-                  const Divider(height: 1, indent: 56),
-                  _infoTile(Icons.phone_outlined, AppColors.success, 'Phone', user?.phone.isNotEmpty == true ? user!.phone : 'Not set'),
-                  const Divider(height: 1, indent: 56),
-                  _infoTile(Icons.store_outlined, AppColors.gold, 'Branch', user?.branch ?? 'Accra Mall Hub'),
-                  const Divider(height: 1, indent: 56),
-                  _infoTile(Icons.point_of_sale_outlined, AppColors.primaryDark, 'Assigned POS', user?.assignedPos.firstOrNull ?? 'POS-01'),
+                  GestureDetector(
+                    onTap: () => _showAvatarPicker(context),
+                    child: Stack(
+                      children: [
+                        UserAvatarWidget(avatarData: avatar, name: user?.fullName ?? 'Teller', radius: 40),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF229ED9),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.camera_alt_outlined, size: 12, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    user?.fullName ?? 'Teller Cashier',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF303030),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    user?.email ?? 'teller@swagpay.com',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF229ED9).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      user?.roleDisplay ?? 'Teller Cashier',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF229ED9),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
-            // App Preferences
-            _sectionLabel('App Preferences'),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            // ── Section 1: Account Information ───────────────────────
+            _sectionLabel('Account & Terminal', isDark),
+            Container(
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor, width: 1),
+              ),
+              child: Column(
+                children: [
+                  _infoTile(Icons.badge_outlined, 'Teller ID', user?.id ?? 'TEL-001', isDark),
+                  Divider(height: 1, indent: 52, color: borderColor),
+                  _infoTile(Icons.email_outlined, 'Email Address', user?.email ?? 'teller@swagpay.com', isDark),
+                  Divider(height: 1, indent: 52, color: borderColor),
+                  _infoTile(Icons.phone_outlined, 'Phone Number', user?.phone.isNotEmpty == true ? user!.phone : 'Not set', isDark),
+                  Divider(height: 1, indent: 52, color: borderColor),
+                  _infoTile(Icons.storefront_outlined, 'Assigned Branch', user?.branch ?? 'Accra Mall Hub', isDark),
+                  Divider(height: 1, indent: 52, color: borderColor),
+                  _infoTile(Icons.point_of_sale_outlined, 'Assigned POS Terminal', user?.assignedPos.firstOrNull ?? 'POS-01', isDark),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // ── Section 2: App Preferences ─────────────────────────
+            _sectionLabel('App Preferences', isDark),
+            Container(
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor, width: 1),
+              ),
               child: ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.15),
+                    color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined, color: AppColors.gold, size: 20),
+                  child: Icon(
+                    isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                    color: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF374151),
+                    size: 18,
+                  ),
                 ),
-                title: Text(isDark ? 'Light Mode' : 'Dark Mode', style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(isDark ? 'Switch to light theme' : 'Switch to dark theme', style: const TextStyle(fontSize: 12)),
+                title: Text(
+                  isDark ? 'Light Theme' : 'Dark Theme',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: isDark ? Colors.white : const Color(0xFF303030),
+                  ),
+                ),
+                subtitle: Text(
+                  isDark ? 'Switch to light color mode' : 'Switch to dark color mode',
+                  style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280)),
+                ),
                 trailing: Switch(
                   value: isDark,
-                  activeThumbColor: AppColors.primary,
+                  activeThumbColor: const Color(0xFF229ED9),
                   onChanged: (_) => ref.read(themeModeProvider.notifier).toggleTheme(),
                 ),
               ),
             ),
             const SizedBox(height: 24),
 
-            // Logout
-            ElevatedButton.icon(
-              onPressed: () {
-                ref.read(authProvider.notifier).logout();
-                context.go('/teller/login');
-              },
-              icon: const Icon(Icons.logout_rounded),
-              label: const Text('Logout', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            // ── Section 3: Logout Action ──────────────────────────────
+            SizedBox(
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  ref.read(authProvider.notifier).logout();
+                  context.go('/teller/login');
+                },
+                icon: const Icon(Icons.logout_rounded, size: 18),
+                label: const Text('LOG OUT', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
               ),
             ),
           ],
@@ -281,22 +367,37 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
     );
   }
 
-  Widget _sectionLabel(String label) => Padding(
-    padding: const EdgeInsets.only(left: 4, bottom: 8),
+  Widget _sectionLabel(String label, bool isDark) => Padding(
+    padding: const EdgeInsets.only(left: 4, bottom: 6),
     child: Text(
       label.toUpperCase(),
-      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: AppColors.textSecondary),
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.0,
+        color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+      ),
     ),
   );
 
-  Widget _infoTile(IconData icon, Color color, String title, String value) => ListTile(
+  Widget _infoTile(IconData icon, String title, String value, bool isDark) => ListTile(
     leading: Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-      child: Icon(icon, color: color, size: 18),
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(icon, color: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF4B5563), size: 16),
     ),
-    title: Text(title, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-    subtitle: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+    title: Text(title, style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280))),
+    subtitle: Text(
+      value,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: isDark ? Colors.white : const Color(0xFF303030),
+      ),
+    ),
     dense: true,
   );
 }
@@ -308,28 +409,42 @@ class TellerOfflineQueueScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(paymentRepositoryProvider);
     final queue = repo.getOfflineQueue();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Offline Transaction Queue')),
+      backgroundColor: isDark ? const Color(0xFF121214) : const Color(0xFFF6F6F8),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF303030),
+        title: const Text('Offline Queue', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
+      ),
       body: queue.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.cloud_done_rounded, size: 64, color: AppColors.success),
+                  const Icon(Icons.cloud_done_outlined, size: 56, color: Color(0xFF229ED9)),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'All Transactions Synced',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF303030),
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'No pending offline collections in local cache.',
-                    style: TextStyle(color: AppColors.textSecondary),
+                  const SizedBox(height: 6),
+                  Text(
+                    'No pending offline collections in local storage',
+                    style: TextStyle(color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280), fontSize: 13),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: () => context.pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF229ED9),
+                      foregroundColor: Colors.white,
+                    ),
                     child: const Text('Return to Dashboard'),
                   ),
                 ],
@@ -338,16 +453,16 @@ class TellerOfflineQueueScreen extends ConsumerWidget {
           : Column(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(16),
-                  color: AppColors.gold.withValues(alpha: 0.15),
+                  padding: const EdgeInsets.all(14),
+                  color: const Color(0xFFFFF4E5),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning_amber_rounded, color: AppColors.gold),
-                      const SizedBox(width: 12),
+                      const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 20),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          '${queue.length} transaction(s) pending sync with central payment gateway.',
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          '${queue.length} transaction(s) pending sync with central gateway.',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Color(0xFF8A5300)),
                         ),
                       ),
                     ],
@@ -360,11 +475,16 @@ class TellerOfflineQueueScreen extends ConsumerWidget {
                     separatorBuilder: (context, index) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final item = queue[index];
-                      return Card(
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E1E22) : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5)),
+                        ),
                         child: ListTile(
-                          title: Text(item.customerName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('${item.reference} • ₦${item.amount.toStringAsFixed(2)}'),
-                          trailing: const Text('QUEUED', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold)),
+                          title: Text(item.customerName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          subtitle: Text('${item.reference} • GH₵ ${item.amount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 11)),
+                          trailing: const Text('QUEUED', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFFD97706))),
                         ),
                       );
                     },
@@ -379,14 +499,14 @@ class TellerOfflineQueueScreen extends ConsumerWidget {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Successfully synced $count transaction(s) to server'),
-                            backgroundColor: AppColors.success,
+                            backgroundColor: const Color(0xFF229ED9),
                           ),
                         );
                       }
                     },
                     icon: const Icon(Icons.sync_rounded),
-                    label: const Text('Sync All Now'),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                    label: const Text('Sync All Now', style: TextStyle(fontWeight: FontWeight.w800)),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF229ED9)),
                   ),
                 ),
               ],
@@ -423,10 +543,17 @@ class _CustomerLookupScreenState extends ConsumerState<CustomerLookupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Customer Directory Lookup')),
+      backgroundColor: isDark ? const Color(0xFF121214) : const Color(0xFFF6F6F8),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF303030),
+        title: const Text('Customer Directory Lookup', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -442,51 +569,55 @@ class _CustomerLookupScreenState extends ConsumerState<CustomerLookupScreen> {
               ),
               onSubmitted: (_) => _search(),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
             if (_isLoading) ...[
               const Center(child: CircularProgressIndicator()),
             ] else if (_customer != null) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const CircleAvatar(
-                            backgroundColor: AppColors.primary,
-                            child: Icon(Icons.person, color: Colors.white),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E1E22) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const CircleAvatar(
+                          backgroundColor: Color(0xFF229ED9),
+                          child: Icon(Icons.person_outline_rounded, color: Colors.white),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_customer!.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                              Text(_customer!.accountNumber, style: TextStyle(color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280), fontSize: 12)),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(_customer!.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                Text(_customer!.accountNumber, style: const TextStyle(color: AppColors.textSecondary)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Phone Number', style: TextStyle(color: AppColors.textSecondary)),
-                          Text(_customer!.phone, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () => context.push('/teller/collection'),
-                        icon: const Icon(Icons.send_rounded),
-                        label: const Text('Send MoMo Prompt'),
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Phone Number', style: TextStyle(color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280), fontSize: 12)),
+                        Text(_customer!.phone, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => context.push('/teller/collection'),
+                      icon: const Icon(Icons.send_rounded, size: 16),
+                      label: const Text('Send MoMo Prompt'),
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF229ED9)),
+                    ),
+                  ],
                 ),
               ),
             ],

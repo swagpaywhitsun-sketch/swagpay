@@ -54,114 +54,134 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/splash',
-        builder: (context, state) => const SplashScreen(),
+        builder: (context, state) => const SelectionArea(child: SplashScreen()),
       ),
       GoRoute(
         path: '/device-unauthorized',
-        builder: (context, state) => const DeviceUnauthorizedScreen(),
+        builder: (context, state) => const SelectionArea(child: DeviceUnauthorizedScreen()),
       ),
       // Teller Routes
       GoRoute(
         path: '/teller/login',
-        builder: (context, state) => const TellerLoginScreen(),
+        builder: (context, state) => const SelectionArea(child: TellerLoginScreen()),
       ),
       GoRoute(
         path: '/teller/dashboard',
-        builder: (context, state) => const TellerDashboardScreen(),
+        builder: (context, state) => const SelectionArea(child: TellerDashboardScreen()),
       ),
       GoRoute(
         path: '/teller/collection',
-        builder: (context, state) => const NewCollectionScreen(),
+        builder: (context, state) => const SelectionArea(child: NewCollectionScreen()),
       ),
       GoRoute(
         path: '/teller/history',
-        builder: (context, state) => const TellerHistoryScreen(),
+        builder: (context, state) => const SelectionArea(child: TellerHistoryScreen()),
       ),
       GoRoute(
         path: '/teller/transaction/:id',
-        builder: (context, state) => TransactionDetailScreen(
-          transactionId: state.pathParameters['id'] ?? '',
+        builder: (context, state) => SelectionArea(
+          child: TransactionDetailScreen(
+            transactionId: state.pathParameters['id'] ?? '',
+          ),
         ),
       ),
       GoRoute(
         path: '/teller/reports',
-        builder: (context, state) => const TellerReportsScreen(),
+        builder: (context, state) => const SelectionArea(child: TellerReportsScreen()),
       ),
       GoRoute(
         path: '/teller/profile',
-        builder: (context, state) => const TellerProfileScreen(),
+        builder: (context, state) => const SelectionArea(child: TellerProfileScreen()),
       ),
       GoRoute(
         path: '/teller/notifications',
-        builder: (context, state) => const TellerNotificationsScreen(),
+        builder: (context, state) => const SelectionArea(child: TellerNotificationsScreen()),
       ),
       GoRoute(
         path: '/teller/offline-queue',
-        builder: (context, state) => const TellerOfflineQueueScreen(),
+        builder: (context, state) => const SelectionArea(child: TellerOfflineQueueScreen()),
       ),
 
       // Admin POS Web Routes wrapped in AdminLayout
       GoRoute(
         path: '/admin/dashboard',
-        builder: (context, state) => const AdminLayout(
-          currentRoute: '/admin/dashboard',
-          child: AdminDashboardScreen(),
+        builder: (context, state) => const SelectionArea(
+          child: AdminLayout(
+            currentRoute: '/admin/dashboard',
+            child: AdminDashboardScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: '/admin/tellers',
-        builder: (context, state) => const AdminLayout(
-          currentRoute: '/admin/tellers',
-          child: AdminTellersScreen(),
+        builder: (context, state) => const SelectionArea(
+          child: AdminLayout(
+            currentRoute: '/admin/tellers',
+            child: AdminTellersScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: '/admin/pos',
-        builder: (context, state) => const AdminLayout(
-          currentRoute: '/admin/pos',
-          child: AdminPosScreen(),
+        builder: (context, state) => const SelectionArea(
+          child: AdminLayout(
+            currentRoute: '/admin/pos',
+            child: AdminPosScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: '/admin/transactions',
-        builder: (context, state) => const AdminLayout(
-          currentRoute: '/admin/transactions',
-          child: AdminTransactionsScreen(),
+        builder: (context, state) => const SelectionArea(
+          child: AdminLayout(
+            currentRoute: '/admin/transactions',
+            child: AdminTransactionsScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: '/admin/refunds',
-        builder: (context, state) => const AdminLayout(
-          currentRoute: '/admin/refunds',
-          child: AdminRefundsScreen(),
+        builder: (context, state) => const SelectionArea(
+          child: AdminLayout(
+            currentRoute: '/admin/refunds',
+            child: AdminRefundsScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: '/admin/reports',
-        builder: (context, state) => const AdminLayout(
-          currentRoute: '/admin/reports',
-          child: AdminReportsScreen(),
+        builder: (context, state) => const SelectionArea(
+          child: AdminLayout(
+            currentRoute: '/admin/reports',
+            child: AdminReportsScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: '/admin/settlements',
-        builder: (context, state) => const AdminLayout(
-          currentRoute: '/admin/settlements',
-          child: AdminSettlementsScreen(),
+        builder: (context, state) => const SelectionArea(
+          child: AdminLayout(
+            currentRoute: '/admin/settlements',
+            child: AdminSettlementsScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: '/admin/audit-logs',
-        builder: (context, state) => const AdminLayout(
-          currentRoute: '/admin/audit-logs',
-          child: AdminAuditLogsScreen(),
+        builder: (context, state) => const SelectionArea(
+          child: AdminLayout(
+            currentRoute: '/admin/audit-logs',
+            child: AdminAuditLogsScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: '/admin/settings',
-        builder: (context, state) => const AdminLayout(
-          currentRoute: '/admin/settings',
-          child: AdminSettingsScreen(),
+        builder: (context, state) => const SelectionArea(
+          child: AdminLayout(
+            currentRoute: '/admin/settings',
+            child: AdminSettingsScreen(),
+          ),
         ),
       ),
     ],
@@ -183,11 +203,6 @@ class SwagPayApp extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: router,
-      builder: (context, child) {
-        return SelectionArea(
-          child: child ?? const SizedBox(),
-        );
-      },
     );
   }
 }
