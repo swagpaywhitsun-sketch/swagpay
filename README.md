@@ -77,23 +77,34 @@ npm start
 
 ## 📦 Building Releases
 
+Release builds are signed with the `swagpay-release` keystore. `android/key.properties`
+and `android/swagpay-release.jks` are gitignored — **back both of them up offline**. The
+keystore password is not recoverable, and Android refuses updates signed by a different
+key, so losing it means every installed app must be uninstalled and reinstalled.
+
+`android/app/build.gradle.kts` fails the build when `key.properties` is missing; release
+no longer falls back to debug signing.
+
 ### Android APK
 ```bash
-flutter build apk --release
+flutter build apk --release --obfuscate --split-debug-info=build/symbols-android
 ```
-Output: `build/app/outputs/flutter-apk/app-release.apk` (and `swagpay-pos-release.apk`)
+Output: `build/app/outputs/flutter-apk/app-release.apk`.
+Keep `build/symbols-android` — it turns an obfuscated crash log back into a stack trace.
 
 ### iOS App
+Open `ios/Runner.xcworkspace` once, set the Team and a provisioning profile, then:
 ```bash
-flutter build ios --release --no-codesign
+flutter build ipa --release --obfuscate --split-debug-info=build/symbols-ios
 ```
-Output: `build/ios/iphoneos/Runner.app` (and `swagpay-pos-ios.ipa`)
+`flutter build ios --no-codesign` yields an unsigned `Runner.app` that cannot be
+installed on a device or uploaded to TestFlight.
 
 ### Web Production Bundle
 ```bash
-flutter build web
+flutter build web --release
 ```
-Output: `build/web/`
+Output: `build/web/` — tracked in git and served by the Fly.io deployment.
 
 ---
 

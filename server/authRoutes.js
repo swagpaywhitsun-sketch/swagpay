@@ -128,18 +128,12 @@ module.exports = function registerAuthRoutes(app, pool) {
         return res.status(403).json({ success: false, message: 'This account is not an administrator' });
       }
 
-      // 3. Device binding: the first login pins the account to that terminal.
-      if (row.deviceId && row.deviceId !== deviceId) {
-        return res.status(403).json({
-          success: false,
-          message: 'This account is bound to another device. An administrator must unbind it.',
-        });
-      }
-      if (!row.deviceId) {
+      // 3. Multi-device support: record the active device on the session without blocking other devices
+      if (deviceId && deviceId !== PUBLIC_DEVICE_ID) {
         try {
           await pool.query('UPDATE users SET "deviceId" = $1 WHERE id = $2', [deviceId, row.id]);
         } catch (_) {
-          // deviceId column not migrated yet — binding unavailable
+          // deviceId column optional
         }
       }
 

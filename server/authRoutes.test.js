@@ -102,14 +102,14 @@ test('a deactivated account is refused even with the right secret', async () => 
   assert.equal(res.status, 403);
 });
 
-test('an account already bound to another device cannot sign in elsewhere', async () => {
+test('an account can sign in from any authorized device and records active device', async () => {
   const pool = fakePool([
     { id: 'usr_9', name: 'B', email: 'b@swagpay.test', role: 'TELLER', deviceId: 'dev-original', pin: '', pinHash: auth.hashPassword('pw') },
   ]);
-  const res = await login(pool, { identifier: 'b@swagpay.test', password: 'pw', deviceId: 'dev-thief' });
-  assert.equal(res.status, 403);
-  assert.match(res.body.message, /another device/i);
-  assert.equal(pool.writes.length, 0, 'a rejected login must not re-bind the account');
+  const res = await login(pool, { identifier: 'b@swagpay.test', password: 'pw', deviceId: 'dev-second-device' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.success, true);
+  assert.ok(pool.writes.some((w) => w.kind === 'bind' && w.deviceId === 'dev-second-device'));
 });
 
 test('a teller cannot request an admin session', async () => {
