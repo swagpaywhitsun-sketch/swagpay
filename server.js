@@ -368,8 +368,23 @@ app.get('/api/payments/status/:ref', async (req, res) => {
 // ─── TRANSACTIONS LIST ───────────────────────────────
 app.get('/api/transactions', async (req, res) => {
   try {
-    // Tellers are always scoped to their own ledger; admins may opt into the same view.
-    const scopeToMe = req.auth.role === 'TELLER' || req.query.scope === 'me';
+    const isTeller = req.auth.role === 'TELLER';
+    let whereClause = '';
+    const params = [];
+
+    if (isTeller) {
+      if (req.auth.posId) {
+        params.push(req.auth.userId, req.auth.posId);
+        whereClause = 'WHERE (t."tellerId" = $1 OR t."posId" = $2)';
+      } else {
+        params.push(req.auth.userId);
+        whereClause = 'WHERE t."tellerId" = $1';
+      }
+    } else if (req.query.scope === 'me') {
+      params.push(req.auth.userId);
+      whereClause = 'WHERE t."tellerId" = $1';
+    }
+
     const result = await pool.query(`
       SELECT t.id, t.reference, t."gatewayReference", t."tellerId", t."posId",
              t.network, t."momoNumber", t."customerName", t.amount, t.fee,
@@ -378,10 +393,10 @@ app.get('/api/transactions', async (req, res) => {
       FROM transactions t
       LEFT JOIN users u ON t."tellerId" = u.id
       LEFT JOIN pos_terminals p ON t."posId" = p.id
-      ${scopeToMe ? 'WHERE t."tellerId" = $1' : ''}
+      ${whereClause}
       ORDER BY t."createdAt" DESC
       LIMIT 100
-    `, scopeToMe ? [req.auth.userId] : []);
+    `, params);
 
     res.json(result.rows);
   } catch (err) {
