@@ -47,18 +47,19 @@ class _AdminRefundsScreenState extends ConsumerState<AdminRefundsScreen> {
         .fold<double>(0.0, (acc, r) => acc + r.amount);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Refund & Void Approvals', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Text('Refund & Void Approvals', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
                   Text(
                     'Review and authorize cashier refund requests before debiting settlement pool',
@@ -343,18 +344,19 @@ class _AdminSettlementsScreenState extends ConsumerState<AdminSettlementsScreen>
     final variance = totalCollected - totalSettled;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Daily Settlements & Reconciliation', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Text('Daily Settlements & Reconciliation', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
                   Text(
                     'Reconcile counter collections with clearing bank pool and POS terminal batches',
@@ -572,18 +574,19 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
     }).toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('System Audit Trail', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Text('System Audit Trail', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
                   Text(
                     'Immutable operational and security log of all cashier, admin, and gateway transactions',
@@ -828,18 +831,19 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Reports & Collection Analytics', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Text('Reports & Collection Analytics', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
                   Text(
                     'Real-time collection reports, telco breakdown, and counter performance insights',
@@ -1273,17 +1277,17 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('System Configuration & Live Gateway', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+          const Text('System Configuration & Live Gateway', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
           const SizedBox(height: 4),
           Text(
             'Manage WhitsunPay gateway connectivity, PostgreSQL database host, and terminal gatekeeper',
             style: TextStyle(color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary, fontSize: 13),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           // Backend API Connection Card
           Card(

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/pos_device.dart';
 import '../../core/models/transaction.dart';
 import '../../core/models/user.dart';
+import '../../core/network/api_client.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/stat_card.dart';
@@ -67,13 +68,26 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                 singleTxnLimit: double.tryParse(limitCtrl.text) ?? 10000.0,
                 dailyLimit: 50000.0,
               );
-              await ref.read(paymentRepositoryProvider).addTeller(newTeller);
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Teller successfully added to Supabase database!'), backgroundColor: AppColors.success),
-                );
+              String? secret;
+              Object? failure;
+              try {
+                secret = await ref.read(paymentRepositoryProvider).addTeller(newTeller);
+              } catch (e) {
+                failure = e;
               }
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              final message = failure != null
+                  ? 'Could not save teller: ${failure is ApiException ? failure.message : '$failure'}'
+                  : secret != null
+                      ? 'Teller created. Sign-in secret (show once, they must change it later): $secret'
+                      : 'Teller updated';
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(message),
+                  backgroundColor: failure != null ? AppColors.error : AppColors.success,
+                ),
+              );
             },
             child: const Text('Create Teller'),
           ),
@@ -102,18 +116,19 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
     final avgLimit = allTellers.isNotEmpty ? totalLimit / allTellers.length : 0.0;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Teller & Staff Management', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Text('Teller & Staff Management', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
                   Text(
                     'Manage cashier accounts, counter POS assignments, and authorization limits',
@@ -417,13 +432,22 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                 isWhitelisted: true,
                 lastSeen: DateTime.now(),
               );
-              await ref.read(paymentRepositoryProvider).addPosDevice(newPos);
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Terminal registered successfully in Supabase!'), backgroundColor: AppColors.success),
-                );
+              Object? failure;
+              try {
+                await ref.read(paymentRepositoryProvider).addPosDevice(newPos);
+              } catch (e) {
+                failure = e;
               }
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(failure == null
+                      ? 'Terminal registered.'
+                      : 'Could not register terminal: ${failure is ApiException ? failure.message : '$failure'}'),
+                  backgroundColor: failure == null ? AppColors.success : AppColors.error,
+                ),
+              );
             },
             child: const Text('Register Terminal'),
           ),
@@ -451,18 +475,19 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
     final whitelistedCount = allDevices.where((p) => p.isWhitelisted).length;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('POS Hardware & Terminals', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Text('POS Hardware & Terminals', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
                   Text(
                     'Hardware terminal whitelist, serial validation, and remote device monitoring',
@@ -724,18 +749,19 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
     final successRate = allTxns.isEmpty ? 100 : ((successfulTxns.length / allTxns.length) * 100).toInt();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('All Collections & Transactions', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Text('All Collections & Transactions', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
                   Text(
                     'Real-time transaction ledger connected directly to WhitsunPay MoMo gateway & Supabase',

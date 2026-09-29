@@ -22,7 +22,8 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   // 1 = Enter Number & Amount
   // 2 = Awaiting Customer PIN
   // 3 = Payment Success
-  // 4 = Payment Failed
+  // 4 = Payment Failed (Authoritatively Declined)
+  // 5 = Gateway Verification In-Flight / Timeout (Reconciliation Guard)
   int _currentStep = 1;
 
   final _phoneController = TextEditingController();
@@ -35,6 +36,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   String? _activeReference;
   PaymentTransaction? _completedTransaction;
   String? _errorMessage;
+  bool _isRechecking = false;
 
   Timer? _pollingTimer;
   int _pollingElapsedSeconds = 0;
@@ -89,9 +91,12 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   double get _currentAmount => double.tryParse(_amountController.text.trim()) ?? 0.0;
 
   void _startMoMoCollection() async {
-    final auth = ref.read(authProvider);
-    final user = auth.currentUser;
+    final user = ref.read(authProvider).currentUser;
     final repo = ref.read(paymentRepositoryProvider);
+    if (user == null) {
+      setState(() => _errorMessage = 'This terminal has no active session. Sign in before collecting money.');
+      return;
+    }
 
     setState(() {
       _currentStep = 2; // Awaiting Customer PIN
@@ -100,7 +105,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     });
 
     try {
-      // Never fire the MoMo prompt with an unverified name — wait for a pending DUL lookup
+      // Never fire the MoMo prompt with an unverified name — wait for a pending lookup
       if (_lookupCustomer == null && _lookupFuture != null) {
         _lookupCustomer = await _lookupFuture;
       }
@@ -108,8 +113,8 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         momoNumber: _phoneController.text.trim(),
         amount: _currentAmount,
         customerName: _lookupCustomer?.name,
-        tellerId: user?.id ?? 'usr_teller1',
-        posId: user?.assignedPos.firstOrNull ?? 'pos_01',
+        tellerId: user.id,
+        posId: user.assignedPos.firstOrNull ?? '',
       );
 
       _activeReference = initRes['reference'] as String;
@@ -139,14 +144,16 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               _currentStep = 4; // Failed
             });
           }
-        } catch (_) {}
+        } catch (_) {
+          // Network fluctuation during polling — do not treat as failure
+        }
 
-        // Timeout after 90 seconds
+        // Timeout after 90 seconds — transition to In-Flight Verification rather than declaring failed
         if (_pollingElapsedSeconds >= 90) {
           timer.cancel();
           setState(() {
-            _errorMessage = 'Customer PIN authorization timed out (90s)';
-            _currentStep = 4;
+            _errorMessage = 'Gateway authorization in-flight (90s limit reached without definitive status)';
+            _currentStep = 5; // In-Flight Settlement Check
           });
         }
       });
@@ -155,6 +162,38 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         _errorMessage = e.toString().replaceAll('ApiException: ', '');
         _currentStep = 4;
       });
+    }
+  }
+
+  Future<void> _recheckStatus() async {
+    if (_activeReference == null) return;
+    setState(() => _isRechecking = true);
+    final repo = ref.read(paymentRepositoryProvider);
+    try {
+      final txn = await repo.checkPaymentStatus(_activeReference!);
+      if (!mounted) return;
+      setState(() {
+        _isRechecking = false;
+        _completedTransaction = txn;
+      });
+      if (txn.status == TransactionStatus.success) {
+        setState(() => _currentStep = 3);
+      } else if (txn.status == TransactionStatus.failed) {
+        setState(() {
+          _errorMessage = txn.failureReason ?? 'Payment was declined by network operator';
+          _currentStep = 4;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Transaction still processing at telco switch. Please re-check in a moment.')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isRechecking = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not verify status: ${e.toString().replaceAll('ApiException: ', '')}')),
+      );
     }
   }
 
@@ -170,6 +209,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       _activeReference = null;
       _completedTransaction = null;
       _errorMessage = null;
+      _isRechecking = false;
     });
   }
 
@@ -191,7 +231,9 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   ? 'Awaiting Authorization'
                   : _currentStep == 3
                       ? 'Collection Complete'
-                      : 'Collection Failed',
+                      : _currentStep == 4
+                          ? 'Collection Failed'
+                          : 'Verification In-Flight',
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
@@ -225,6 +267,8 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         return _buildStep3Success();
       case 4:
         return _buildStep4Failed();
+      case 5:
+        return _buildStep5InFlight();
       default:
         return const SizedBox();
     }
@@ -235,13 +279,13 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
     final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
-    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF707579);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
     final heading = isDark ? Colors.white : const Color(0xFF303030);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Customer card ──────────────────────────────────────────
+        // Customer card
         _card(
           cardBg: cardBg,
           borderColor: borderColor,
@@ -279,7 +323,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                               ),
                               child: Text(
                                 _detectedNetwork!,
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF229ED9)),
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1570A6)),
                               ),
                             )
                           : null),
@@ -292,7 +336,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF229ED9), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF1570A6), width: 1.5),
                   ),
                 ),
               ),
@@ -327,7 +371,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         ),
         const SizedBox(height: 12),
 
-        // ── Amount card ────────────────────────────────────────────
+        // Amount card
         _card(
           cardBg: cardBg,
           borderColor: borderColor,
@@ -339,12 +383,12 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                 controller: _amountController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (_) => setState(() {}),
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFF229ED9)),
+                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFF1570A6)),
                 decoration: InputDecoration(
                   hintText: '0.00',
                   hintStyle: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: muted.withValues(alpha: 0.4)),
                   prefixText: 'GH₵ ',
-                  prefixStyle: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFF229ED9)),
+                  prefixStyle: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFF1570A6)),
                   filled: true,
                   fillColor: isDark ? const Color(0xFF27272A) : const Color(0xFFF7F8F9),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -354,7 +398,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF229ED9), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF1570A6), width: 1.5),
                   ),
                 ),
               ),
@@ -363,7 +407,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         ),
         const SizedBox(height: 16),
 
-        // ── Primary action ─────────────────────────────────────────
+        // Primary action
         SizedBox(
           height: 52,
           child: ElevatedButton.icon(
@@ -376,7 +420,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF229ED9),
+              backgroundColor: const Color(0xFF1570A6),
               foregroundColor: Colors.white,
               disabledBackgroundColor: isDark ? const Color(0xFF27272A) : const Color(0xFFE1E3E5),
               disabledForegroundColor: muted,
@@ -394,7 +438,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
     final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
-    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF707579);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
     final heading = isDark ? Colors.white : const Color(0xFF303030);
 
     return Column(
@@ -410,17 +454,17 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               child: CircularProgressIndicator(
                 strokeWidth: 7,
                 backgroundColor: borderColor,
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF229ED9)),
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1570A6)),
               ),
             ),
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.touch_app_rounded, size: 34, color: Color(0xFF229ED9)),
+                const Icon(Icons.touch_app_rounded, size: 34, color: Color(0xFF1570A6)),
                 const SizedBox(height: 4),
                 Text(
                   '${_pollingElapsedSeconds}s',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF229ED9)),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1570A6)),
                 ),
               ],
             ),
@@ -471,7 +515,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     if (_completedTransaction == null) return const SizedBox();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
-    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF707579);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
 
     return Column(
@@ -515,7 +559,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             icon: const Icon(Icons.add_rounded, size: 18),
             label: const Text('New Collection', style: TextStyle(fontWeight: FontWeight.w800)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF229ED9),
+              backgroundColor: const Color(0xFF1570A6),
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -544,7 +588,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   Widget _buildStep4Failed() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
-    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF707579);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
     final heading = isDark ? Colors.white : const Color(0xFF303030);
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
 
@@ -564,13 +608,13 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         ),
         const SizedBox(height: 16),
         Text(
-          'Payment Failed',
+          'Payment Declined',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.error),
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.error),
         ),
         const SizedBox(height: 8),
         Text(
-          _errorMessage ?? 'Customer declined authorization or transaction timed out.',
+          _errorMessage ?? 'Customer cancelled prompt or insufficient MoMo wallet balance.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 14, color: muted),
         ),
@@ -595,15 +639,19 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           height: 48,
           child: OutlinedButton.icon(
             onPressed: () {
-              final auth = ref.read(authProvider);
-              final user = auth.currentUser;
+              final user = ref.read(authProvider).currentUser;
+              if (user == null) {
+                setState(() => _errorMessage = 'This terminal has no active session. Sign in before recording a collection.');
+                return;
+              }
               final repo = ref.read(paymentRepositoryProvider);
               final txn = repo.recordOfflineTransaction(
                 momoNumber: _phoneController.text.trim(),
                 amount: _currentAmount,
                 customerName: _lookupCustomer?.name,
-                tellerId: user?.id ?? 'usr_teller',
-                posId: user?.assignedPos.firstOrNull ?? 'pos_01',
+                tellerId: user.id,
+                tellerName: user.fullName,
+                posId: user.assignedPos.firstOrNull ?? '',
               );
               _pollingTimer?.cancel();
               setState(() {
@@ -613,7 +661,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             },
             icon: const Icon(Icons.cloud_off_rounded, size: 18),
             label: const Text(
-              'Complete via Offline Counter Queue',
+              'Record in Offline Counter Queue',
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             ),
             style: OutlinedButton.styleFrom(
@@ -622,6 +670,105 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               side: BorderSide(color: borderColor),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- STEP 5: GATEWAY VERIFICATION IN-FLIGHT ---
+  Widget _buildStep5InFlight() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
+    final heading = isDark ? Colors.white : const Color(0xFF303030);
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 24),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.pending.withValues(alpha: isDark ? 0.2 : 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.hourglass_top_rounded, size: 52, color: AppColors.pending),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Verification In-Progress',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: heading),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'The prompt was sent to the customer, but the telco gateway has not returned final confirmation yet. '
+          'Do NOT recharge the customer or declare declined until authoritative status is verified.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13.5, color: muted, height: 1.4),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            children: [
+              Text('TRANSACTION REFERENCE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: muted)),
+              const SizedBox(height: 4),
+              SelectableText(
+                _activeReference ?? 'N/A',
+                style: TextStyle(fontSize: 14, fontFamily: 'Courier', fontWeight: FontWeight.w800, color: heading),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        SizedBox(
+          height: 50,
+          child: ElevatedButton.icon(
+            onPressed: _isRechecking ? null : _recheckStatus,
+            icon: _isRechecking
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.sync_rounded, size: 18),
+            label: const Text('Re-check Gateway Status Now', style: TextStyle(fontWeight: FontWeight.w800)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1570A6),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: () => context.go('/teller/history'),
+            icon: const Icon(Icons.receipt_long_rounded, size: 18),
+            label: const Text('Check in Shift History', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: cardBg,
+              foregroundColor: heading,
+              side: BorderSide(color: borderColor),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 48,
+          child: TextButton(
+            onPressed: _resetFlow,
+            child: Text('Start New Collection', style: TextStyle(fontWeight: FontWeight.w700, color: muted)),
           ),
         ),
       ],

@@ -97,7 +97,29 @@ Output: `build/web/`
 
 ---
 
-## 🔐 Credentials (Default)
+## 🔐 Accounts & sign-in
 
-- **Teller Access:** `teller@swagpay.com` / `0550402859` | PIN: **`1234`**
-- **Admin POS Access:** `admin@swagpay.com` | Password: **`admin123`**
+There are no default, demo, or shared credentials in this project. Every account
+secret is hashed with scrypt at rest and verified by the server, which then issues
+a signed access token (12 h) bound to the device that signed in.
+
+- **First administrator:** comes from the deployment environment —
+  `ADMIN_BOOTSTRAP_EMAIL` and `ADMIN_BOOTSTRAP_PASSWORD`. The server refuses to
+  boot if either is missing or if the password is a known placeholder.
+- **Tellers and further admins:** created in *Admin → Tellers*. Creating a new
+  account returns a generated sign-in secret **once**, in the response; it is not
+  stored in plaintext and cannot be recovered afterwards.
+- **Device binding:** the first successful sign-in pins an account to that
+  terminal. Signing in elsewhere returns a clear error until an administrator
+  calls `POST /api/users/:id/unbind-device`.
+- **Self-service:** `POST /api/auth/change-password` (requires the current
+  secret, revokes every existing session).
+
+Required environment variables are listed in `.env.example`. In production set
+them as secrets, e.g. `flyctl secrets set AUTH_SECRET ADMIN_BOOTSTRAP_EMAIL
+ADMIN_BOOTSTRAP_PASSWORD WHITSUNPAY_CLIENT_ID WHITSUNPAY_API_KEY DATABASE_URL`.
+Generate the token-signing key with `openssl rand -hex 32`.
+
+Apply `database/auth-migration.sql` once against an existing database — it adds
+`users."pinHash"`, `users."deviceId"` and the `sessions` table, and neutralises
+any leftover weak PIN so those accounts must be re-enrolled.

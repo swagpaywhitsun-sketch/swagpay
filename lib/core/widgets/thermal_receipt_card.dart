@@ -326,19 +326,11 @@ class ThermalReceiptCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: onPrint ??
-                        () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Receipt sent to POS Thermal printer'),
-                              backgroundColor: AppColors.success,
-                            ),
-                          );
-                        },
+                    onPressed: onPrint ?? () => ReceiptService.showPrintModal(context, transaction),
                     icon: const Icon(Icons.print_rounded, size: 16),
                     label: const Text('Print'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: const Color(0xFF1570A6),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),

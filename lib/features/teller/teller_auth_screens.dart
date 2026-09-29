@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/state/providers.dart';
+import '../../core/services/auth_vault.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_thin_footer.dart';
 
@@ -20,7 +21,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _checkInit() async {
+    final restored = ref.read(authProvider.notifier).resumeSession();
     await Future.delayed(const Duration(milliseconds: 1400));
+    await restored;
     if (!mounted) return;
     final auth = ref.read(authProvider);
     if (!auth.isDeviceAuthorized) {
@@ -92,8 +95,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 ),
                 const SizedBox(height: 24),
                 const Text(
-                  'v1.0.0 • Encrypted POS Node',
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                  'v1.0.1+2 • Hardware-Bound Node',
+                  style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 20),
               ],
@@ -113,8 +116,8 @@ class TellerLoginScreen extends ConsumerStatefulWidget {
 }
 
 class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
-  final _emailController = TextEditingController(text: 'teller@swagpay.com');
-  final _passwordController = TextEditingController(text: '1234');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = true;
 
@@ -128,18 +131,13 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
   void _submit() async {
     final identifier = _emailController.text.trim();
     final password = _passwordController.text.trim();
+    if (identifier.isEmpty || password.isEmpty) return;
 
-    if (identifier.toLowerCase().contains('admin')) {
-      final success = await ref.read(authProvider.notifier).loginAdmin(identifier, password);
-      if (success && mounted) {
-        context.go('/admin/dashboard');
-      }
-    } else {
-      final success = await ref.read(authProvider.notifier).loginTeller(identifier, password);
-      if (success && mounted) {
-        context.go('/teller/dashboard');
-      }
-    }
+    // The server owns role resolution — navigate on the identity it returns.
+    final success = await ref.read(authProvider.notifier).signIn(identifier, password);
+    if (!success || !mounted) return;
+    final user = ref.read(authProvider).currentUser;
+    context.go(user?.isAdmin ?? false ? '/admin/dashboard' : '/teller/dashboard');
   }
 
   @override
@@ -274,12 +272,8 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
             ),
             Flexible(
               child: TextButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('OTP sent to registered phone number for password reset')),
-                  );
-                },
-                child: const Text('Forgot PIN/Pass?', overflow: TextOverflow.ellipsis),
+                onPressed: () => context.go('/forgot-password'),
+                child: const Text('Forgot Password?', overflow: TextOverflow.ellipsis),
               ),
             ),
           ],
@@ -351,13 +345,14 @@ class DeviceUnauthorizedScreen extends ConsumerWidget {
               const Icon(Icons.lock_person_rounded, size: 72, color: AppColors.error),
               const SizedBox(height: 20),
               const Text(
-                'Device Not Authorized',
+                'This terminal is not approved',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 12),
               const Text(
-                'This mobile device or POS terminal has not been whitelisted by your administrator. Contact Super Admin to register this device hardware fingerprint.',
+                'SwagPay binds every account to the terminal that first signed in on it, and only an administrator can release that binding. '
+                'Sign in on the approved terminal, or ask an administrator to unbind this account.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
               ),
@@ -368,24 +363,26 @@ class DeviceUnauthorizedScreen extends ConsumerWidget {
                   color: AppColors.border.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Column(
+                child: Column(
                   children: [
-                    Text('DEVICE HARDWARE IDENTIFIER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                    SizedBox(height: 4),
+                    const Text(
+                      'DEVICE HARDWARE IDENTIFIER',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    // Read from the vault: the admin needs this terminal's real id.
                     SelectableText(
-                      'POS-FINGERPRINT-MAC-7A:3F:82:11:BC',
-                      style: TextStyle(fontSize: 13, fontFamily: 'Courier', fontWeight: FontWeight.bold),
+                      tokenVault.readDeviceId() ?? 'Not generated yet — sign in once to create it',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 13, fontFamily: 'Courier', fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: () {
-                  ref.read(authProvider.notifier).setDeviceAuthorization(true);
-                  context.go('/teller/dashboard');
-                },
-                child: const Text('Simulate Admin Approval & Authorize'),
+                onPressed: () => context.go('/teller/login'),
+                child: const Text('Back to sign in'),
               ),
             ],
           ),

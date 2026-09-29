@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/models/user.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/user_avatar_widget.dart';
@@ -32,42 +31,100 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF1E293B),
         elevation: 0,
-        toolbarHeight: 48,
+        toolbarHeight: 56,
+        shape: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0xFF2E2E32) : const Color(0xFF334155),
+            width: 1,
+          ),
+        ),
         title: Row(
           children: [
             if (isWide)
               IconButton(
-                icon: Icon(_isSidebarCollapsed ? Icons.menu_rounded : Icons.menu_open_rounded, color: Colors.white70),
+                tooltip: _isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar',
+                icon: Icon(
+                  _isSidebarCollapsed ? Icons.menu_rounded : Icons.menu_open_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 onPressed: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
               ),
+            const SizedBox(width: 4),
+            // Real Brand Logo
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 4,
+                  ),
+                ],
               ),
-              child: const Icon(Icons.shield_rounded, color: Colors.white, size: 20),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Image.asset(
+                  'logo.png',
+                  width: 26,
+                  height: 26,
+                  fit: BoxFit.contain,
+                  errorBuilder: (ctx, err, stack) => const Icon(
+                    Icons.point_of_sale_rounded,
+                    color: AppColors.primary,
+                    size: 22,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(width: 10),
             const Text(
               'SwagPay',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1570A6),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: const Text(
+                'ENTERPRISE POS',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: 0.8,
+                ),
+              ),
             ),
           ],
         ),
         actions: [
-          const SizedBox(width: 8),
           IconButton(
-            icon: const Icon(Icons.brightness_6_outlined),
+            tooltip: 'Toggle Theme',
+            icon: Icon(
+              isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+              color: Colors.white,
+              size: 20,
+            ),
             onPressed: () => ref.read(themeModeProvider.notifier).toggleTheme(),
           ),
           const SizedBox(width: 4),
           // User Avatar with Settings Dropdown
           PopupMenuButton<String>(
             tooltip: 'Account Menu & Settings',
-            offset: const Offset(0, 48),
+            offset: const Offset(0, 52),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             color: isDark ? AppColors.darkSurfaceElevated : Colors.white,
             onSelected: (val) {
@@ -77,9 +134,6 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 context.go('/admin/reports');
               } else if (val == 'theme') {
                 ref.read(themeModeProvider.notifier).toggleTheme();
-              } else if (val == 'teller_mode') {
-                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.teller);
-                context.go('/teller/dashboard');
               } else if (val == 'logout') {
                 ref.read(authProvider.notifier).logout();
                 context.go('/teller/login');
@@ -112,7 +166,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                       ),
                       child: const Text(
                         'SUPER ADMIN',
-                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primaryLight),
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primary),
                       ),
                     ),
                     const Divider(height: 16),
@@ -123,7 +177,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 value: 'settings',
                 child: Row(
                   children: [
-                    Icon(Icons.settings_outlined, size: 18, color: AppColors.primaryLight),
+                    Icon(Icons.settings_outlined, size: 18, color: AppColors.primary),
                     SizedBox(width: 10),
                     Text('System Settings & API', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   ],
@@ -149,16 +203,6 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                   ],
                 ),
               ),
-              const PopupMenuItem<String>(
-                value: 'teller_mode',
-                child: Row(
-                  children: [
-                    Icon(Icons.phone_android_rounded, size: 18, color: AppColors.gold),
-                    SizedBox(width: 10),
-                    Text('Switch to Teller Mobile App', style: TextStyle(fontSize: 13)),
-                  ],
-                ),
-              ),
               const PopupMenuDivider(),
               const PopupMenuItem<String>(
                 value: 'logout',
@@ -174,7 +218,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
@@ -186,7 +230,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                     UserAvatarWidget(
                       avatarData: ref.watch(userAvatarProvider),
                       name: user?.fullName ?? 'Admin',
-                      radius: 14,
+                      radius: 13,
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -205,15 +249,16 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
       ),
       body: Row(
         children: [
-          // Persistent Desktop Sidebar
+          // Persistent Desktop Sidebar (Never flashes on route changes)
           if (isWide)
-            Container(
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
               width: _isSidebarCollapsed ? 70 : 240,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF262626) : const Color(0xFF303030),
-                border: const Border(
+                color: isDark ? const Color(0xFF1E1E22) : const Color(0xFF1E293B),
+                border: Border(
                   right: BorderSide(
-                    color: Color(0xFF3E3E3E),
+                    color: isDark ? const Color(0xFF2E2E32) : const Color(0xFF334155),
                     width: 1,
                   ),
                 ),
@@ -236,21 +281,25 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                       ],
                     ),
                   ),
-                  const Divider(color: Colors.white12, height: 1),
+                  Divider(
+                    color: isDark ? const Color(0xFF2E2E32) : const Color(0xFF334155),
+                    height: 1,
+                  ),
                   ListTile(
-                    leading: const Icon(Icons.logout_rounded, color: AppColors.error),
+                    leading: const Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
                     title: _isSidebarCollapsed
                         ? null
-                        : const Text('Logout', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+                        : const Text('Logout', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 13)),
                     onTap: () {
                       ref.read(authProvider.notifier).logout();
                       context.go('/teller/login');
                     },
                   ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
-          // Main Body Screen
+          // Main Body Screen (Swapped instantly inside shell with zero layout flash)
           Expanded(
             child: Container(
               color: isDark ? AppColors.darkBackground : AppColors.background,
@@ -262,17 +311,17 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
       bottomNavigationBar: !isWide
           ? Container(
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF262626) : Colors.white,
+                color: isDark ? const Color(0xFF1E1E22) : Colors.white,
                 border: Border(
                   top: BorderSide(
-                    color: isDark ? const Color(0xFF3E3E3E) : AppColors.border,
+                    color: isDark ? const Color(0xFF2E2E32) : AppColors.border,
                     width: 1,
                   ),
                 ),
               ),
               child: BottomNavigationBar(
                 currentIndex: _getMobileNavIndex(widget.currentRoute),
-                backgroundColor: isDark ? const Color(0xFF262626) : Colors.white,
+                backgroundColor: isDark ? const Color(0xFF1E1E22) : Colors.white,
                 selectedItemColor: AppColors.primary,
                 unselectedItemColor: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF707579),
                 selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
@@ -310,32 +359,37 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
   Widget _buildNavItem(IconData icon, String label, String route) {
     final isSelected = widget.currentRoute == route;
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
       decoration: BoxDecoration(
-        color: isSelected ? AppColors.primary.withValues(alpha: 0.18) : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        border: isSelected
-            ? Border.all(color: AppColors.primary.withValues(alpha: 0.35), width: 1)
-            : null,
+        color: isSelected ? const Color(0xFF1570A6) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: isSelected ? AppColors.primary : const Color(0xFFB0B8C1),
-          size: 20,
-        ),
-        title: _isSidebarCollapsed
-            ? null
-            : Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? Colors.white : const Color(0xFFE0E0E0),
+      child: Tooltip(
+        message: _isSidebarCollapsed ? label : '',
+        child: ListTile(
+          leading: Icon(
+            icon,
+            color: isSelected ? Colors.white : const Color(0xFFCBD5E1),
+            size: 20,
+          ),
+          title: _isSidebarCollapsed
+              ? null
+              : Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? Colors.white : const Color(0xFFE2E8F0),
+                  ),
                 ),
-              ),
-        dense: true,
-        onTap: () => context.go(route),
+          dense: true,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: _isSidebarCollapsed ? 16 : 14,
+            vertical: 1,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          onTap: () => context.go(route),
+        ),
       ),
     );
   }

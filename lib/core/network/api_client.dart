@@ -18,6 +18,10 @@ class ApiClient {
   late final Dio _dio;
   String? _authToken;
 
+  /// Wired by the auth layer so a 401 can trigger one silent token refresh
+  /// and retry without importing the provider graph into the network layer.
+  static Future<bool> Function()? refreshHandler;
+
   ApiClient({String? initialToken}) {
     _authToken = initialToken;
     _dio = Dio(
@@ -75,6 +79,15 @@ class ApiClient {
     try {
       return await _dio.get<T>(path, queryParameters: queryParameters, options: options);
     } on DioException catch (e) {
+      if (_isAuthFailure(e) && await _tryRefresh()) {
+        final retryOpts = (options ?? Options()).copyWith(
+          headers: {
+            ...?options?.headers,
+            if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+          },
+        );
+        return await _dio.get<T>(path, queryParameters: queryParameters, options: retryOpts);
+      }
       throw _handleDioError(e);
     }
   }
@@ -84,14 +97,24 @@ class ApiClient {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     String? idempotencyKey,
+    Map<String, dynamic>? headers,
   }) async {
+    final opts = Options(headers: {...?headers});
+    if (idempotencyKey != null) {
+      opts.headers = {...?opts.headers, 'X-Idempotency-Key': idempotencyKey};
+    }
     try {
-      final opts = Options();
-      if (idempotencyKey != null) {
-        opts.headers = {'X-Idempotency-Key': idempotencyKey};
-      }
       return await _dio.post<T>(path, data: data, queryParameters: queryParameters, options: opts);
     } on DioException catch (e) {
+      if (_isAuthFailure(e) && await _tryRefresh()) {
+        final retryOpts = opts.copyWith(
+          headers: {
+            ...?opts.headers,
+            if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+          },
+        );
+        return await _dio.post<T>(path, data: data, queryParameters: queryParameters, options: retryOpts);
+      }
       throw _handleDioError(e);
     }
   }
@@ -116,6 +139,24 @@ class ApiClient {
       return await _dio.delete<T>(path, queryParameters: queryParameters);
     } on DioException catch (e) {
       throw _handleDioError(e);
+    }
+  }
+
+  bool _isAuthFailure(DioException e) => e.response?.statusCode == 401;
+
+  Future<bool>? _refreshFuture;
+
+  Future<bool> _tryRefresh() async {
+    final handler = refreshHandler;
+    if (handler == null) return false;
+    if (_refreshFuture != null) {
+      return await _refreshFuture!;
+    }
+    _refreshFuture = handler();
+    try {
+      return await _refreshFuture!;
+    } finally {
+      _refreshFuture = null;
     }
   }
 

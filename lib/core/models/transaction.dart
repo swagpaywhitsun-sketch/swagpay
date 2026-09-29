@@ -120,8 +120,8 @@ class PaymentTransaction {
       timestamp: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now()
           : (json['timestamp'] != null ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now() : DateTime.now()),
-      tellerId: json['tellerId'] as String? ?? 'usr_teller1',
-      tellerName: json['tellerName'] as String? ?? 'Kofi Mensah',
+      tellerId: json['tellerId'] as String? ?? '',
+      tellerName: json['tellerName'] as String? ?? 'Counter Cashier',
       posId: json['posId'] as String? ?? 'pos_01',
       branch: json['branch'] as String?,
       receiptNumber: json['receiptNumber'] as String?,

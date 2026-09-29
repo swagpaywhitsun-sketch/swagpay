@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_records.dart';
@@ -9,9 +10,12 @@ import '../models/settlement.dart';
 import '../models/transaction.dart';
 import '../models/user.dart';
 import '../network/api_client.dart';
+import '../services/auth_vault.dart';
 import '../network/api_config.dart';
 
 class PaymentRepository {
+  static const _offlineQueueStorageKey = 'swag_offline_queue_data';
+
   final ApiClient apiClient;
   final SharedPreferences prefs;
   final VoidCallback? onChanged;
@@ -23,6 +27,7 @@ class PaymentRepository {
   List<SettlementRecord> _settlements = [];
   List<AuditLog> _auditLogs = [];
   final List<AppNotificationItem> _notifications = [];
+  final List<PaymentTransaction> _offlineQueue = [];
   ShiftRecord? _activeShift;
   bool _isLoading = false;
   Object? _lastSyncError;
@@ -41,23 +46,73 @@ class PaymentRepository {
     if (savedBaseUrl != null && savedBaseUrl.isNotEmpty) {
       apiClient.updateBaseUrl(savedBaseUrl);
     }
-    // Refresh live data from backend immediately
-    refreshFromBackend();
+    _loadOfflineQueue();
   }
 
-  Future<void> refreshFromBackend() async {
+  void _loadOfflineQueue() {
+    try {
+      final raw = prefs.getString(_offlineQueueStorageKey);
+      if (raw != null && raw.isNotEmpty) {
+        final list = jsonDecode(raw) as List<dynamic>;
+        _offlineQueue.clear();
+        for (final item in list) {
+          _offlineQueue.add(PaymentTransaction.fromJson(item as Map<String, dynamic>));
+        }
+        // Merge unsynced offline transactions into local memory ledger
+        final existingIds = _transactions.map((t) => t.id).toSet();
+        for (final off in _offlineQueue) {
+          if (!existingIds.contains(off.id)) {
+            _transactions.insert(0, off);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _persistOfflineQueue() async {
+    try {
+      final list = _offlineQueue.map((t) => t.toJson()).toList();
+      await prefs.setString(_offlineQueueStorageKey, jsonEncode(list));
+    } catch (_) {}
+  }
+
+  Future<void>? _activeSync;
+
+  /// Startup, the periodic timer and pull-to-refresh would otherwise issue
+  /// overlapping copies of the same requests.
+  Future<void> refreshFromBackend() {
+    return _activeSync ??= _syncFromBackend().whenComplete(() => _activeSync = null);
+  }
+
+  Future<void> _syncFromBackend() async {
     _isLoading = true;
     onChanged?.call();
     try {
       _lastSyncError = null;
-      // 1. Fetch real transactions — trust the server, even when it returns an empty list
+      final userSnapshot = tokenVault.readUserSnapshot();
+      final isTeller = userSnapshot?['role'] == 'teller';
+      final currentUserId = userSnapshot?['id'] as String?;
+      final currentPosId = userSnapshot?['posId'] as String?;
+
+      // 1. Fetch real transactions with server-side teller scoping
       try {
-        final txRes = await apiClient.get<List<dynamic>>(ApiConfig.transactions);
+        String scopeQuery = '';
+        if (isTeller) {
+          final params = <String>[];
+          params.add('scope=me');
+          if (currentUserId != null && currentUserId.isNotEmpty) params.add('tellerId=$currentUserId');
+          if (currentPosId != null && currentPosId.isNotEmpty) params.add('posId=$currentPosId');
+          scopeQuery = '?${params.join('&')}';
+        }
+
+        final txRes = await apiClient.get<List<dynamic>>('${ApiConfig.transactions}$scopeQuery');
         if (txRes.data != null) {
           final serverTxns = txRes.data!.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
+          
           // Keep offline counter transactions the server has not received yet
           final serverRefs = serverTxns.map((t) => t.reference).toSet();
           final localOnly = _transactions.where((t) => t.id.startsWith('tx_off_') && !serverRefs.contains(t.reference));
+          
           _transactions = [...localOnly, ...serverTxns];
         }
       } catch (e) {
@@ -66,7 +121,7 @@ class PaymentRepository {
 
       // 2-6. Secondary datasets — failure here must not wipe transaction sync
       try {
-        // 2. Fetch real tellers — only replace if we got results back
+        // 2. Fetch real tellers
         final telRes = await apiClient.get<List<dynamic>>(ApiConfig.tellers);
         if (telRes.data != null && telRes.data!.isNotEmpty) {
           _tellers = telRes.data!.map((e) {
@@ -83,7 +138,7 @@ class PaymentRepository {
           }).toList();
         }
 
-        // 3. Fetch real POS terminals — only replace if we got results back
+        // 3. Fetch real POS terminals
         final posRes = await apiClient.get<List<dynamic>>(ApiConfig.posDevices);
         if (posRes.data != null && posRes.data!.isNotEmpty) {
           _posDevices = posRes.data!.map((e) {
@@ -102,7 +157,7 @@ class PaymentRepository {
           }).toList();
         }
 
-        // 4. Fetch real refund requests — only replace if we got results back
+        // 4. Fetch real refund requests
         final refRes = await apiClient.get<List<dynamic>>(ApiConfig.refunds);
         if (refRes.data != null && refRes.data!.isNotEmpty) {
           _refundRequests = refRes.data!.map((e) => RefundRequest.fromJson(e as Map<String, dynamic>)).toList();
@@ -116,7 +171,7 @@ class PaymentRepository {
           }
         } catch (_) {}
 
-        // 6. Fetch real audit logs — only replace if we got results back
+        // 6. Fetch real audit logs
         final audRes = await apiClient.get<List<dynamic>>(ApiConfig.auditLogs);
         if (audRes.data != null && audRes.data!.isNotEmpty) {
           _auditLogs = audRes.data!.map((e) {
@@ -134,11 +189,8 @@ class PaymentRepository {
             );
           }).toList();
         }
-      } catch (_) {
-        // Secondary data unavailable — dashboard still driven by transaction sync result
-      }
+      } catch (_) {}
     } catch (_) {
-      // Non-fatal if offline — keep existing data intact
     } finally {
       _isLoading = false;
       _hasSynced = true;
@@ -165,14 +217,7 @@ class PaymentRepository {
       }
     } catch (_) {}
 
-    return Customer(
-      id: clean,
-      accountNumber: clean,
-      name: 'Subscriber ($clean)',
-      phone: clean,
-      email: '',
-      outstandingBalance: 0.0,
-    );
+    return null;
   }
 
   // --- REAL MOMO PAYMENT INITIATION ---
@@ -205,27 +250,37 @@ class PaymentRepository {
     final res = await apiClient.get<Map<String, dynamic>>('${ApiConfig.paymentStatus}/$reference');
     if (res.data != null) {
       final txn = PaymentTransaction.fromJson(res.data!);
-      // Update in local cache list
       final idx = _transactions.indexWhere((t) => t.reference == reference);
       if (idx != -1) {
         _transactions[idx] = txn;
       } else {
         _transactions.insert(0, txn);
       }
-      // Push the settled transaction to dashboard/history instantly
       onChanged?.call();
       return txn;
     }
     throw ApiException(message: 'Could not fetch transaction status');
   }
 
-  // --- TRANSACTIONS ---
+  // --- TRANSACTIONS WITH STRICT LOCAL & ROLE SCOPING ---
   List<PaymentTransaction> getTransactions({
     String? searchQuery,
     TransactionStatus? statusFilter,
     MoMoNetwork? networkFilter,
+    String? tellerId,
   }) {
+    final userSnapshot = tokenVault.readUserSnapshot();
+    final isTeller = userSnapshot?['role'] == 'teller';
+    final currentUserId = tellerId ?? userSnapshot?['id'] as String?;
+
     return _transactions.where((t) {
+      // Local safety scoping: tellers only see their own counter ledger
+      if (isTeller && currentUserId != null && currentUserId.isNotEmpty) {
+        if (t.tellerId.isNotEmpty && t.tellerId != currentUserId && !t.id.startsWith('tx_off_')) {
+          return false;
+        }
+      }
+
       if (statusFilter != null && t.status != statusFilter) return false;
       if (networkFilter != null && t.network != networkFilter) return false;
       if (searchQuery != null && searchQuery.isNotEmpty) {
@@ -247,7 +302,7 @@ class PaymentRepository {
     }
   }
 
-  // --- REFUNDS ---
+  // --- REFUNDS WITH SAFETY GUARDS & RE-VALIDATION ---
   List<RefundRequest> getRefundRequests() => List.unmodifiable(_refundRequests);
 
   Future<void> submitRefundRequest({
@@ -258,7 +313,19 @@ class PaymentRepository {
     required String tellerName,
   }) async {
     final txn = getTransactionById(transactionId);
-    if (txn == null) throw ApiException(message: 'Transaction not found');
+    if (txn == null) {
+      throw ApiException(message: 'Transaction not found in local or server ledger');
+    }
+
+    if (txn.status != TransactionStatus.success) {
+      throw ApiException(message: 'Only successful transactions can be submitted for refund');
+    }
+
+    // Check for existing pending refund
+    final hasPending = _refundRequests.any((r) => r.transactionId == txn.id && r.status == RefundStatus.pending);
+    if (hasPending) {
+      throw ApiException(message: 'A refund request is already pending for this transaction');
+    }
 
     await apiClient.post(
       ApiConfig.refunds,
@@ -294,42 +361,33 @@ class PaymentRepository {
   List<AuditLog> getAuditLogs() => List.unmodifiable(_auditLogs);
   List<AppNotificationItem> getNotifications() => List.unmodifiable(_notifications);
 
-  Future<void> addTeller(AppUser teller) async {
-    try {
-      await apiClient.post(
-        ApiConfig.tellers,
-        data: {
-          'id': teller.id,
-          'name': teller.fullName,
-          'email': teller.email,
-          'phone': teller.phone,
-          'role': teller.role == UserRole.admin ? 'ADMIN' : 'TELLER',
-          'posId': teller.assignedPos.isNotEmpty ? teller.assignedPos.first : 'pos_01',
-        },
-      );
-      await refreshFromBackend();
-    } catch (_) {
-      _tellers.add(teller);
-      onChanged?.call();
-    }
+  Future<String?> addTeller(AppUser teller) async {
+    final res = await apiClient.post<Map<String, dynamic>>(
+      ApiConfig.tellers,
+      data: {
+        'id': teller.id,
+        'name': teller.fullName,
+        'email': teller.email,
+        'phone': teller.phone,
+        'role': teller.role == UserRole.admin ? 'ADMIN' : 'TELLER',
+        'posId': teller.assignedPos.isNotEmpty ? teller.assignedPos.first : 'pos_01',
+      },
+    );
+    await refreshFromBackend();
+    return res.data?['tempSecret'] as String?;
   }
 
   Future<void> addPosDevice(PosDevice pos) async {
-    try {
-      await apiClient.post(
-        ApiConfig.posDevices,
-        data: {
-          'id': pos.id,
-          'code': pos.serialNumber,
-          'name': pos.name,
-          'location': pos.location,
-        },
-      );
-      await refreshFromBackend();
-    } catch (_) {
-      _posDevices.add(pos);
-      onChanged?.call();
-    }
+    await apiClient.post(
+      ApiConfig.posDevices,
+      data: {
+        'id': pos.id,
+        'code': pos.serialNumber,
+        'name': pos.name,
+        'location': pos.location,
+      },
+    );
+    await refreshFromBackend();
   }
 
   Future<void> updatePosDevice(PosDevice pos) async {
@@ -340,9 +398,7 @@ class PaymentRepository {
     }
   }
 
-  // --- OFFLINE QUEUE ---
-  final List<PaymentTransaction> _offlineQueue = [];
-
+  // --- PERSISTENT OFFLINE QUEUE (OUTBOX PATTERN) ---
   List<PaymentTransaction> getOfflineQueue() => List.unmodifiable(_offlineQueue);
 
   PaymentTransaction recordOfflineTransaction({
@@ -350,6 +406,7 @@ class PaymentRepository {
     required double amount,
     String? customerName,
     required String tellerId,
+    String tellerName = 'Counter Teller',
     required String posId,
     MoMoNetwork? network,
   }) {
@@ -367,7 +424,7 @@ class PaymentRepository {
       customerPhone: momoNumber,
       customerName: customerName ?? 'Counter Customer',
       tellerId: tellerId,
-      tellerName: 'Teller Cashier',
+      tellerName: tellerName,
       posId: posId,
       timestamp: now,
       receiptNumber: rcpt,
@@ -375,15 +432,49 @@ class PaymentRepository {
     );
     _offlineQueue.insert(0, txn);
     _transactions.insert(0, txn);
+    _persistOfflineQueue();
     onChanged?.call();
     return txn;
   }
 
+  /// Syncs offline collections by uploading each item with deduplicating Idempotency Key.
+  /// Transactions remain in the queue until acknowledged by the server.
   Future<int> syncOfflineQueue() async {
-    final count = _offlineQueue.length;
-    _offlineQueue.clear();
+    if (_offlineQueue.isEmpty) return 0;
+
+    int syncedCount = 0;
+    final toSync = List<PaymentTransaction>.from(_offlineQueue);
+
+    for (final txn in toSync) {
+      try {
+        final res = await apiClient.post<Map<String, dynamic>>(
+          ApiConfig.initiatePayment,
+          data: {
+            'momoNumber': txn.customerNumber,
+            'amount': txn.amount,
+            'customerName': txn.customerName,
+            'tellerId': txn.tellerId,
+            'posId': txn.posId,
+            'offlineReference': txn.reference,
+            'offlineRecordedAt': txn.timestamp.toIso8601String(),
+          },
+          idempotencyKey: txn.idempotencyKey,
+        );
+
+        if (res.data != null && res.data!['success'] == true) {
+          _offlineQueue.removeWhere((item) => item.id == txn.id || item.reference == txn.reference);
+          syncedCount++;
+        }
+      } catch (e) {
+        // Stop batch on network breakdown, retain remaining in outbox queue
+        break;
+      }
+    }
+
+    await _persistOfflineQueue();
+    await refreshFromBackend();
     onChanged?.call();
-    return count;
+    return syncedCount;
   }
 
   // --- SHIFTS ---

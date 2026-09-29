@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'core/services/auth_vault.dart';
 import 'core/state/providers.dart';
 import 'core/theme/app_theme.dart';
 import 'features/admin/admin_dashboard_screen.dart';
 import 'features/admin/admin_layout.dart';
 import 'features/admin/admin_management_screens.dart';
 import 'features/admin/admin_operations_screens.dart';
+import 'features/auth/forgot_password_screen.dart';
 import 'features/teller/new_collection_flow.dart';
 import 'features/teller/teller_auth_screens.dart';
 import 'features/teller/teller_dashboard_screen.dart';
@@ -18,6 +20,7 @@ import 'features/teller/teller_reports_and_shift.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final sharedPreferences = await SharedPreferences.getInstance();
+  tokenVault.attach(sharedPreferences);
 
   runApp(
     ProviderScope(
@@ -33,11 +36,12 @@ final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
 
   return GoRouter(
-    initialLocation: '/teller/login',
+    initialLocation: '/splash',
     redirect: (context, state) {
       final isAuthRoute = state.matchedLocation == '/teller/login' ||
           state.matchedLocation == '/splash' ||
-          state.matchedLocation == '/device-unauthorized';
+          state.matchedLocation == '/device-unauthorized' ||
+          state.matchedLocation == '/forgot-password';
 
       // Restrict access to login page for unauthenticated users
       if (!auth.isAuthenticated) {
@@ -54,135 +58,119 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/splash',
-        builder: (context, state) => const SelectionArea(child: SplashScreen()),
+        builder: (context, state) => const SplashScreen(),
       ),
       GoRoute(
         path: '/device-unauthorized',
-        builder: (context, state) => const SelectionArea(child: DeviceUnauthorizedScreen()),
+        builder: (context, state) => const DeviceUnauthorizedScreen(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const ForgotPasswordScreen(),
       ),
       // Teller Routes
       GoRoute(
         path: '/teller/login',
-        builder: (context, state) => const SelectionArea(child: TellerLoginScreen()),
+        builder: (context, state) => const TellerLoginScreen(),
       ),
       GoRoute(
         path: '/teller/dashboard',
-        builder: (context, state) => const SelectionArea(child: TellerDashboardScreen()),
+        builder: (context, state) => const TellerDashboardScreen(),
       ),
       GoRoute(
         path: '/teller/collection',
-        builder: (context, state) => const SelectionArea(child: NewCollectionScreen()),
+        builder: (context, state) => const NewCollectionScreen(),
       ),
       GoRoute(
         path: '/teller/history',
-        builder: (context, state) => const SelectionArea(child: TellerHistoryScreen()),
+        builder: (context, state) => const TellerHistoryScreen(),
       ),
       GoRoute(
         path: '/teller/transaction/:id',
-        builder: (context, state) => SelectionArea(
-          child: TransactionDetailScreen(
-            transactionId: state.pathParameters['id'] ?? '',
-          ),
+        builder: (context, state) => TransactionDetailScreen(
+          transactionId: state.pathParameters['id'] ?? '',
         ),
       ),
       GoRoute(
         path: '/teller/reports',
-        builder: (context, state) => const SelectionArea(child: TellerReportsScreen()),
+        builder: (context, state) => const TellerReportsScreen(),
       ),
       GoRoute(
         path: '/teller/profile',
-        builder: (context, state) => const SelectionArea(child: TellerProfileScreen()),
+        builder: (context, state) => const TellerProfileScreen(),
       ),
       GoRoute(
         path: '/teller/notifications',
-        builder: (context, state) => const SelectionArea(child: TellerNotificationsScreen()),
+        builder: (context, state) => const TellerNotificationsScreen(),
       ),
       GoRoute(
         path: '/teller/offline-queue',
-        builder: (context, state) => const SelectionArea(child: TellerOfflineQueueScreen()),
+        builder: (context, state) => const TellerOfflineQueueScreen(),
       ),
 
-      // Admin POS Web Routes wrapped in AdminLayout
-      GoRoute(
-        path: '/admin/dashboard',
-        builder: (context, state) => const SelectionArea(
-          child: AdminLayout(
-            currentRoute: '/admin/dashboard',
-            child: AdminDashboardScreen(),
-          ),
+      // Admin POS Web Routes wrapped in persistent ShellRoute
+      // Keeps the sidebar and header completely static with zero flashing during navigation
+      ShellRoute(
+        builder: (context, state, child) => AdminLayout(
+          currentRoute: state.matchedLocation,
+          child: child,
         ),
-      ),
-      GoRoute(
-        path: '/admin/tellers',
-        builder: (context, state) => const SelectionArea(
-          child: AdminLayout(
-            currentRoute: '/admin/tellers',
-            child: AdminTellersScreen(),
+        routes: [
+          GoRoute(
+            path: '/admin/dashboard',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AdminDashboardScreen(),
+            ),
           ),
-        ),
-      ),
-      GoRoute(
-        path: '/admin/pos',
-        builder: (context, state) => const SelectionArea(
-          child: AdminLayout(
-            currentRoute: '/admin/pos',
-            child: AdminPosScreen(),
+          GoRoute(
+            path: '/admin/tellers',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AdminTellersScreen(),
+            ),
           ),
-        ),
-      ),
-      GoRoute(
-        path: '/admin/transactions',
-        builder: (context, state) => const SelectionArea(
-          child: AdminLayout(
-            currentRoute: '/admin/transactions',
-            child: AdminTransactionsScreen(),
+          GoRoute(
+            path: '/admin/pos',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AdminPosScreen(),
+            ),
           ),
-        ),
-      ),
-      GoRoute(
-        path: '/admin/refunds',
-        builder: (context, state) => const SelectionArea(
-          child: AdminLayout(
-            currentRoute: '/admin/refunds',
-            child: AdminRefundsScreen(),
+          GoRoute(
+            path: '/admin/transactions',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AdminTransactionsScreen(),
+            ),
           ),
-        ),
-      ),
-      GoRoute(
-        path: '/admin/reports',
-        builder: (context, state) => const SelectionArea(
-          child: AdminLayout(
-            currentRoute: '/admin/reports',
-            child: AdminReportsScreen(),
+          GoRoute(
+            path: '/admin/refunds',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AdminRefundsScreen(),
+            ),
           ),
-        ),
-      ),
-      GoRoute(
-        path: '/admin/settlements',
-        builder: (context, state) => const SelectionArea(
-          child: AdminLayout(
-            currentRoute: '/admin/settlements',
-            child: AdminSettlementsScreen(),
+          GoRoute(
+            path: '/admin/reports',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AdminReportsScreen(),
+            ),
           ),
-        ),
-      ),
-      GoRoute(
-        path: '/admin/audit-logs',
-        builder: (context, state) => const SelectionArea(
-          child: AdminLayout(
-            currentRoute: '/admin/audit-logs',
-            child: AdminAuditLogsScreen(),
+          GoRoute(
+            path: '/admin/settlements',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AdminSettlementsScreen(),
+            ),
           ),
-        ),
-      ),
-      GoRoute(
-        path: '/admin/settings',
-        builder: (context, state) => const SelectionArea(
-          child: AdminLayout(
-            currentRoute: '/admin/settings',
-            child: AdminSettingsScreen(),
+          GoRoute(
+            path: '/admin/audit-logs',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AdminAuditLogsScreen(),
+            ),
           ),
-        ),
+          GoRoute(
+            path: '/admin/settings',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AdminSettingsScreen(),
+            ),
+          ),
+        ],
       ),
     ],
   );

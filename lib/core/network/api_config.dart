@@ -17,6 +17,11 @@ class ApiConfig {
 
   // Endpoints
   static const String login = '/api/auth/login';
+  static const String refresh = '/api/auth/refresh';
+  static const String logout = '/api/auth/logout';
+  static const String changePassword = '/api/auth/change-password';
+  static const String forgotPassword = '/api/auth/forgot-password';
+  static const String resetPassword = '/api/auth/reset-password';
   static const String accountLookup = '/api/account/lookup';
   static const String initiatePayment = '/api/payments/initiate';
   static const String paymentStatus = '/api/payments/status';

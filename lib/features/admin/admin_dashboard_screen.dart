@@ -51,20 +51,21 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       onRefresh: () => ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh(),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+        padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'POS Control Center',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                     ),
                     const SizedBox(height: 4),
                     Text(

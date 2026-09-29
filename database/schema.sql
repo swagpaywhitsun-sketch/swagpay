@@ -9,9 +9,33 @@ CREATE TABLE IF NOT EXISTS users (
   pin VARCHAR(255) NOT NULL,
   role VARCHAR(32) NOT NULL DEFAULT 'TELLER', -- 'TELLER', 'ADMIN', 'SUPER_ADMIN'
   "posId" VARCHAR(64),
+  "pinHash" TEXT,
+  "deviceId" VARCHAR(128),
   active INTEGER NOT NULL DEFAULT 1,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Issued sessions, revocable by an administrator.
+CREATE TABLE IF NOT EXISTS sessions (
+  "jti" VARCHAR(64) PRIMARY KEY,
+  "userId" VARCHAR(64) NOT NULL REFERENCES users(id),
+  "deviceId" VARCHAR(128),
+  "deviceName" VARCHAR(128),
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "lastSeenAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "revokedAt" TIMESTAMPTZ
+);
+
+-- Password reset requests (OTP and reset tokens).
+CREATE TABLE IF NOT EXISTS password_resets (
+  id VARCHAR(64) PRIMARY KEY,
+  "userId" VARCHAR(64) NOT NULL REFERENCES users(id),
+  token VARCHAR(128) NOT NULL,
+  otp VARCHAR(16) NOT NULL,
+  "expiresAt" TIMESTAMPTZ NOT NULL,
+  "usedAt" TIMESTAMPTZ,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS pos_terminals (
@@ -32,7 +56,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   "posId" VARCHAR(64) REFERENCES pos_terminals(id),
   network VARCHAR(32) NOT NULL DEFAULT 'MTN', -- 'MTN', 'VODAFONE', 'AIRTELTIGO'
   "momoNumber" VARCHAR(32) NOT NULL,
-  "customerName" VARCHAR(255) DEFAULT 'Subscriber',
+  "customerName" VARCHAR(255),
   amount DOUBLE PRECISION NOT NULL,
   fee DOUBLE PRECISION NOT NULL DEFAULT 0.0,
   "totalCharged" DOUBLE PRECISION NOT NULL,
@@ -101,14 +125,9 @@ CREATE TABLE IF NOT EXISTS reconciliation_reports (
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Seed Essential Users if not exist
-INSERT INTO users (id, name, email, phone, pin, role, "posId", active)
-VALUES
-  ('usr_teller1', 'Kofi Mensah', 'teller@swagpay.com', '0550402859', '1234', 'TELLER', 'pos_01', 1),
-  ('usr_ama', 'Ama Mensah', 'ama@swagpay.com', '0547194295', '1234', 'TELLER', 'pos_01', 1),
-  ('usr_admin', 'Administrator', 'admin@swagpay.com', '0240000001', 'admin123', 'ADMIN', NULL, 1),
-  ('usr_superadmin', 'Super Administrator', 'superadmin@swagpay.com', '0240000000', 'superadmin123', 'SUPER_ADMIN', NULL, 1)
-ON CONFLICT (id) DO NOTHING;
+-- No users are seeded by design. Accounts are created by an authenticated admin via
+-- POST /api/users (hashed secret) and the bootstrap superuser comes from the
+-- ADMIN_BOOTSTRAP_EMAIL / ADMIN_BOOTSTRAP_PASSWORD deployment secrets.
 
 -- Seed Default POS Terminal if not exist
 INSERT INTO pos_terminals (id, code, name, location, active)
