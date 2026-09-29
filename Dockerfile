@@ -9,6 +9,7 @@ RUN npm ci --omit=dev || npm install --omit=dev
 
 # Copy server, database schema, and Flutter Web release build
 COPY server.js ./
+COPY server/ ./server/
 COPY database/ ./database/
 COPY build/web/ ./build/web/
 
