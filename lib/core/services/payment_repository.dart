@@ -25,8 +25,16 @@ class PaymentRepository {
   final List<AppNotificationItem> _notifications = [];
   ShiftRecord? _activeShift;
   bool _isLoading = false;
+  Object? _lastSyncError;
+  bool _hasSynced = false;
 
   bool get isLoading => _isLoading;
+
+  /// Null once the latest backend sync completed successfully.
+  Object? get lastSyncError => _lastSyncError;
+
+  /// True after the first backend sync attempt has finished (success or failure).
+  bool get hasSynced => _hasSynced;
 
   PaymentRepository({required this.apiClient, required this.prefs, this.onChanged}) {
     final savedBaseUrl = prefs.getString('custom_base_url');
@@ -38,85 +46,102 @@ class PaymentRepository {
   }
 
   Future<void> refreshFromBackend() async {
+    _isLoading = true;
+    onChanged?.call();
     try {
-      // 1. Fetch real transactions — only replace if we got results back
-      final txRes = await apiClient.get<List<dynamic>>(ApiConfig.transactions);
-      if (txRes.data != null && txRes.data!.isNotEmpty) {
-        _transactions = txRes.data!.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
-      }
-
-      // 2. Fetch real tellers — only replace if we got results back
-      final telRes = await apiClient.get<List<dynamic>>(ApiConfig.tellers);
-      if (telRes.data != null && telRes.data!.isNotEmpty) {
-        _tellers = telRes.data!.map((e) {
-          final m = e as Map<String, dynamic>;
-          return AppUser(
-            id: m['id'] as String,
-            fullName: m['name'] as String,
-            email: m['email'] as String,
-            phone: m['phone'] as String? ?? '',
-            role: (m['role'] as String? ?? '').contains('ADMIN') ? UserRole.admin : UserRole.teller,
-            assignedPos: [m['posId'] as String? ?? 'pos_01'],
-            isActive: (m['active'] as num?)?.toInt() == 1,
-          );
-        }).toList();
-      }
-
-      // 3. Fetch real POS terminals — only replace if we got results back
-      final posRes = await apiClient.get<List<dynamic>>(ApiConfig.posDevices);
-      if (posRes.data != null && posRes.data!.isNotEmpty) {
-        _posDevices = posRes.data!.map((e) {
-          final m = e as Map<String, dynamic>;
-          return PosDevice(
-            id: m['id'] as String,
-            name: m['name'] as String,
-            serialNumber: m['code'] as String,
-            deviceFingerprint: m['code'] as String,
-            branch: m['location'] as String? ?? 'Main',
-            location: m['location'] as String? ?? '',
-            status: (m['active'] as num?)?.toInt() == 1 ? PosStatus.online : PosStatus.offline,
-            isWhitelisted: true,
-            lastSeen: DateTime.now(),
-          );
-        }).toList();
-      }
-
-      // 4. Fetch real refund requests — only replace if we got results back
-      final refRes = await apiClient.get<List<dynamic>>(ApiConfig.refunds);
-      if (refRes.data != null && refRes.data!.isNotEmpty) {
-        _refundRequests = refRes.data!.map((e) => RefundRequest.fromJson(e as Map<String, dynamic>)).toList();
-      }
-
-      // 5. Fetch real settlements
+      _lastSyncError = null;
+      // 1. Fetch real transactions — trust the server, even when it returns an empty list
       try {
-        final setRes = await apiClient.get<List<dynamic>>(ApiConfig.settlements);
-        if (setRes.data != null && setRes.data!.isNotEmpty) {
-          _settlements = setRes.data!.map((e) => SettlementRecord.fromJson(e as Map<String, dynamic>)).toList();
+        final txRes = await apiClient.get<List<dynamic>>(ApiConfig.transactions);
+        if (txRes.data != null) {
+          final serverTxns = txRes.data!.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
+          // Keep offline counter transactions the server has not received yet
+          final serverRefs = serverTxns.map((t) => t.reference).toSet();
+          final localOnly = _transactions.where((t) => t.id.startsWith('tx_off_') && !serverRefs.contains(t.reference));
+          _transactions = [...localOnly, ...serverTxns];
         }
-      } catch (_) {}
+      } catch (e) {
+        _lastSyncError ??= e;
+      }
 
-      // 6. Fetch real audit logs — only replace if we got results back
-      final audRes = await apiClient.get<List<dynamic>>(ApiConfig.auditLogs);
-      if (audRes.data != null && audRes.data!.isNotEmpty) {
-        _auditLogs = audRes.data!.map((e) {
-          final m = e as Map<String, dynamic>;
-          return AuditLog(
-            id: m['id'] as String,
-            timestamp: m['createdAt'] != null ? DateTime.tryParse(m['createdAt'] as String) ?? DateTime.now() : DateTime.now(),
-            user: m['actorId'] as String? ?? 'System',
-            role: 'User',
-            action: m['action'] as String? ?? 'LOG',
-            entity: '${m['targetType'] ?? ''} ${m['targetId'] ?? ''}',
-            details: m['metadata'] as String? ?? '',
-            ip: m['ipAddress'] as String? ?? '127.0.0.1',
-            device: 'POS-01',
-          );
-        }).toList();
+      // 2-6. Secondary datasets — failure here must not wipe transaction sync
+      try {
+        // 2. Fetch real tellers — only replace if we got results back
+        final telRes = await apiClient.get<List<dynamic>>(ApiConfig.tellers);
+        if (telRes.data != null && telRes.data!.isNotEmpty) {
+          _tellers = telRes.data!.map((e) {
+            final m = e as Map<String, dynamic>;
+            return AppUser(
+              id: m['id'] as String,
+              fullName: m['name'] as String,
+              email: m['email'] as String,
+              phone: m['phone'] as String? ?? '',
+              role: (m['role'] as String? ?? '').contains('ADMIN') ? UserRole.admin : UserRole.teller,
+              assignedPos: [m['posId'] as String? ?? 'pos_01'],
+              isActive: (m['active'] as num?)?.toInt() == 1,
+            );
+          }).toList();
+        }
+
+        // 3. Fetch real POS terminals — only replace if we got results back
+        final posRes = await apiClient.get<List<dynamic>>(ApiConfig.posDevices);
+        if (posRes.data != null && posRes.data!.isNotEmpty) {
+          _posDevices = posRes.data!.map((e) {
+            final m = e as Map<String, dynamic>;
+            return PosDevice(
+              id: m['id'] as String,
+              name: m['name'] as String,
+              serialNumber: m['code'] as String,
+              deviceFingerprint: m['code'] as String,
+              branch: m['location'] as String? ?? 'Main',
+              location: m['location'] as String? ?? '',
+              status: (m['active'] as num?)?.toInt() == 1 ? PosStatus.online : PosStatus.offline,
+              isWhitelisted: true,
+              lastSeen: DateTime.now(),
+            );
+          }).toList();
+        }
+
+        // 4. Fetch real refund requests — only replace if we got results back
+        final refRes = await apiClient.get<List<dynamic>>(ApiConfig.refunds);
+        if (refRes.data != null && refRes.data!.isNotEmpty) {
+          _refundRequests = refRes.data!.map((e) => RefundRequest.fromJson(e as Map<String, dynamic>)).toList();
+        }
+
+        // 5. Fetch real settlements
+        try {
+          final setRes = await apiClient.get<List<dynamic>>(ApiConfig.settlements);
+          if (setRes.data != null && setRes.data!.isNotEmpty) {
+            _settlements = setRes.data!.map((e) => SettlementRecord.fromJson(e as Map<String, dynamic>)).toList();
+          }
+        } catch (_) {}
+
+        // 6. Fetch real audit logs — only replace if we got results back
+        final audRes = await apiClient.get<List<dynamic>>(ApiConfig.auditLogs);
+        if (audRes.data != null && audRes.data!.isNotEmpty) {
+          _auditLogs = audRes.data!.map((e) {
+            final m = e as Map<String, dynamic>;
+            return AuditLog(
+              id: m['id'] as String,
+              timestamp: m['createdAt'] != null ? DateTime.tryParse(m['createdAt'] as String) ?? DateTime.now() : DateTime.now(),
+              user: m['actorId'] as String? ?? 'System',
+              role: 'User',
+              action: m['action'] as String? ?? 'LOG',
+              entity: '${m['targetType'] ?? ''} ${m['targetId'] ?? ''}',
+              details: m['metadata'] as String? ?? '',
+              ip: m['ipAddress'] as String? ?? '127.0.0.1',
+              device: 'POS-01',
+            );
+          }).toList();
+        }
+      } catch (_) {
+        // Secondary data unavailable — dashboard still driven by transaction sync result
       }
     } catch (_) {
       // Non-fatal if offline — keep existing data intact
     } finally {
       _isLoading = false;
+      _hasSynced = true;
       onChanged?.call();
     }
   }
@@ -163,7 +188,7 @@ class PaymentRepository {
       data: {
         'momoNumber': momoNumber,
         'amount': amount,
-        'customerName': customerName ?? 'Subscriber',
+        if (customerName != null && customerName.isNotEmpty) 'customerName': customerName,
         'tellerId': tellerId,
         'posId': posId,
       },
@@ -187,6 +212,8 @@ class PaymentRepository {
       } else {
         _transactions.insert(0, txn);
       }
+      // Push the settled transaction to dashboard/history instantly
+      onChanged?.call();
       return txn;
     }
     throw ApiException(message: 'Could not fetch transaction status');

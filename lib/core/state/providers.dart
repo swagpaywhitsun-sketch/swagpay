@@ -43,8 +43,8 @@ class PaymentRepositoryNotifier extends Notifier<int> {
       prefs: prefs,
       onChanged: () => state++, // bump version to rebuild consumers without destroying repo
     );
-    // Auto-refresh every 30 seconds to keep data live
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    // Auto-refresh every 12 seconds to keep data live
+    _refreshTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       _repo.refreshFromBackend();
     });
     ref.onDispose(() => _refreshTimer?.cancel());
@@ -190,6 +190,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
         state = state.copyWith(currentUser: user, isLoading: false);
         ref.read(sharedPreferencesProvider).setString('auth_user_email', user.email);
+        unawaited(ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh());
         return true;
       }
     } catch (_) {}
@@ -207,6 +208,7 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       state = state.copyWith(currentUser: user, isLoading: false);
       ref.read(sharedPreferencesProvider).setString('auth_user_email', user.email);
+      unawaited(ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh());
       return true;
     }
 
@@ -229,6 +231,7 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       state = state.copyWith(currentUser: user, isLoading: false);
       ref.read(sharedPreferencesProvider).setString('auth_user_email', user.email);
+      unawaited(ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh());
       return true;
     }
 
@@ -269,6 +272,7 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       prefs.setString('auth_user_email', 'teller@swagpay.com');
     }
+    unawaited(ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh());
   }
 
   void logout() {

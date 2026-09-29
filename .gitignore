@@ -43,6 +43,8 @@ migrate_working_dir/
 .pub-cache/
 /build/*
 !/build/web/
+android/app/build/
+android/build/
 /coverage/
 
 # Symbolication related

@@ -591,6 +591,7 @@ class TransactionDetailScreen extends ConsumerWidget {
                 icon: const Icon(Icons.undo_rounded, color: AppColors.error),
                 label: const Text('Request Void / Refund Reversal', style: TextStyle(color: AppColors.error)),
                 style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
                   side: const BorderSide(color: AppColors.error),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),

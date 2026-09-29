@@ -109,7 +109,9 @@ class PaymentTransaction {
       id: json['id'] as String? ?? 'tx_${DateTime.now().millisecondsSinceEpoch}',
       reference: json['reference'] as String? ?? '',
       customerNumber: json['momoNumber'] as String? ?? json['customerNumber'] as String? ?? '',
-      customerName: json['customerName'] as String? ?? 'Subscriber',
+      customerName: json['customerName'] as String? ??
+          (json['momoNumber'] as String? ?? json['customerNumber'] as String?) ??
+          'Counter Customer',
       customerPhone: json['momoNumber'] as String? ?? json['customerPhone'] as String? ?? '',
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       currency: 'GH₵',

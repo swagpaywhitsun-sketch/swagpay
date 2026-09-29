@@ -29,6 +29,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   final _amountController = TextEditingController();
   Customer? _lookupCustomer;
   bool _isLookingUp = false;
+  Future<Customer?>? _lookupFuture;
   String? _detectedNetwork;
 
   String? _activeReference;
@@ -67,14 +68,21 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     setState(() => _detectedNetwork = net);
 
     if (clean.length >= 10) {
-      setState(() => _isLookingUp = true);
-      final cust = await ref.read(paymentRepositoryProvider).lookupCustomer(clean);
-      if (mounted) {
+      setState(() {
+        _isLookingUp = true;
+        _lookupCustomer = null;
+      });
+      final future = ref.read(paymentRepositoryProvider).lookupCustomer(clean);
+      _lookupFuture = future;
+      final cust = await future;
+      if (mounted && _lookupFuture == future) {
         setState(() {
           _isLookingUp = false;
           _lookupCustomer = cust;
         });
       }
+    } else {
+      _lookupFuture = null;
     }
   }
 
@@ -92,6 +100,10 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     });
 
     try {
+      // Never fire the MoMo prompt with an unverified name — wait for a pending DUL lookup
+      if (_lookupCustomer == null && _lookupFuture != null) {
+        _lookupCustomer = await _lookupFuture;
+      }
       final initRes = await repo.initiateMoMoPayment(
         momoNumber: _phoneController.text.trim(),
         amount: _currentAmount,
@@ -153,6 +165,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       _phoneController.clear();
       _amountController.clear();
       _lookupCustomer = null;
+      _lookupFuture = null;
       _detectedNetwork = null;
       _activeReference = null;
       _completedTransaction = null;
@@ -441,6 +454,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         OutlinedButton(
           onPressed: _resetFlow,
           style: OutlinedButton.styleFrom(
+            backgroundColor: cardBg,
             foregroundColor: muted,
             side: BorderSide(color: borderColor),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -458,6 +472,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
     final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF707579);
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -513,6 +528,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           child: OutlinedButton(
             onPressed: () => context.go('/teller/dashboard'),
             style: OutlinedButton.styleFrom(
+              backgroundColor: cardBg,
               foregroundColor: isDark ? Colors.white : const Color(0xFF303030),
               side: BorderSide(color: borderColor),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -530,6 +546,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
     final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF707579);
     final heading = isDark ? Colors.white : const Color(0xFF303030);
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -600,6 +617,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             ),
             style: OutlinedButton.styleFrom(
+              backgroundColor: cardBg,
               foregroundColor: heading,
               side: BorderSide(color: borderColor),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

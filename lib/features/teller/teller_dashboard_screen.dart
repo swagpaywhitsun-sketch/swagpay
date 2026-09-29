@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/transaction.dart';
+import '../../core/network/api_client.dart';
+import '../../core/network/api_config.dart';
+import '../../core/services/payment_repository.dart';
 import '../../core/state/providers.dart';
 import '../../core/widgets/status_badge.dart';
 import '../../core/widgets/user_avatar_widget.dart';
@@ -34,7 +37,10 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final successTxns = txns.where((t) => t.status == TransactionStatus.success).toList();
-    final todayTotal = successTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
+    final now = DateTime.now();
+    final todayTxns = successTxns.where((t) =>
+        t.timestamp.year == now.year && t.timestamp.month == now.month && t.timestamp.day == now.day).toList();
+    final todayTotal = todayTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
 
     final bgColor = isDark ? const Color(0xFF121214) : const Color(0xFFF6F6F8);
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
@@ -233,9 +239,16 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (!repo.hasSynced && repo.isLoading) ...[
+                      _buildInitialSyncingBanner(isDark, cardBg),
+                      const SizedBox(height: 14),
+                    ] else if (repo.lastSyncError != null || (txns.isEmpty && repo.hasSynced)) ...[
+                      _buildSyncBanner(repo, isDark, cardBg),
+                      const SizedBox(height: 14),
+                    ],
 
                     // ── Compact Shopify KPI Card (Size Reduced) ─────────────
-                    _buildCompactKpiCard(todayTotal, successTxns.length, isDark, cardBg, borderColor),
+                    _buildCompactKpiCard(todayTotal, todayTxns.length, isDark, cardBg, borderColor),
                     const SizedBox(height: 14),
 
                     // ── Main Payment Button (Shopify Action Bar) ────────────
@@ -364,7 +377,104 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
     );
   }
 
+  Widget _buildInitialSyncingBanner(bool isDark, Color cardBg) {
+    const accent = Color(0xFF229ED9);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.2,
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Syncing live counter transactions...',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: accent),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Connecting to backend node to retrieve latest data',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Reduced Compact KPI Card (Shopify Polaris style) ─────────────────────
+  Widget _buildSyncBanner(PaymentRepository repo, bool isDark, Color cardBg) {
+    final err = repo.lastSyncError;
+    final isApiError = err is ApiException;
+    final hasError = err != null;
+    final title = !hasError
+        ? 'Connected — no collections yet'
+        : isApiError && err.statusCode != null
+            ? 'Server error (HTTP ${err.statusCode})'
+            : 'Cannot reach the server';
+    final detail = !hasError
+        ? 'Terminal is online. New MoMo collections will appear here.'
+        : '${isApiError ? err.message : '$err'}\n${ApiConfig.baseUrl}';
+    final accent = hasError ? const Color(0xFFE53935) : const Color(0xFF229ED9);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(hasError ? Icons.wifi_tethering_error_rounded : Icons.cloud_done_outlined,
+              color: accent, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: accent)),
+                const SizedBox(height: 3),
+                Text(detail,
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.35,
+                        color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280))),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Retry sync',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh(),
+            icon: Icon(Icons.refresh_rounded, color: accent, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCompactKpiCard(double total, int count, bool isDark, Color cardBg, Color borderColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),

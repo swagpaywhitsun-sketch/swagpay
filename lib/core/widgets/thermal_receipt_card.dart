@@ -317,6 +317,7 @@ class ThermalReceiptCard extends StatelessWidget {
                     icon: const Icon(Icons.copy, size: 16),
                     label: const Text('Copy'),
                     style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF334155),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       side: const BorderSide(color: Color(0xFFCBD5E1)),
                     ),
@@ -338,6 +339,7 @@ class ThermalReceiptCard extends StatelessWidget {
                     label: const Text('Print'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),
