@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
+app.set('trust proxy', true);
 app.use(cors());
 app.use(express.json());
 
@@ -15,7 +16,7 @@ const PORT = process.env.PORT || 8080;
 
 const auth = require('./server/auth');
 const { requireAuth, requireRole, enforceTellerIdentity, hashPassword } = auth;
-const { recordAudit } = require('./server/audit');
+const { recordAudit, extractClientIp } = require('./server/audit');
 const registerAuthRoutes = require('./server/authRoutes');
 
 // Refuse to boot with demo credentials — the app must never be reachable
@@ -664,6 +665,17 @@ app.get('/api/audit-logs', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res)
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── NETWORK & CLIENT IP INFO ───────────────────────
+app.get('/api/system/network-info', (req, res) => {
+  const clientIp = extractClientIp(req);
+  res.json({
+    clientIp,
+    flyClientIp: req.headers['fly-client-ip'] || null,
+    remoteAddress: req.socket?.remoteAddress || null,
+    forwardedFor: req.headers['x-forwarded-for'] || null,
+  });
 });
 
 // ─── STATIC FLUTTER WEB (IF PRESENT) ────────────────

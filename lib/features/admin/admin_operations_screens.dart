@@ -588,9 +588,27 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
                 children: [
                   const Text('System Audit Trail', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
-                  Text(
-                    'Immutable operational and security log of all cashier, admin, and gateway transactions',
-                    style: TextStyle(color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary, fontSize: 13),
+                  Row(
+                    children: [
+                      Text(
+                        'Immutable operational and security log of all transactions and system events',
+                        style: TextStyle(color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary, fontSize: 13),
+                      ),
+                      if (repo.clientRemoteIp.isNotEmpty && repo.clientRemoteIp != '127.0.0.1') ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Client IP: ${repo.clientRemoteIp}',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'Courier', color: AppColors.primaryLight),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),

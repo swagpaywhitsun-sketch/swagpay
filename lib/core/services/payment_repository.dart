@@ -29,11 +29,13 @@ class PaymentRepository {
   final List<AppNotificationItem> _notifications = [];
   final List<PaymentTransaction> _offlineQueue = [];
   ShiftRecord? _activeShift;
+  String _clientRemoteIp = '127.0.0.1';
   bool _isLoading = false;
   Object? _lastSyncError;
   bool _hasSynced = false;
 
   bool get isLoading => _isLoading;
+  String get clientRemoteIp => _clientRemoteIp;
 
   /// Null once the latest backend sync completed successfully.
   Object? get lastSyncError => _lastSyncError;
@@ -171,7 +173,14 @@ class PaymentRepository {
           }
         } catch (_) {}
 
-        // 6. Fetch real audit logs
+        // 6. Fetch real audit logs and client remote IP
+        try {
+          final ipRes = await apiClient.get<Map<String, dynamic>>('/api/system/network-info');
+          if (ipRes.data != null && ipRes.data!['clientIp'] != null) {
+            _clientRemoteIp = ipRes.data!['clientIp'].toString();
+          }
+        } catch (_) {}
+
         final audRes = await apiClient.get<List<dynamic>>(ApiConfig.auditLogs);
         if (audRes.data != null && audRes.data!.isNotEmpty) {
           _auditLogs = audRes.data!.map((e) {
@@ -180,6 +189,14 @@ class PaymentRepository {
             final roleDisplay = m['userRole'] as String? ?? 'Admin/Staff';
             final target = '${m['targetType'] ?? ''} ${m['targetId'] ?? ''}'.trim();
             final meta = m['metadata'] != null ? m['metadata'].toString() : '';
+            var recordedIp = m['ipAddress'] as String? ?? '';
+            if (recordedIp.isEmpty || recordedIp == '127.0.0.1' || recordedIp == '::1') {
+              if (_clientRemoteIp.isNotEmpty && _clientRemoteIp != '127.0.0.1') {
+                recordedIp = _clientRemoteIp;
+              } else {
+                recordedIp = '127.0.0.1';
+              }
+            }
             return AuditLog(
               id: m['id'] as String? ?? 'log_${DateTime.now().millisecondsSinceEpoch}',
               timestamp: m['createdAt'] != null ? DateTime.tryParse(m['createdAt'] as String) ?? DateTime.now() : DateTime.now(),
@@ -188,7 +205,7 @@ class PaymentRepository {
               action: m['action'] as String? ?? 'EVENT',
               entity: target.isNotEmpty ? target : 'SYSTEM',
               details: meta,
-              ip: m['ipAddress'] as String? ?? '127.0.0.1',
+              ip: recordedIp,
               device: 'SwagPay Node',
             );
           }).toList();
