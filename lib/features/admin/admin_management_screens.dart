@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/pos_device.dart';
@@ -359,7 +360,28 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                           rows: tellers.map((t) {
                             return DataRow(
                               cells: [
-                                DataCell(Text(t.id, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(t.id, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.copy_rounded, size: 14),
+                                        tooltip: 'Copy Teller ID',
+                                        splashRadius: 14,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
+                                          Clipboard.setData(ClipboardData(text: t.id));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Copied Teller ID "${t.id}"'), duration: const Duration(seconds: 1)),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
                                 DataCell(
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -370,7 +392,30 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                                     ],
                                   ),
                                 ),
-                                DataCell(Text(t.phone.isNotEmpty ? t.phone : '—', style: const TextStyle(fontSize: 12))),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(t.phone.isNotEmpty ? t.phone : '—', style: const TextStyle(fontSize: 12)),
+                                      if (t.phone.isNotEmpty) ...[
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          icon: const Icon(Icons.copy_rounded, size: 12),
+                                          tooltip: 'Copy Phone',
+                                          splashRadius: 12,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            Clipboard.setData(ClipboardData(text: t.phone));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Copied phone "${t.phone}"'), duration: const Duration(seconds: 1)),
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
                                 DataCell(Text(t.branch ?? 'Accra Central Hub', style: const TextStyle(fontSize: 12))),
                                 DataCell(
                                   Container(
@@ -916,24 +961,63 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                               },
                               cells: [
                                 DataCell(
-                                  InkWell(
-                                    onTap: () => _showPosDetailsDialog(context, p),
-                                    child: Text(
-                                      p.id,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: isSelected ? AppColors.primary : null,
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      InkWell(
+                                        onTap: () => _showPosDetailsDialog(context, p),
+                                        child: Text(
+                                          p.id,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: isSelected ? AppColors.primary : null,
+                                            decoration: TextDecoration.underline,
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.copy_rounded, size: 14),
+                                        tooltip: 'Copy Terminal ID',
+                                        splashRadius: 14,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
+                                          Clipboard.setData(ClipboardData(text: p.id));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Copied POS ID "${p.id}"'), duration: const Duration(seconds: 1)),
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 DataCell(
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                                      Text(p.serialNumber, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontFamily: 'Courier')),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                                          Text(p.serialNumber, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontFamily: 'Courier')),
+                                        ],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.copy_rounded, size: 12),
+                                        tooltip: 'Copy Code',
+                                        splashRadius: 12,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
+                                          Clipboard.setData(ClipboardData(text: p.serialNumber));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Copied code "${p.serialNumber}"'), duration: const Duration(seconds: 1)),
+                                          );
+                                        },
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -1054,6 +1138,132 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _showTransactionDetails(BuildContext context, PaymentTransaction txn) {
+    final dateFormat = DateFormat('dd MMM yyyy, hh:mm:ss a');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Transaction Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text(txn.reference, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontFamily: 'Courier')),
+                ],
+              ),
+            ),
+            StatusBadge(status: txn.status),
+          ],
+        ),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildTxnDetailRow('Reference', txn.reference, isCopyable: true, context: context),
+                const Divider(height: 16),
+                _buildTxnDetailRow('Date & Time', dateFormat.format(txn.timestamp)),
+                const Divider(height: 16),
+                _buildTxnDetailRow('Customer Name', txn.customerName.isNotEmpty ? txn.customerName : 'Walk-in Customer'),
+                const Divider(height: 16),
+                _buildTxnDetailRow('Customer Phone', txn.customerNumber, isCopyable: true, context: context),
+                const Divider(height: 16),
+                _buildTxnDetailRow('Network Provider', txn.networkDisplay),
+                const Divider(height: 16),
+                _buildTxnDetailRow('Amount Charged', 'GH₵ ${NumberFormat('#,##0.00').format(txn.amount)}'),
+                const Divider(height: 16),
+                _buildTxnDetailRow('Cashier / Staff', txn.tellerName),
+                const Divider(height: 16),
+                _buildTxnDetailRow('POS Terminal', txn.posId),
+                if (txn.receiptNumber != null) ...[
+                  const Divider(height: 16),
+                  _buildTxnDetailRow('Receipt Number', txn.receiptNumber!, isCopyable: true, context: context),
+                ],
+                if (txn.failureReason != null && txn.failureReason!.isNotEmpty) ...[
+                  const Divider(height: 16),
+                  _buildTxnDetailRow('Failure Reason', txn.failureReason!, color: AppColors.error),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          OutlinedButton.icon(
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('Copy Reference'),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: txn.reference));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Transaction reference copied!'), duration: Duration(seconds: 1)),
+              );
+            },
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTxnDetailRow(String label, String value, {bool isCopyable = false, BuildContext? context, Color? color}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ),
+              if (isCopyable && context != null) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.copy_rounded, size: 14),
+                  tooltip: 'Copy $label',
+                  splashRadius: 14,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: value));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Copied $label to clipboard'), duration: const Duration(seconds: 1)),
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -1288,11 +1498,44 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                             DataColumn(label: Text('CASHIER / POS', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('RECEIPT', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold))),
                           ],
                           rows: paginatedTxns.map((t) {
                             return DataRow(
                               cells: [
-                                DataCell(Text(t.reference, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      InkWell(
+                                        onTap: () => _showTransactionDetails(context, t),
+                                        child: Text(
+                                          t.reference,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                            color: AppColors.primary,
+                                            decoration: TextDecoration.underline,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.copy_rounded, size: 14),
+                                        tooltip: 'Copy Reference',
+                                        splashRadius: 14,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
+                                          Clipboard.setData(ClipboardData(text: t.reference));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Copied reference "${t.reference}"'), duration: const Duration(seconds: 1)),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
                                 DataCell(Text(dateFormat.format(t.timestamp), style: const TextStyle(fontSize: 12))),
                                 DataCell(
                                   Column(
@@ -1300,7 +1543,26 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(t.customerName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                                      Text(t.customerNumber, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(t.customerNumber, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                          const SizedBox(width: 4),
+                                          IconButton(
+                                            icon: const Icon(Icons.copy_rounded, size: 12),
+                                            tooltip: 'Copy Phone',
+                                            splashRadius: 12,
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            onPressed: () {
+                                              Clipboard.setData(ClipboardData(text: t.customerNumber));
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('Copied phone "${t.customerNumber}"'), duration: const Duration(seconds: 1)),
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -1316,8 +1578,38 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                                     ],
                                   ),
                                 ),
-                                DataCell(Text(t.receiptNumber ?? '—', style: const TextStyle(fontSize: 11, fontFamily: 'Courier'))),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(t.receiptNumber ?? '—', style: const TextStyle(fontSize: 11, fontFamily: 'Courier')),
+                                      if (t.receiptNumber != null) ...[
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          icon: const Icon(Icons.copy_rounded, size: 12),
+                                          tooltip: 'Copy Receipt',
+                                          splashRadius: 12,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            Clipboard.setData(ClipboardData(text: t.receiptNumber!));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Copied receipt "${t.receiptNumber}"'), duration: const Duration(seconds: 1)),
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
                                 DataCell(StatusBadge(status: t.status)),
+                                DataCell(
+                                  IconButton(
+                                    icon: const Icon(Icons.visibility_outlined, size: 18),
+                                    tooltip: 'Inspect Transaction',
+                                    onPressed: () => _showTransactionDetails(context, t),
+                                  ),
+                                ),
                               ],
                             );
                           }).toList(),

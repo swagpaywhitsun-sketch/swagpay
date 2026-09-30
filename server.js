@@ -387,7 +387,7 @@ app.get('/api/transactions', async (req, res) => {
       SELECT t.id, t.reference, t."gatewayReference", t."tellerId", t."posId",
              t.network, t."momoNumber", t."customerName", t.amount, t.fee,
              t."totalCharged", t.status, t."failureReason", t."receiptNumber",
-             t."createdAt", u.name as "tellerName", p.name as "posName"
+             t."createdAt", COALESCE(u.name, 'Staff Member') as "tellerName", COALESCE(p.name, 'Main Terminal') as "posName"
       FROM transactions t
       LEFT JOIN users u ON t."tellerId" = u.id
       LEFT JOIN pos_terminals p ON t."posId" = p.id
@@ -454,13 +454,35 @@ app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =
 
 app.delete('/api/tellers/:id', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   const { id } = req.params;
+  const client = await pool.connect();
   try {
-    await pool.query('DELETE FROM sessions WHERE "userId" = $1', [id]);
-    await pool.query('DELETE FROM users WHERE id = $1', [id]);
-    recordAudit(pool, req.auth.userId, 'TELLER_DELETED', 'USER', id, null, req);
+    await client.query('BEGIN');
+
+    // Retrieve staff info for audit trail
+    const tellerRes = await client.query('SELECT name, email, role FROM users WHERE id = $1', [id]);
+    const teller = tellerRes.rows[0];
+
+    // Remove active sessions and password resets
+    await client.query('DELETE FROM sessions WHERE "userId" = $1', [id]);
+    await client.query('DELETE FROM password_resets WHERE "userId" = $1', [id]);
+
+    // Preserve historical ledger integrity by disassociating the deleted user FK
+    await client.query('UPDATE transactions SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+    await client.query('UPDATE refund_requests SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+    await client.query('UPDATE shifts SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+
+    // Delete user record
+    await client.query('DELETE FROM users WHERE id = $1', [id]);
+
+    await client.query('COMMIT');
+    recordAudit(pool, req.auth.userId, 'TELLER_DELETED', 'USER', id, { tellerName: teller?.name, email: teller?.email }, req);
     res.json({ success: true, message: 'Teller deleted successfully' });
   } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Failed to delete teller:', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -509,12 +531,31 @@ app.put('/api/pos/:id', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =>
 
 app.delete('/api/pos/:id', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   const { id } = req.params;
+  const client = await pool.connect();
   try {
-    await pool.query('DELETE FROM pos_terminals WHERE id = $1', [id]);
-    recordAudit(pool, req.auth.userId, 'POS_DELETED', 'POS', id, null, req);
+    await client.query('BEGIN');
+
+    // Retrieve POS info for audit trail
+    const posRes = await client.query('SELECT name, code FROM pos_terminals WHERE id = $1', [id]);
+    const pos = posRes.rows[0];
+
+    // Disassociate transactions, shifts, and users referencing this POS terminal
+    await client.query('UPDATE transactions SET "posId" = NULL WHERE "posId" = $1', [id]);
+    await client.query('UPDATE shifts SET "posId" = NULL WHERE "posId" = $1', [id]);
+    await client.query('UPDATE users SET "posId" = NULL WHERE "posId" = $1', [id]);
+
+    // Delete the POS terminal
+    await client.query('DELETE FROM pos_terminals WHERE id = $1', [id]);
+
+    await client.query('COMMIT');
+    recordAudit(pool, req.auth.userId, 'POS_DELETED', 'POS', id, { name: pos?.name, code: pos?.code }, req);
     res.json({ success: true, message: 'Terminal deleted successfully' });
   } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Failed to delete POS terminal:', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 

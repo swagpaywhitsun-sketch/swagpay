@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/refund_request.dart';
@@ -770,7 +771,30 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
                                     child: Text(l.action, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'Courier')),
                                   ),
                                 ),
-                                DataCell(Text(l.entity, style: const TextStyle(fontSize: 12))),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(l.entity, style: const TextStyle(fontSize: 12)),
+                                      if (l.entity.isNotEmpty && l.entity != '—') ...[
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          icon: const Icon(Icons.copy_rounded, size: 12),
+                                          tooltip: 'Copy Entity',
+                                          splashRadius: 12,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            Clipboard.setData(ClipboardData(text: l.entity));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Copied "${l.entity}"'), duration: const Duration(seconds: 1)),
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
                                 DataCell(
                                   ConstrainedBox(
                                     constraints: const BoxConstraints(maxWidth: 320),
@@ -782,7 +806,30 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
                                     ),
                                   ),
                                 ),
-                                DataCell(Text(l.ip, style: const TextStyle(fontFamily: 'Courier', fontSize: 11))),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(l.ip, style: const TextStyle(fontFamily: 'Courier', fontSize: 11)),
+                                      if (l.ip.isNotEmpty && l.ip != '—') ...[
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          icon: const Icon(Icons.copy_rounded, size: 12),
+                                          tooltip: 'Copy IP',
+                                          splashRadius: 12,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            Clipboard.setData(ClipboardData(text: l.ip));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Copied IP "${l.ip}"'), duration: const Duration(seconds: 1)),
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
                               ],
                             );
                           }).toList(),

@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -534,7 +535,28 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               rows: txns.take(6).map((t) {
                                 return DataRow(
                                   cells: [
-                                    DataCell(Text(t.reference, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                    DataCell(
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(t.reference, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                          const SizedBox(width: 4),
+                                          IconButton(
+                                            icon: const Icon(Icons.copy_rounded, size: 13),
+                                            tooltip: 'Copy Reference',
+                                            splashRadius: 13,
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            onPressed: () {
+                                              Clipboard.setData(ClipboardData(text: t.reference));
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('Copied reference "${t.reference}"'), duration: const Duration(seconds: 1)),
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                     DataCell(Text('${t.customerName} (${t.customerNumber})')),
                                     DataCell(Text('GH₵ ${NumberFormat('#,##0.00').format(t.amount)}', style: const TextStyle(fontWeight: FontWeight.bold))),
                                     DataCell(Text(t.networkDisplay)),
