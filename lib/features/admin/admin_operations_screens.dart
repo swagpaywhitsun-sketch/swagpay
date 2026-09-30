@@ -222,8 +222,50 @@ class _AdminRefundsScreenState extends ConsumerState<AdminRefundsScreen> {
                           rows: refunds.map((r) {
                             return DataRow(
                               cells: [
-                                DataCell(Text(r.id, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                                DataCell(Text(r.reference, style: const TextStyle(fontFamily: 'Courier', fontSize: 12))),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(r.id, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.copy_rounded, size: 13),
+                                        tooltip: 'Copy Request ID',
+                                        splashRadius: 13,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
+                                          Clipboard.setData(ClipboardData(text: r.id));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Copied "${r.id}"'), duration: const Duration(seconds: 1)),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(r.reference, style: const TextStyle(fontFamily: 'Courier', fontSize: 12)),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.copy_rounded, size: 13),
+                                        tooltip: 'Copy Reference',
+                                        splashRadius: 13,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
+                                          Clipboard.setData(ClipboardData(text: r.reference));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Copied "${r.reference}"'), duration: const Duration(seconds: 1)),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
                                 DataCell(Text('GH₵ ${r.amount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14))),
                                 DataCell(Text(r.tellerName, style: const TextStyle(fontSize: 12))),
                                 DataCell(Text(r.reason, style: const TextStyle(fontSize: 12))),
@@ -880,8 +922,12 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(paymentRepositoryProvider);
-    final txns = repo.getTransactions();
+    final allTxns = repo.getTransactions();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final now = DateTime.now();
+    final cutoff = _selectedDays >= 90 ? null : now.subtract(Duration(days: _selectedDays));
+    final txns = cutoff == null ? allTxns : allTxns.where((t) => t.timestamp.isAfter(cutoff)).toList();
 
     final successTxns = txns.where((t) => t.status == TransactionStatus.success).toList();
     final failedTxns = txns.where((t) => t.status == TransactionStatus.failed).toList();

@@ -68,24 +68,37 @@ class AppUser {
         'refreshToken': refreshToken,
       };
 
-  factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
-        id: json['id'] as String,
-        fullName: json['fullName'] as String,
-        email: json['email'] as String,
-        phone: json['phone'] as String? ?? '',
-        role: UserRole.values.firstWhere(
-          (r) => r.name == json['role'],
-          orElse: () => UserRole.teller,
-        ),
-        branch: json['branch'] as String?,
-        assignedPos: (json['assignedPos'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-        singleTxnLimit: (json['singleTxnLimit'] as num?)?.toDouble() ?? 500000.0,
-        dailyLimit: (json['dailyLimit'] as num?)?.toDouble() ?? 5000000.0,
-        isActive: json['isActive'] as bool? ?? true,
-        lastLogin: json['lastLogin'] != null ? DateTime.tryParse(json['lastLogin'] as String) : null,
-        token: json['token'] as String?,
-        refreshToken: json['refreshToken'] as String?,
-      );
+  factory AppUser.fromJson(Map<String, dynamic> json) {
+    final roleStr = (json['role'] as String? ?? json['dbRole'] as String? ?? 'TELLER').toUpperCase();
+    UserRole resolvedRole = UserRole.teller;
+    if (roleStr == 'SUPER_ADMIN' || roleStr == 'SUPERADMIN') {
+      resolvedRole = UserRole.superAdmin;
+    } else if (roleStr == 'ADMIN') {
+      resolvedRole = UserRole.admin;
+    } else if (roleStr == 'SENIOR_TELLER' || roleStr == 'SENIORTELLER') {
+      resolvedRole = UserRole.seniorTeller;
+    } else {
+      resolvedRole = UserRole.teller;
+    }
+
+    return AppUser(
+      id: json['id'] as String? ?? '',
+      fullName: json['fullName'] as String? ?? json['name'] as String? ?? 'Staff Member',
+      email: json['email'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      role: resolvedRole,
+      branch: json['branch'] as String?,
+      assignedPos: json['assignedPos'] != null
+          ? (json['assignedPos'] as List<dynamic>).map((e) => e.toString()).toList()
+          : (json['posId'] != null ? [json['posId'].toString()] : []),
+      singleTxnLimit: (json['singleTxnLimit'] as num?)?.toDouble() ?? 500000.0,
+      dailyLimit: (json['dailyLimit'] as num?)?.toDouble() ?? 5000000.0,
+      isActive: json['isActive'] as bool? ?? (json['active'] != 0),
+      lastLogin: json['lastLogin'] != null ? DateTime.tryParse(json['lastLogin'] as String) : null,
+      token: json['token'] as String?,
+      refreshToken: json['refreshToken'] as String?,
+    );
+  }
 
   AppUser copyWith({
     String? id,

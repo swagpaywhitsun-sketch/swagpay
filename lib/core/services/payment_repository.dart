@@ -142,12 +142,12 @@ class PaymentRepository {
           _tellers = telRes.data!.map((e) {
             final m = e as Map<String, dynamic>;
             return AppUser(
-              id: m['id'] as String,
-              fullName: m['name'] as String,
-              email: m['email'] as String,
-              phone: m['phone'] as String? ?? '',
-              role: (m['role'] as String? ?? '').contains('ADMIN') ? UserRole.admin : UserRole.teller,
-              assignedPos: [m['posId'] as String? ?? 'pos_01'],
+              id: (m['id'] ?? '').toString(),
+              fullName: (m['name'] ?? 'Staff Member').toString(),
+              email: (m['email'] ?? '').toString(),
+              phone: (m['phone'] ?? '').toString(),
+              role: (m['role']?.toString().toUpperCase() ?? '').contains('ADMIN') ? UserRole.admin : UserRole.teller,
+              assignedPos: [m['posId']?.toString() ?? 'pos_01'],
               isActive: (m['active'] as num?)?.toInt() == 1,
             );
           }).toList();
@@ -161,12 +161,12 @@ class PaymentRepository {
           _posDevices = posRes.data!.map((e) {
             final m = e as Map<String, dynamic>;
             return PosDevice(
-              id: m['id'] as String,
-              name: m['name'] as String,
-              serialNumber: m['code'] as String,
-              deviceFingerprint: m['code'] as String,
-              branch: m['location'] as String? ?? 'Main',
-              location: m['location'] as String? ?? '',
+              id: (m['id'] ?? '').toString(),
+              name: (m['name'] ?? 'POS Terminal').toString(),
+              serialNumber: (m['code'] ?? m['serialNumber'] ?? '').toString(),
+              deviceFingerprint: (m['code'] ?? m['serialNumber'] ?? '').toString(),
+              branch: (m['location'] ?? m['branch'] ?? 'Main').toString(),
+              location: (m['location'] ?? m['branch'] ?? '').toString(),
               status: (m['active'] as num?)?.toInt() == 1 ? PosStatus.online : PosStatus.offline,
               isWhitelisted: true,
               lastSeen: DateTime.now(),

@@ -123,10 +123,20 @@ class ApiClient {
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
+    Options? options,
   }) async {
     try {
-      return await _dio.put<T>(path, data: data, queryParameters: queryParameters);
+      return await _dio.put<T>(path, data: data, queryParameters: queryParameters, options: options);
     } on DioException catch (e) {
+      if (_isAuthFailure(e) && await _tryRefresh()) {
+        final retryOpts = (options ?? Options()).copyWith(
+          headers: {
+            ...?options?.headers,
+            if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+          },
+        );
+        return await _dio.put<T>(path, data: data, queryParameters: queryParameters, options: retryOpts);
+      }
       throw _handleDioError(e);
     }
   }
@@ -134,10 +144,20 @@ class ApiClient {
   Future<Response<T>> delete<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
+    Options? options,
   }) async {
     try {
-      return await _dio.delete<T>(path, queryParameters: queryParameters);
+      return await _dio.delete<T>(path, queryParameters: queryParameters, options: options);
     } on DioException catch (e) {
+      if (_isAuthFailure(e) && await _tryRefresh()) {
+        final retryOpts = (options ?? Options()).copyWith(
+          headers: {
+            ...?options?.headers,
+            if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+          },
+        );
+        return await _dio.delete<T>(path, queryParameters: queryParameters, options: retryOpts);
+      }
       throw _handleDioError(e);
     }
   }

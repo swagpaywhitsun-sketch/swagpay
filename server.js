@@ -610,8 +610,18 @@ app.get('/api/refunds', async (req, res) => {
     const scoped = req.auth.role === 'TELLER';
     const result = await pool.query(
       scoped
-        ? 'SELECT * FROM refund_requests WHERE "tellerId" = $1 ORDER BY "createdAt" DESC'
-        : 'SELECT * FROM refund_requests ORDER BY "createdAt" DESC',
+        ? `SELECT r.id, r."transactionId", r.reference, r.amount, r."tellerId", r."tellerName",
+                  r.reason, r.notes, r.status, r."reviewedBy", r."reviewedAt", r."rejectionReason", r."createdAt",
+                  COALESCE(t."momoNumber", '') as "customerNumber"
+           FROM refund_requests r
+           LEFT JOIN transactions t ON r."transactionId" = t.id
+           WHERE r."tellerId" = $1 ORDER BY r."createdAt" DESC`
+        : `SELECT r.id, r."transactionId", r.reference, r.amount, r."tellerId", r."tellerName",
+                  r.reason, r.notes, r.status, r."reviewedBy", r."reviewedAt", r."rejectionReason", r."createdAt",
+                  COALESCE(t."momoNumber", '') as "customerNumber"
+           FROM refund_requests r
+           LEFT JOIN transactions t ON r."transactionId" = t.id
+           ORDER BY r."createdAt" DESC`,
       scoped ? [req.auth.userId] : []
     );
     res.json(result.rows);
@@ -675,7 +685,11 @@ app.post('/api/refunds/:id/review', requireRole('ADMIN', 'SUPER_ADMIN'), async (
       [status, reviewerName, rejectionReason || null, id]
     );
 
-    if (approve && refRes.rows.length > 0) {
+    if (refRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Refund request not found' });
+    }
+
+    if (approve) {
       await pool.query('UPDATE transactions SET status = $1 WHERE id = $2', [
         'REFUNDED',
         refRes.rows[0].transactionId,

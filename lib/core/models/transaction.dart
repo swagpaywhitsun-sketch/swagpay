@@ -118,8 +118,8 @@ class PaymentTransaction {
       status: s,
       network: net,
       timestamp: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now()
-          : (json['timestamp'] != null ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now() : DateTime.now()),
+          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+          : (json['timestamp'] != null ? DateTime.tryParse(json['timestamp'].toString()) ?? DateTime.now() : DateTime.now()),
       tellerId: json['tellerId'] as String? ?? '',
       tellerName: json['tellerName'] as String? ?? 'Counter Cashier',
       posId: json['posId'] as String? ?? 'pos_01',

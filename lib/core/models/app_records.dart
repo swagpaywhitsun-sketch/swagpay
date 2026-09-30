@@ -34,15 +34,17 @@ class AuditLog {
       };
 
   factory AuditLog.fromJson(Map<String, dynamic> json) => AuditLog(
-        id: json['id'] as String,
-        timestamp: DateTime.parse(json['timestamp'] as String),
-        user: json['user'] as String,
-        role: json['role'] as String,
-        action: json['action'] as String,
-        entity: json['entity'] as String,
-        details: json['details'] as String,
-        ip: json['ip'] as String,
-        device: json['device'] as String,
+        id: json['id'] as String? ?? '',
+        timestamp: json['timestamp'] != null
+            ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
+            : (json['createdAt'] != null ? DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now() : DateTime.now()),
+        user: json['user'] as String? ?? json['userName'] as String? ?? 'System',
+        role: json['role'] as String? ?? json['userRole'] as String? ?? 'Staff',
+        action: json['action'] as String? ?? 'EVENT',
+        entity: json['entity'] as String? ?? json['targetType'] as String? ?? 'SYSTEM',
+        details: json['details'] as String? ?? json['metadata'] as String? ?? '',
+        ip: json['ip'] as String? ?? json['ipAddress'] as String? ?? '127.0.0.1',
+        device: json['device'] as String? ?? 'SwagPay Node',
       );
 }
 

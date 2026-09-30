@@ -37,12 +37,12 @@ class SettlementRecord {
       };
 
   factory SettlementRecord.fromJson(Map<String, dynamic> json) => SettlementRecord(
-        id: json['id'] as String,
-        date: DateTime.parse(json['date'] as String),
-        totalCollected: (json['totalCollected'] as num).toDouble(),
-        totalSettled: (json['totalSettled'] as num).toDouble(),
-        variance: (json['variance'] as num).toDouble(),
-        transactionCount: json['transactionCount'] as int,
+        id: json['id'] as String? ?? 'SET-${DateTime.now().millisecondsSinceEpoch}',
+        date: json['date'] != null ? DateTime.tryParse(json['date'] as String) ?? DateTime.now() : DateTime.now(),
+        totalCollected: (json['totalCollected'] as num?)?.toDouble() ?? 0.0,
+        totalSettled: (json['totalSettled'] as num?)?.toDouble() ?? 0.0,
+        variance: (json['variance'] as num?)?.toDouble() ?? 0.0,
+        transactionCount: (json['transactionCount'] as num?)?.toInt() ?? 0,
         status: SettlementStatus.values.firstWhere(
           (s) => s.name.toLowerCase() == (json['status'] as String? ?? '').toLowerCase(),
           orElse: () => SettlementStatus.settled,

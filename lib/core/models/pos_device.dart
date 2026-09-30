@@ -46,19 +46,21 @@ class PosDevice {
       };
 
   factory PosDevice.fromJson(Map<String, dynamic> json) => PosDevice(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        serialNumber: json['serialNumber'] as String,
-        deviceFingerprint: json['deviceFingerprint'] as String? ?? json['serialNumber'] as String,
-        branch: json['branch'] as String,
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? 'Terminal',
+        serialNumber: json['code'] as String? ?? json['serialNumber'] as String? ?? '',
+        deviceFingerprint: json['deviceFingerprint'] as String? ?? json['code'] as String? ?? json['serialNumber'] as String? ?? '',
+        branch: json['branch'] as String? ?? json['location'] as String? ?? 'Main Branch',
         location: json['location'] as String? ?? '',
         assignedTellerIds: (json['assignedTellerIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
         status: PosStatus.values.firstWhere(
-          (s) => s.name == json['status'],
-          orElse: () => PosStatus.online,
+          (s) => s.name.toLowerCase() == (json['status'] as String? ?? '').toLowerCase(),
+          orElse: () => ((json['active'] as num?)?.toInt() == 0 ? PosStatus.offline : PosStatus.online),
         ),
-        isWhitelisted: json['isWhitelisted'] as bool? ?? true,
-        lastSeen: DateTime.parse(json['lastSeen'] as String),
+        isWhitelisted: json['isWhitelisted'] as bool? ?? ((json['active'] as num?)?.toInt() != 0),
+        lastSeen: json['lastSeen'] != null
+            ? DateTime.tryParse(json['lastSeen'] as String) ?? DateTime.now()
+            : (json['createdAt'] != null ? DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now() : DateTime.now()),
         ipAddress: json['ipAddress'] as String?,
       );
 

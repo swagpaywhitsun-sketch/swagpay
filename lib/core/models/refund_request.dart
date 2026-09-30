@@ -55,20 +55,22 @@ class RefundRequest {
       };
 
   factory RefundRequest.fromJson(Map<String, dynamic> json) => RefundRequest(
-        id: json['id'] as String,
-        transactionId: json['transactionId'] as String,
-        reference: json['reference'] as String,
-        amount: (json['amount'] as num).toDouble(),
-        customerNumber: json['customerNumber'] as String,
-        tellerId: json['tellerId'] as String,
-        tellerName: json['tellerName'] as String,
-        reason: json['reason'] as String,
+        id: json['id'] as String? ?? '',
+        transactionId: json['transactionId'] as String? ?? '',
+        reference: json['reference'] as String? ?? '',
+        amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+        customerNumber: json['customerNumber'] as String? ?? '',
+        tellerId: json['tellerId'] as String? ?? '',
+        tellerName: json['tellerName'] as String? ?? 'Counter Cashier',
+        reason: json['reason'] as String? ?? '',
         notes: json['notes'] as String?,
         status: RefundStatus.values.firstWhere(
-          (s) => s.name == json['status'],
+          (s) => s.name.toLowerCase() == (json['status'] as String? ?? '').toLowerCase(),
           orElse: () => RefundStatus.pending,
         ),
-        createdAt: DateTime.parse(json['createdAt'] as String),
+        createdAt: json['createdAt'] != null
+            ? DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now()
+            : DateTime.now(),
         reviewedBy: json['reviewedBy'] as String?,
         reviewedAt: json['reviewedAt'] != null ? DateTime.tryParse(json['reviewedAt'] as String) : null,
         rejectionReason: json['rejectionReason'] as String?,

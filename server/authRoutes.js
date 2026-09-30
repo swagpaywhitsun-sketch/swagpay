@@ -246,14 +246,31 @@ module.exports = function registerAuthRoutes(app, pool) {
   });
 
   app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    const client = await pool.connect();
     try {
-      const { id } = req.params;
-      await pool.query('DELETE FROM sessions WHERE "userId" = $1', [id]);
-      await pool.query('DELETE FROM users WHERE id = $1', [id]);
-      recordAudit(pool, req.auth.userId, 'USER_DELETED', 'USER', id, null, req);
+      await client.query('BEGIN');
+
+      const userRes = await client.query('SELECT name, email FROM users WHERE id = $1', [id]);
+      const user = userRes.rows[0];
+
+      await client.query('DELETE FROM sessions WHERE "userId" = $1', [id]);
+      await client.query('DELETE FROM password_resets WHERE "userId" = $1', [id]);
+
+      await client.query('UPDATE transactions SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+      await client.query('UPDATE refund_requests SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+      await client.query('UPDATE shifts SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+
+      await client.query('DELETE FROM users WHERE id = $1', [id]);
+
+      await client.query('COMMIT');
+      recordAudit(pool, req.auth.userId, 'USER_DELETED', 'USER', id, { name: user?.name, email: user?.email }, req);
       res.json({ success: true, message: 'User deleted successfully' });
     } catch (err) {
+      await client.query('ROLLBACK');
       res.status(500).json({ success: false, error: err.message });
+    } finally {
+      client.release();
     }
   });
 

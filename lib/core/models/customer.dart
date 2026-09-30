@@ -28,14 +28,14 @@ class Customer {
       };
 
   factory Customer.fromJson(Map<String, dynamic> json) => Customer(
-        id: json['id'] as String,
-        accountNumber: json['accountNumber'] as String,
-        name: json['name'] as String,
-        phone: json['phone'] as String? ?? '',
-        email: json['email'] as String? ?? '',
+        id: (json['id'] ?? '').toString(),
+        accountNumber: (json['accountNumber'] ?? json['account'] ?? '').toString(),
+        name: (json['name'] ?? 'Valued Customer').toString(),
+        phone: (json['phone'] ?? '').toString(),
+        email: (json['email'] ?? '').toString(),
         outstandingBalance: (json['outstandingBalance'] as num?)?.toDouble() ?? 0.0,
         lastPaymentDate: json['lastPaymentDate'] != null
-            ? DateTime.tryParse(json['lastPaymentDate'] as String)
+            ? DateTime.tryParse(json['lastPaymentDate'].toString())
             : null,
       );
 }
