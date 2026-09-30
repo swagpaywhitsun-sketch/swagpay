@@ -682,9 +682,21 @@ app.get('/api/system/network-info', (req, res) => {
 const webBuildPath = path.join(__dirname, 'build', 'web');
 if (fs.existsSync(webBuildPath)) {
   console.log(`Serving SwagPay Web build from ${webBuildPath}`);
-  app.use(express.static(webBuildPath));
+  app.use(express.static(webBuildPath, {
+    setHeaders: (res, filePath) => {
+      const base = path.basename(filePath);
+      if (base === 'index.html' || base === 'flutter_bootstrap.js' || base === 'flutter_service_worker.js' || base === 'manifest.json') {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    },
+  }));
   app.use((req, res, next) => {
     if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/health')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       return res.sendFile(path.join(webBuildPath, 'index.html'));
     }
     next();

@@ -122,6 +122,7 @@ const PUBLIC_API_PATHS = new Set([
   '/auth/refresh',
   '/auth/forgot-password',
   '/auth/reset-password',
+  '/system/network-info',
 ]);
 const PUBLIC_API_PATTERNS = [/^\/webhooks?(\/.*)?$/];
 
