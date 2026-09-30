@@ -27,69 +27,136 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
     final phoneCtrl = TextEditingController();
     final limitCtrl = TextEditingController(text: '10000');
     final branchCtrl = TextEditingController(text: 'Accra Mall Food Court');
+    final repo = ref.read(paymentRepositoryProvider);
+    final posDevices = repo.getPosDevices();
+    String selectedPosId = posDevices.isNotEmpty ? posDevices.first.id : 'pos_01';
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add New Teller / Cashier'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Full Name *')),
-              const SizedBox(height: 12),
-              TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email Address *')),
-              const SizedBox(height: 12),
-              TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone Number (MoMo)')),
-              const SizedBox(height: 12),
-              TextField(controller: branchCtrl, decoration: const InputDecoration(labelText: 'Branch / Location')),
-              const SizedBox(height: 12),
-              TextField(
-                controller: limitCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Single Txn Limit (GH₵)'),
-              ),
-            ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Add New Teller / Cashier'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Full Name *')),
+                const SizedBox(height: 12),
+                TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email Address *')),
+                const SizedBox(height: 12),
+                TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone Number (MoMo)')),
+                const SizedBox(height: 12),
+                TextField(controller: branchCtrl, decoration: const InputDecoration(labelText: 'Branch / Location')),
+                const SizedBox(height: 12),
+                // Dynamic POS Selector
+                DropdownButtonFormField<String>(
+                  initialValue: posDevices.any((p) => p.id == selectedPosId) ? selectedPosId : (posDevices.isNotEmpty ? posDevices.first.id : 'pos_01'),
+                  decoration: const InputDecoration(labelText: 'Assign POS Terminal *'),
+                  items: posDevices.isNotEmpty
+                      ? posDevices.map((p) => DropdownMenuItem(value: p.id, child: Text('${p.name} (${p.serialNumber})'))).toList()
+                      : const [DropdownMenuItem(value: 'pos_01', child: Text('Till 1 (POS-01)'))],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setDialogState(() => selectedPosId = val);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: limitCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Single Txn Limit (GH₵)'),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty) return;
+                final newTeller = AppUser(
+                  id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
+                  fullName: nameCtrl.text.trim(),
+                  email: emailCtrl.text.trim(),
+                  phone: phoneCtrl.text.trim(),
+                  role: UserRole.teller,
+                  branch: branchCtrl.text.trim(),
+                  assignedPos: [selectedPosId],
+                  singleTxnLimit: double.tryParse(limitCtrl.text) ?? 10000.0,
+                  dailyLimit: 50000.0,
+                );
+                String? secret;
+                Object? failure;
+                try {
+                  secret = await repo.addTeller(newTeller);
+                } catch (e) {
+                  failure = e;
+                }
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                final message = failure != null
+                    ? 'Could not save teller: ${failure is ApiException ? failure.message : '$failure'}'
+                    : secret != null
+                        ? 'Teller created. Sign-in secret (show once, they must change it later): $secret'
+                        : 'Teller created successfully';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    backgroundColor: failure != null ? AppColors.error : AppColors.success,
+                  ),
+                );
+              },
+              child: const Text('Create Teller'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteTeller(BuildContext context, AppUser teller) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 24),
+            const SizedBox(width: 8),
+            const Text('Delete Staff / Teller'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete "${teller.fullName}" (${teller.email})?\n\nThis will immediately revoke their access and deactivate their POS counter assignment.',
+          style: const TextStyle(fontSize: 14),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
             onPressed: () async {
-              if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty) return;
-              final newTeller = AppUser(
-                id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
-                fullName: nameCtrl.text.trim(),
-                email: emailCtrl.text.trim(),
-                phone: phoneCtrl.text.trim(),
-                role: UserRole.teller,
-                branch: branchCtrl.text.trim(),
-                assignedPos: ['pos_01'],
-                singleTxnLimit: double.tryParse(limitCtrl.text) ?? 10000.0,
-                dailyLimit: 50000.0,
-              );
-              String? secret;
-              Object? failure;
-              try {
-                secret = await ref.read(paymentRepositoryProvider).addTeller(newTeller);
-              } catch (e) {
-                failure = e;
-              }
-              if (!ctx.mounted) return;
               Navigator.pop(ctx);
-              final message = failure != null
-                  ? 'Could not save teller: ${failure is ApiException ? failure.message : '$failure'}'
-                  : secret != null
-                      ? 'Teller created. Sign-in secret (show once, they must change it later): $secret'
-                      : 'Teller updated';
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(message),
-                  backgroundColor: failure != null ? AppColors.error : AppColors.success,
-                ),
-              );
+              try {
+                await ref.read(paymentRepositoryProvider).deleteTeller(teller.id);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Staff "${teller.fullName}" was deleted successfully.'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to delete teller: ${e is ApiException ? e.message : '$e'}'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+              }
             },
-            child: const Text('Create Teller'),
+            child: const Text('Delete Teller'),
           ),
         ],
       ),
@@ -340,14 +407,24 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                                   ),
                                 ),
                                 DataCell(
-                                  IconButton(
-                                    icon: const Icon(Icons.tune_rounded, size: 18),
-                                    tooltip: 'Edit Teller Limits',
-                                    onPressed: () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Configuring counter limits for ${t.fullName}')),
-                                      );
-                                    },
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.tune_rounded, size: 18),
+                                        tooltip: 'Configure Limits',
+                                        onPressed: () {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Configuring counter limits for ${t.fullName}')),
+                                          );
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                                        tooltip: 'Delete Staff Member',
+                                        onPressed: () => _confirmDeleteTeller(context, t),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -396,6 +473,7 @@ class AdminPosScreen extends ConsumerStatefulWidget {
 
 class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
   final _searchCtrl = TextEditingController();
+  PosDevice? _selectedPos;
 
   void _showAddPosDialog(BuildContext context) {
     final codeCtrl = TextEditingController(text: 'POS-0${DateTime.now().millisecond}');
@@ -443,13 +521,184 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(failure == null
-                      ? 'Terminal registered.'
+                      ? 'Terminal registered successfully.'
                       : 'Could not register terminal: ${failure is ApiException ? failure.message : '$failure'}'),
                   backgroundColor: failure == null ? AppColors.success : AppColors.error,
                 ),
               );
             },
             child: const Text('Register Terminal'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditPosDialog(BuildContext context, PosDevice pos) {
+    final nameCtrl = TextEditingController(text: pos.name);
+    final codeCtrl = TextEditingController(text: pos.serialNumber);
+    final locCtrl = TextEditingController(text: pos.location);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit Terminal (${pos.serialNumber})'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'Terminal Code')),
+            const SizedBox(height: 12),
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Terminal Name')),
+            const SizedBox(height: 12),
+            TextField(controller: locCtrl, decoration: const InputDecoration(labelText: 'Location / Counter')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final updated = pos.copyWith(
+                name: nameCtrl.text.trim(),
+                serialNumber: codeCtrl.text.trim(),
+                location: locCtrl.text.trim(),
+              );
+              await ref.read(paymentRepositoryProvider).updatePosDevice(updated);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Terminal "${updated.name}" updated.'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+            },
+            child: const Text('Save Changes'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeletePos(BuildContext context, PosDevice pos) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 24),
+            const SizedBox(width: 8),
+            const Text('Delete POS Terminal'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete POS terminal "${pos.name}" (${pos.serialNumber})?\n\nTellers assigned to this terminal will need to be reassigned.',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await ref.read(paymentRepositoryProvider).deletePosDevice(pos.id);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('POS terminal "${pos.name}" deleted successfully.'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to delete POS terminal: ${e is ApiException ? e.message : '$e'}'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+              }
+            },
+            child: const Text('Delete Terminal'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPosDetailsDialog(BuildContext context, PosDevice pos) {
+    final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.point_of_sale_rounded, color: AppColors.primary, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(pos.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text('Terminal Code: ${pos.serialNumber}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontFamily: 'Courier')),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDetailTile('Terminal ID', pos.id),
+            const Divider(height: 12),
+            _buildDetailTile('Location', pos.location.isNotEmpty ? pos.location : 'Main Counter'),
+            const Divider(height: 12),
+            _buildDetailTile('Hardware Fingerprint', pos.deviceFingerprint),
+            const Divider(height: 12),
+            _buildDetailTile('Last Heartbeat', dateFormat.format(pos.lastSeen)),
+            const Divider(height: 12),
+            _buildDetailTile('Whitelist Status', pos.isWhitelisted ? 'Authorized & Active' : 'Locked / Unapproved'),
+            const Divider(height: 12),
+            _buildDetailTile('Connection Status', pos.status == PosStatus.online ? 'Online' : 'Offline'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showEditPosDialog(context, pos);
+            },
+            icon: const Icon(Icons.edit_rounded, size: 16),
+            label: const Text('Edit'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailTile(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -625,7 +874,8 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                       child: ConstrainedBox(
                         constraints: BoxConstraints(minWidth: constraints.maxWidth),
                         child: DataTable(
-                          columnSpacing: 28,
+                          showCheckboxColumn: true,
+                          columnSpacing: 24,
                           headingRowHeight: 48,
                           dataRowMinHeight: 56,
                           dataRowMaxHeight: 64,
@@ -637,11 +887,30 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                             DataColumn(label: Text('LAST HEARTBEAT', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('WHITELIST LOCK', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold))),
                           ],
                           rows: posDevices.map((p) {
+                            final isSelected = _selectedPos?.id == p.id;
                             return DataRow(
+                              selected: isSelected,
+                              onSelectChanged: (_) {
+                                setState(() {
+                                  _selectedPos = isSelected ? null : p;
+                                });
+                              },
                               cells: [
-                                DataCell(Text(p.id, style: const TextStyle(fontWeight: FontWeight.bold))),
+                                DataCell(
+                                  InkWell(
+                                    onTap: () => _showPosDetailsDialog(context, p),
+                                    child: Text(
+                                      p.id,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: isSelected ? AppColors.primary : null,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                                 DataCell(
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -682,6 +951,28 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                                     ),
                                   ),
                                 ),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.info_outline_rounded, size: 18),
+                                        tooltip: 'Terminal Details',
+                                        onPressed: () => _showPosDetailsDialog(context, p),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined, size: 18),
+                                        tooltip: 'Edit Terminal',
+                                        onPressed: () => _showEditPosDialog(context, p),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                                        tooltip: 'Delete Terminal',
+                                        onPressed: () => _confirmDeletePos(context, p),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             );
                           }).toList(),
@@ -696,7 +987,9 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Showing ${posDevices.length} of ${allDevices.length} hardware terminals • Real-time hardware health check active',
+                            _selectedPos != null
+                                ? 'Selected: ${_selectedPos!.name} (${_selectedPos!.serialNumber}) • ${posDevices.length} total terminals'
+                                : 'Showing ${posDevices.length} of ${allDevices.length} hardware terminals • Real-time hardware health check active',
                             style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                           ),
                           TextButton.icon(
@@ -730,6 +1023,14 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
   final _searchCtrl = TextEditingController();
   TransactionStatus? _filterStatus;
   MoMoNetwork? _filterNetwork;
+  int _currentPage = 1;
+  int _pageSize = 10;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -747,6 +1048,16 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
     final totalCollected = successfulTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
     final pendingCount = allTxns.where((t) => t.status == TransactionStatus.pending).length;
     final successRate = allTxns.isEmpty ? 100 : ((successfulTxns.length / allTxns.length) * 100).toInt();
+
+    // Pagination calculations
+    final totalCount = txns.length;
+    final totalPages = (totalCount / _pageSize).ceil().clamp(1, 999999);
+    if (_currentPage > totalPages) {
+      _currentPage = totalPages;
+    }
+    final startIndex = (_currentPage - 1) * _pageSize;
+    final endIndex = (startIndex + _pageSize).clamp(0, totalCount);
+    final paginatedTxns = totalCount > 0 ? txns.sublist(startIndex, endIndex) : <PaymentTransaction>[];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
@@ -848,7 +1159,7 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                     flex: 2,
                     child: TextField(
                       controller: _searchCtrl,
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) => setState(() => _currentPage = 1),
                       decoration: const InputDecoration(
                         hintText: 'Search by Ref, customer phone, name, teller...',
                         prefixIcon: Icon(Icons.search_rounded),
@@ -869,7 +1180,10 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                       DropdownMenuItem(value: TransactionStatus.failed, child: Text('Failed')),
                       DropdownMenuItem(value: TransactionStatus.refunded, child: Text('Refunded')),
                     ],
-                    onChanged: (val) => setState(() => _filterStatus = val),
+                    onChanged: (val) => setState(() {
+                      _filterStatus = val;
+                      _currentPage = 1;
+                    }),
                   ),
                   const SizedBox(width: 12),
                   DropdownButton<MoMoNetwork?>(
@@ -882,7 +1196,10 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                       DropdownMenuItem(value: MoMoNetwork.vodafone, child: Text('Telecel Cash')),
                       DropdownMenuItem(value: MoMoNetwork.airtel, child: Text('AT Money')),
                     ],
-                    onChanged: (val) => setState(() => _filterNetwork = val),
+                    onChanged: (val) => setState(() {
+                      _filterNetwork = val;
+                      _currentPage = 1;
+                    }),
                   ),
                 ],
               ),
@@ -890,7 +1207,7 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
           ),
           const SizedBox(height: 16),
 
-          // Full-width Table Card
+          // Full-width Table Card with Pagination Controls
           Card(
             clipBehavior: Clip.antiAlias,
             child: LayoutBuilder(
@@ -914,6 +1231,7 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                               _searchCtrl.clear();
                               _filterStatus = null;
                               _filterNetwork = null;
+                              _currentPage = 1;
                             });
                           },
                           icon: const Icon(Icons.clear_all_rounded, size: 16),
@@ -947,7 +1265,7 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                             DataColumn(label: Text('RECEIPT', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
                           ],
-                          rows: txns.map((t) {
+                          rows: paginatedTxns.map((t) {
                             return DataRow(
                               cells: [
                                 DataCell(Text(t.reference, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
@@ -983,20 +1301,77 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                       ),
                     ),
                     const Divider(height: 1),
-                    // Table Footer
+                    // Table Footer with Full Pagination Controls
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      child: Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 16,
+                        runSpacing: 10,
                         children: [
-                          Text(
-                            'Showing ${txns.length} of ${allTxns.length} transactions • Supabase PostgreSQL live stream active',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          // Left: Page size dropdown & Total range indicator
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('Rows per page: ', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              DropdownButton<int>(
+                                value: _pageSize,
+                                underline: const SizedBox(),
+                                items: const [
+                                  DropdownMenuItem(value: 10, child: Text('10', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                                  DropdownMenuItem(value: 25, child: Text('25', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                                  DropdownMenuItem(value: 100, child: Text('100', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() {
+                                      _pageSize = val;
+                                      _currentPage = 1;
+                                    });
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 16),
+                              Text(
+                                'Showing ${totalCount == 0 ? 0 : startIndex + 1}–$endIndex of $totalCount transactions',
+                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                            ],
                           ),
-                          TextButton.icon(
-                            onPressed: () => repo.refreshFromBackend(),
-                            icon: const Icon(Icons.sync_rounded, size: 14),
-                            label: const Text('Refresh', style: TextStyle(fontSize: 12)),
+
+                          // Right: Page Navigator buttons
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.first_page_rounded, size: 20),
+                                tooltip: 'First Page',
+                                onPressed: _currentPage > 1 ? () => setState(() => _currentPage = 1) : null,
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.chevron_left_rounded, size: 20),
+                                tooltip: 'Previous Page',
+                                onPressed: _currentPage > 1 ? () => setState(() => _currentPage--) : null,
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                child: Text(
+                                  'Page $_currentPage of $totalPages',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.chevron_right_rounded, size: 20),
+                                tooltip: 'Next Page',
+                                onPressed: _currentPage < totalPages ? () => setState(() => _currentPage++) : null,
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.last_page_rounded, size: 20),
+                                tooltip: 'Last Page',
+                                onPressed: _currentPage < totalPages ? () => setState(() => _currentPage = totalPages) : null,
+                              ),
+                            ],
                           ),
                         ],
                       ),

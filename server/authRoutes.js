@@ -1,6 +1,7 @@
 // Auth endpoints: real credential verification, signed token issuance, refresh, logout.
 // There is deliberately no fallback identity and no literal credential in this file.
 const crypto = require('crypto');
+const { recordAudit } = require('./audit');
 const {
   createAccessToken,
   createRefreshToken,
@@ -97,6 +98,7 @@ module.exports = function registerAuthRoutes(app, pool) {
           active: 1,
         };
         const shaped = shapeUser(user, 'ADMIN');
+        recordAudit(pool, user.id, 'USER_LOGIN', 'USER', user.id, { deviceId, deviceName, role: 'ADMIN' }, req);
         return issueSession(pool, { ...shaped, id: user.id, user: shaped }, deviceId, deviceName, res);
       }
 
@@ -138,6 +140,7 @@ module.exports = function registerAuthRoutes(app, pool) {
       }
 
       const shaped = shapeUser(row, role);
+      recordAudit(pool, row.id, 'USER_LOGIN', 'USER', row.id, { deviceId, deviceName, role }, req);
       return issueSession(pool, { ...shaped, id: row.id, user: shaped }, deviceId, deviceName, res);
     } catch (err) {
       return res.status(500).json({ success: false, message: 'Authentication service unavailable', error: err.message });
@@ -179,6 +182,7 @@ module.exports = function registerAuthRoutes(app, pool) {
       await pool.query('UPDATE sessions SET "revokedAt" = NOW() WHERE "userId" = $1 AND "revokedAt" IS NULL', [
         req.auth.userId,
       ]);
+      recordAudit(pool, req.auth.userId, 'USER_LOGOUT', 'USER', req.auth.userId, null, req);
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
@@ -193,6 +197,31 @@ module.exports = function registerAuthRoutes(app, pool) {
       return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
     }
     try {
+      const bootstrapEmail = process.env.ADMIN_BOOTSTRAP_EMAIL;
+      const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+      const isBootstrap = req.auth.userId === 'usr_admin';
+
+      if (isBootstrap) {
+        let isCorrect = safeEqual(current, bootstrapPassword);
+        if (!isCorrect) {
+          const userRes = await pool.query('SELECT pin, "pinHash" FROM users WHERE id = $1', ['usr_admin']);
+          if (userRes.rows.length > 0 && verifyPassword(userRes.rows[0].pinHash || userRes.rows[0].pin, current)) {
+            isCorrect = true;
+          }
+        }
+        if (!isCorrect) {
+          return res.status(401).json({ success: false, message: 'Current password is incorrect' });
+        }
+        await pool.query(
+          `INSERT INTO users (id, name, email, phone, pin, "pinHash", role, active, "createdAt", "updatedAt")
+           VALUES ('usr_admin', 'Administrator', $1, '', '', $2, 'ADMIN', 1, NOW(), NOW())
+           ON CONFLICT (id) DO UPDATE SET "pinHash" = $2, "updatedAt" = NOW()`,
+          [bootstrapEmail || 'admin@swagpay.com', hashPassword(next)]
+        );
+        recordAudit(pool, 'usr_admin', 'PASSWORD_CHANGED', 'USER', 'usr_admin', null, req);
+        return res.json({ success: true, message: 'Password updated successfully' });
+      }
+
       const userRes = await pool.query('SELECT id, pin, "pinHash" FROM users WHERE id = $1', [req.auth.userId]);
       if (userRes.rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
       const row = userRes.rows[0];
@@ -209,7 +238,20 @@ module.exports = function registerAuthRoutes(app, pool) {
           req.auth.userId,
         ]);
       } catch (_) {}
-      res.json({ success: true });
+      recordAudit(pool, req.auth.userId, 'PASSWORD_CHANGED', 'USER', req.auth.userId, null, req);
+      res.json({ success: true, message: 'Password updated successfully' });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await pool.query('DELETE FROM sessions WHERE "userId" = $1', [id]);
+      await pool.query('DELETE FROM users WHERE id = $1', [id]);
+      recordAudit(pool, req.auth.userId, 'USER_DELETED', 'USER', id, null, req);
+      res.json({ success: true, message: 'User deleted successfully' });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }

@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/refund_request.dart';
 import '../../core/models/settlement.dart';
 import '../../core/models/transaction.dart';
-import '../../core/network/api_config.dart';
+import '../../core/network/api_client.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/stat_card.dart';
@@ -1215,6 +1215,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
 }
 
 // ─── SYSTEM CONFIGURATION & API SCREEN ──────────────────────────────────────
+// ─── ADMIN SETTINGS / PASSWORD CHANGE SCREEN ────────────────────────────────
 class AdminSettingsScreen extends ConsumerStatefulWidget {
   const AdminSettingsScreen({super.key});
 
@@ -1223,193 +1224,319 @@ class AdminSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
-  late final TextEditingController _apiUrlCtrl;
-  bool _useLiveApi = true;
-  bool _isConnecting = false;
-  String? _connectionStatus;
+  final _currentPassCtrl = TextEditingController();
+  final _newPassCtrl = TextEditingController();
+  final _confirmPassCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
-  @override
-  void initState() {
-    super.initState();
-    final prefs = ref.read(sharedPreferencesProvider);
-    final currentUrl = prefs.getString('custom_base_url') ?? ApiConfig.baseUrl;
-    _apiUrlCtrl = TextEditingController(text: currentUrl);
-    _useLiveApi = prefs.getBool('use_live_api') ?? true;
-  }
+  bool _obscureCurrent = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  bool _isSaving = false;
+  String? _statusMessage;
+  bool _isSuccess = false;
 
   @override
   void dispose() {
-    _apiUrlCtrl.dispose();
+    _currentPassCtrl.dispose();
+    _newPassCtrl.dispose();
+    _confirmPassCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _testConnection() async {
+  Future<void> _handleChangePassword() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() {
-      _isConnecting = true;
-      _connectionStatus = null;
+      _isSaving = true;
+      _statusMessage = null;
     });
 
-    final url = _apiUrlCtrl.text.trim();
-    final client = ref.read(apiClientProvider);
-    client.updateBaseUrl(url);
-
     try {
-      await client.get('/health').timeout(const Duration(seconds: 4));
-      setState(() {
-        _isConnecting = false;
-        _connectionStatus = 'Success! Connected to $url';
-      });
-    } catch (_) {
-      setState(() {
-        _isConnecting = false;
-        _connectionStatus = 'Saved. Will route API calls to: $url';
-      });
-    }
+      final repo = ref.read(paymentRepositoryProvider);
+      await repo.changePassword(
+        currentPassword: _currentPassCtrl.text.trim(),
+        newPassword: _newPassCtrl.text.trim(),
+      );
 
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setString('custom_base_url', url);
-    await prefs.setBool('use_live_api', _useLiveApi);
-    await ref.read(paymentRepositoryProvider).refreshFromBackend();
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _isSuccess = true;
+        _statusMessage = 'Password updated successfully! Next sign in will require your new credentials.';
+        _currentPassCtrl.clear();
+        _newPassCtrl.clear();
+        _confirmPassCtrl.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password changed successfully!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _isSuccess = false;
+        _statusMessage = e is ApiException ? e.message : '$e';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_statusMessage ?? 'Failed to change password'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = ref.watch(authProvider);
+    final user = auth.currentUser;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('System Configuration & Live Gateway', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-          const SizedBox(height: 4),
-          Text(
-            'Manage WhitsunPay gateway connectivity, PostgreSQL database host, and terminal gatekeeper',
-            style: TextStyle(color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary, fontSize: 13),
-          ),
-          const SizedBox(height: 20),
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 36),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
+              const Text(
+                'Account Security & Password',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Manage your administrator password and account credentials',
+                style: TextStyle(
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 24),
 
-          // Backend API Connection Card
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              // Active Account Summary Card
+              Card(
+                elevation: 0,
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
-                        child: const Icon(Icons.dns_rounded, color: AppColors.primary),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.primary, size: 28),
                       ),
-                      const SizedBox(width: 12),
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('WhitsunPay Backend Gateway', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                          Text('Connected to live Fly.io production service & Supabase pooler', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                        ],
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user?.fullName ?? 'Administrator',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              user?.email ?? 'admin@swagpay.com',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'ROLE: SUPER ADMIN',
+                          style: TextStyle(
+                            color: AppColors.successDark,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                ),
+              ),
+              const SizedBox(height: 24),
 
-                  TextField(
-                    controller: _apiUrlCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'API Gateway Endpoint URL',
-                      hintText: 'https://swagpay.fly.dev',
-                      prefixIcon: Icon(Icons.link_rounded),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Live Production Gateway Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    subtitle: const Text('Route MoMo debit prompts directly to developer.whitsun.dev via live client credentials', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    value: _useLiveApi,
-                    onChanged: (val) => setState(() => _useLiveApi = val),
-                  ),
-
-                  if (_connectionStatus != null) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: _connectionStatus!.startsWith('Success') ? AppColors.success.withValues(alpha: 0.1) : AppColors.gold.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _connectionStatus!.startsWith('Success') ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-                            color: _connectionStatus!.startsWith('Success') ? AppColors.success : AppColors.gold,
-                            size: 18,
+              // Password Change Form Card
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.lock_reset_rounded, color: AppColors.primary, size: 22),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Change Password',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Ensure your new password contains at least 6 characters for enterprise security compliance.',
+                          style: TextStyle(
+                            color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                            fontSize: 13,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _connectionStatus!,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: _connectionStatus!.startsWith('Success') ? AppColors.successDark : AppColors.gold,
-                              ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Current Password
+                        TextFormField(
+                          controller: _currentPassCtrl,
+                          obscureText: _obscureCurrent,
+                          decoration: InputDecoration(
+                            labelText: 'Current Password',
+                            hintText: 'Enter your existing password',
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscureCurrent ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20),
+                              onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
                             ),
                           ),
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) return 'Please enter your current password';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 18),
+
+                        // New Password
+                        TextFormField(
+                          controller: _newPassCtrl,
+                          obscureText: _obscureNew,
+                          decoration: InputDecoration(
+                            labelText: 'New Password',
+                            hintText: 'Enter a strong new password (min. 6 chars)',
+                            prefixIcon: const Icon(Icons.vpn_key_outlined),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscureNew ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20),
+                              onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                            ),
+                          ),
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) return 'Please enter a new password';
+                            if (val.trim().length < 6) return 'Password must be at least 6 characters';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Confirm New Password
+                        TextFormField(
+                          controller: _confirmPassCtrl,
+                          obscureText: _obscureConfirm,
+                          decoration: InputDecoration(
+                            labelText: 'Confirm New Password',
+                            hintText: 'Re-enter your new password',
+                            prefixIcon: const Icon(Icons.check_circle_outline_rounded),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscureConfirm ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20),
+                              onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                            ),
+                          ),
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) return 'Please confirm your new password';
+                            if (val.trim() != _newPassCtrl.text.trim()) return 'Passwords do not match';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Status Alert
+                        if (_statusMessage != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: _isSuccess ? AppColors.success.withValues(alpha: 0.12) : AppColors.error.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _isSuccess ? AppColors.success.withValues(alpha: 0.3) : AppColors.error.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _isSuccess ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                                  color: _isSuccess ? AppColors.successDark : AppColors.error,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _statusMessage!,
+                                    style: TextStyle(
+                                      color: _isSuccess ? AppColors.successDark : AppColors.error,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
                         ],
-                      ),
+
+                        // Submit Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: _isSaving ? null : _handleChangePassword,
+                            icon: _isSaving
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Icon(Icons.security_update_good_rounded, size: 18),
+                            label: Text(
+                              _isSaving ? 'Updating Password...' : 'Update Password',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: _isConnecting ? null : _testConnection,
-                    icon: _isConnecting
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.bolt_rounded, size: 18),
-                    label: Text(_isConnecting ? 'Verifying...' : 'Save & Verify Connection'),
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(height: 20),
-
-          // WhitsunPay Gateway Credentials Info Card
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Active Gateway Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  _buildProfileRow('Client ID', '019e8ba678a27f00bc19c3757989ed0b'),
-                  const Divider(height: 16),
-                  _buildProfileRow('Gateway Target', 'https://developer.whitsun.dev'),
-                  const Divider(height: 16),
-                  _buildProfileRow('Default Currency', 'GH₵ (Ghana Cedis / GHS)'),
-                  const Divider(height: 16),
-                  _buildProfileRow('PostgreSQL Pooler', 'aws-1-eu-central-1.pooler.supabase.com:6543'),
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
-    );
-  }
-
-  Widget _buildProfileRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Courier')),
-      ],
     );
   }
 }

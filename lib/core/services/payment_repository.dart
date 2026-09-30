@@ -176,16 +176,20 @@ class PaymentRepository {
         if (audRes.data != null && audRes.data!.isNotEmpty) {
           _auditLogs = audRes.data!.map((e) {
             final m = e as Map<String, dynamic>;
+            final actorDisplay = m['userName'] as String? ?? m['actorId'] as String? ?? 'System';
+            final roleDisplay = m['userRole'] as String? ?? 'Admin/Staff';
+            final target = '${m['targetType'] ?? ''} ${m['targetId'] ?? ''}'.trim();
+            final meta = m['metadata'] != null ? m['metadata'].toString() : '';
             return AuditLog(
-              id: m['id'] as String,
+              id: m['id'] as String? ?? 'log_${DateTime.now().millisecondsSinceEpoch}',
               timestamp: m['createdAt'] != null ? DateTime.tryParse(m['createdAt'] as String) ?? DateTime.now() : DateTime.now(),
-              user: m['actorId'] as String? ?? 'System',
-              role: 'User',
-              action: m['action'] as String? ?? 'LOG',
-              entity: '${m['targetType'] ?? ''} ${m['targetId'] ?? ''}',
-              details: m['metadata'] as String? ?? '',
+              user: actorDisplay,
+              role: roleDisplay,
+              action: m['action'] as String? ?? 'EVENT',
+              entity: target.isNotEmpty ? target : 'SYSTEM',
+              details: meta,
               ip: m['ipAddress'] as String? ?? '127.0.0.1',
-              device: 'POS-01',
+              device: 'SwagPay Node',
             );
           }).toList();
         }
@@ -377,6 +381,13 @@ class PaymentRepository {
     return res.data?['tempSecret'] as String?;
   }
 
+  Future<void> deleteTeller(String tellerId) async {
+    await apiClient.delete('${ApiConfig.tellers}/$tellerId');
+    _tellers.removeWhere((t) => t.id == tellerId);
+    onChanged?.call();
+    await refreshFromBackend();
+  }
+
   Future<void> addPosDevice(PosDevice pos) async {
     await apiClient.post(
       ApiConfig.posDevices,
@@ -391,11 +402,43 @@ class PaymentRepository {
   }
 
   Future<void> updatePosDevice(PosDevice pos) async {
+    try {
+      await apiClient.put(
+        '${ApiConfig.posDevices}/${pos.id}',
+        data: {
+          'name': pos.name,
+          'code': pos.serialNumber,
+          'location': pos.location,
+          'active': pos.status == PosStatus.online ? 1 : 0,
+        },
+      );
+    } catch (_) {}
     final idx = _posDevices.indexWhere((p) => p.id == pos.id);
     if (idx != -1) {
       _posDevices[idx] = pos;
       onChanged?.call();
     }
+  }
+
+  Future<void> deletePosDevice(String posId) async {
+    await apiClient.delete('${ApiConfig.posDevices}/$posId');
+    _posDevices.removeWhere((p) => p.id == posId);
+    onChanged?.call();
+    await refreshFromBackend();
+  }
+
+  Future<void> changePassword({required String currentPassword, required String newPassword}) async {
+    final res = await apiClient.post<Map<String, dynamic>>(
+      ApiConfig.changePassword,
+      data: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      },
+    );
+    if (res.data != null && res.data!['success'] == true) {
+      return;
+    }
+    throw ApiException(message: res.data?['message']?.toString() ?? 'Failed to change password');
   }
 
   // --- PERSISTENT OFFLINE QUEUE (OUTBOX PATTERN) ---

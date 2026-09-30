@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 8080;
 
 const auth = require('./server/auth');
 const { requireAuth, requireRole, enforceTellerIdentity, hashPassword } = auth;
+const { recordAudit } = require('./server/audit');
 const registerAuthRoutes = require('./server/authRoutes');
 
 // Refuse to boot with demo credentials — the app must never be reachable
@@ -251,6 +252,7 @@ app.post('/api/payments/initiate', enforceTellerIdentity, async (req, res) => {
     const gwData = await gwRes.json().catch(() => ({}));
 
     if (gwRes.ok || gwRes.status === 200 || gwRes.status === 201 || gwRes.status === 202) {
+      recordAudit(pool, effectiveTeller, 'PAYMENT_INITIATED', 'TRANSACTION', reference, { amount: parsedAmount, network: net.network, posId: effectivePos }, req);
       return res.json({
         success: true,
         reference,
@@ -410,6 +412,7 @@ app.get('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =>
 });
 
 // Creates an account with a server-generated secret that is hashed at rest and
+// Creates an account with a server-generated secret that is hashed at rest and
 // returned exactly once. No shared default PIN is ever written to the database.
 app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   const { id, name, email, phone, role, posId } = req.body;
@@ -420,9 +423,6 @@ app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =
   const tempSecret = crypto.randomBytes(9).toString('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 8) || 'Swag' + Date.now().toString(36);
   const normalised = ['ADMIN', 'SUPER_ADMIN'].includes(String(role).toUpperCase()) ? String(role).toUpperCase() : 'TELLER';
   try {
-    // Editing an existing account must not reset its secret — that would let an
-    // admin form save silently lock the teller out (or hand over a new password
-    // nobody asked for). Only brand-new accounts receive a generated secret.
     const existing = await pool.query('SELECT id FROM users WHERE id = $1', [tellerId]);
     if (existing.rows.length > 0) {
       await pool.query(
@@ -430,6 +430,7 @@ app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =
          WHERE id = $1`,
         [tellerId, name, email, phone || '', normalised, posId || null]
       );
+      recordAudit(pool, req.auth.userId, 'TELLER_UPDATED', 'USER', tellerId, { name, email, role: normalised, posId }, req);
       return res.json({ success: true, id: tellerId, updated: true });
     }
 
@@ -438,6 +439,7 @@ app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =
        VALUES ($1, $2, $3, $4, '', $5, $6, $7, 1, NOW(), NOW())`,
       [tellerId, name, email, phone || '', hashPassword(tempSecret), normalised, posId || null]
     );
+    recordAudit(pool, req.auth.userId, 'TELLER_CREATED', 'USER', tellerId, { name, email, role: normalised, posId }, req);
     res.json({
       success: true,
       id: tellerId,
@@ -446,6 +448,18 @@ app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/tellers/:id', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM sessions WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    recordAudit(pool, req.auth.userId, 'TELLER_DELETED', 'USER', id, null, req);
+    res.json({ success: true, message: 'Teller deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -466,10 +480,38 @@ app.post('/api/pos', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     await pool.query(
       `INSERT INTO pos_terminals (id, code, name, location, active, "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, 1, NOW(), NOW())
-       ON CONFLICT (id) DO UPDATE SET code = $2, name = $3, location = $4`,
+       ON CONFLICT (id) DO UPDATE SET code = $2, name = $3, location = $4, "updatedAt" = NOW()`,
       [posId, posCode, name, location || 'Counter']
     );
+    recordAudit(pool, req.auth.userId, 'POS_REGISTERED', 'POS', posId, { code: posCode, name, location }, req);
     res.json({ success: true, id: posId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/pos/:id', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  const { name, location, active } = req.body;
+  try {
+    await pool.query(
+      `UPDATE pos_terminals SET name = COALESCE($2, name), location = COALESCE($3, location), active = COALESCE($4, active), "updatedAt" = NOW()
+       WHERE id = $1`,
+      [id, name, location, active != null ? (active ? 1 : 0) : null]
+    );
+    recordAudit(pool, req.auth.userId, 'POS_UPDATED', 'POS', id, req.body, req);
+    res.json({ success: true, message: 'Terminal updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/pos/:id', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM pos_terminals WHERE id = $1', [id]);
+    recordAudit(pool, req.auth.userId, 'POS_DELETED', 'POS', id, null, req);
+    res.json({ success: true, message: 'Terminal deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -541,12 +583,9 @@ app.post('/api/refunds', enforceTellerIdentity, async (req, res) => {
   const tellerId = req.body.tellerId || req.auth.userId;
   const id = `REF-${Date.now()}`;
   try {
-    // Teller name is resolved server-side; clients cannot forge who asked for the refund.
     const actorRes = await pool.query('SELECT name FROM users WHERE id = $1', [tellerId]);
     const actorName = actorRes.rows[0] ? actorRes.rows[0].name : 'Unknown user';
 
-    // The ledger row comes from the reference, and a teller may only claim
-    // against their own collections — never another teller's.
     const isTeller = req.auth.role === 'TELLER';
     const owned = await pool.query(
       isTeller
@@ -573,6 +612,7 @@ app.post('/api/refunds', enforceTellerIdentity, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING')`,
       [id, txn.id, reference, refundAmount, tellerId, actorName, reason, notes]
     );
+    recordAudit(pool, tellerId, 'REFUND_REQUESTED', 'REFUND', id, { reference, amount: refundAmount, reason }, req);
     res.json({ success: true, id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -585,7 +625,6 @@ app.post('/api/refunds/:id/review', requireRole('ADMIN', 'SUPER_ADMIN'), async (
   const status = approve ? 'APPROVED' : 'REJECTED';
 
   try {
-    // The reviewer is whoever the token belongs to — the client cannot name itself.
     const reviewerRes = await pool.query('SELECT name FROM users WHERE id = $1', [req.auth.userId]);
     const reviewerName = reviewerRes.rows[0] ? reviewerRes.rows[0].name : req.auth.userId;
 
@@ -601,6 +640,7 @@ app.post('/api/refunds/:id/review', requireRole('ADMIN', 'SUPER_ADMIN'), async (
       ]);
     }
 
+    recordAudit(pool, req.auth.userId, approve ? 'REFUND_APPROVED' : 'REFUND_REJECTED', 'REFUND', id, { reviewer: reviewerName, rejectionReason }, req);
     res.json({ success: true, status });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -610,7 +650,16 @@ app.post('/api/refunds/:id/review', requireRole('ADMIN', 'SUPER_ADMIN'), async (
 // ─── AUDIT LOGS ──────────────────────────────────────
 app.get('/api/audit-logs', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM audit_logs ORDER BY "createdAt" DESC LIMIT 100');
+    const result = await pool.query(`
+      SELECT a.id, a."actorId", a.action, a."targetType", a."targetId", a.metadata, a."ipAddress", a."createdAt",
+             COALESCE(u.name, a."actorId") as "userName",
+             u.email as "userEmail",
+             COALESCE(u.role, 'USER') as "userRole"
+      FROM audit_logs a
+      LEFT JOIN users u ON a."actorId" = u.id
+      ORDER BY a."createdAt" DESC
+      LIMIT 250
+    `);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
