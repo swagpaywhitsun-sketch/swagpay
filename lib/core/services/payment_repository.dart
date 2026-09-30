@@ -33,15 +33,29 @@ class PaymentRepository {
   bool _isLoading = false;
   Object? _lastSyncError;
   bool _hasSynced = false;
+  int _dataVersion = 0;
 
   bool get isLoading => _isLoading;
   String get clientRemoteIp => _clientRemoteIp;
+  int get dataVersion => _dataVersion;
 
   /// Null once the latest backend sync completed successfully.
   Object? get lastSyncError => _lastSyncError;
 
   /// True after the first backend sync attempt has finished (success or failure).
   bool get hasSynced => _hasSynced;
+
+  /// Triggers a state bump and notifies all Riverpod provider listeners.
+  void notifyListeners() {
+    _dataVersion++;
+    onChanged?.call();
+  }
+
+  @override
+  bool operator ==(Object other) => false;
+
+  @override
+  int get hashCode => _dataVersion.hashCode;
 
   PaymentRepository({required this.apiClient, required this.prefs, this.onChanged}) {
     final savedBaseUrl = prefs.getString('custom_base_url');
@@ -88,7 +102,7 @@ class PaymentRepository {
 
   Future<void> _syncFromBackend() async {
     _isLoading = true;
-    onChanged?.call();
+    notifyListeners();
     try {
       _lastSyncError = null;
       final userSnapshot = tokenVault.readUserSnapshot();
@@ -121,11 +135,10 @@ class PaymentRepository {
         _lastSyncError ??= e;
       }
 
-      // 2-6. Secondary datasets — failure here must not wipe transaction sync
+      // 2. Fetch real tellers
       try {
-        // 2. Fetch real tellers
         final telRes = await apiClient.get<List<dynamic>>(ApiConfig.tellers);
-        if (telRes.data != null && telRes.data!.isNotEmpty) {
+        if (telRes.data != null) {
           _tellers = telRes.data!.map((e) {
             final m = e as Map<String, dynamic>;
             return AppUser(
@@ -139,10 +152,12 @@ class PaymentRepository {
             );
           }).toList();
         }
+      } catch (_) {}
 
-        // 3. Fetch real POS terminals
+      // 3. Fetch real POS terminals
+      try {
         final posRes = await apiClient.get<List<dynamic>>(ApiConfig.posDevices);
-        if (posRes.data != null && posRes.data!.isNotEmpty) {
+        if (posRes.data != null) {
           _posDevices = posRes.data!.map((e) {
             final m = e as Map<String, dynamic>;
             return PosDevice(
@@ -158,31 +173,35 @@ class PaymentRepository {
             );
           }).toList();
         }
+      } catch (_) {}
 
-        // 4. Fetch real refund requests
+      // 4. Fetch real refund requests
+      try {
         final refRes = await apiClient.get<List<dynamic>>(ApiConfig.refunds);
-        if (refRes.data != null && refRes.data!.isNotEmpty) {
+        if (refRes.data != null) {
           _refundRequests = refRes.data!.map((e) => RefundRequest.fromJson(e as Map<String, dynamic>)).toList();
         }
+      } catch (_) {}
 
-        // 5. Fetch real settlements
-        try {
-          final setRes = await apiClient.get<List<dynamic>>(ApiConfig.settlements);
-          if (setRes.data != null && setRes.data!.isNotEmpty) {
-            _settlements = setRes.data!.map((e) => SettlementRecord.fromJson(e as Map<String, dynamic>)).toList();
-          }
-        } catch (_) {}
+      // 5. Fetch real settlements
+      try {
+        final setRes = await apiClient.get<List<dynamic>>(ApiConfig.settlements);
+        if (setRes.data != null) {
+          _settlements = setRes.data!.map((e) => SettlementRecord.fromJson(e as Map<String, dynamic>)).toList();
+        }
+      } catch (_) {}
 
-        // 6. Fetch real audit logs and client remote IP
-        try {
-          final ipRes = await apiClient.get<Map<String, dynamic>>('/api/system/network-info');
-          if (ipRes.data != null && ipRes.data!['clientIp'] != null) {
-            _clientRemoteIp = ipRes.data!['clientIp'].toString();
-          }
-        } catch (_) {}
+      // 6. Fetch real client remote IP and audit logs
+      try {
+        final ipRes = await apiClient.get<Map<String, dynamic>>('/api/system/network-info');
+        if (ipRes.data != null && ipRes.data!['clientIp'] != null) {
+          _clientRemoteIp = ipRes.data!['clientIp'].toString();
+        }
+      } catch (_) {}
 
+      try {
         final audRes = await apiClient.get<List<dynamic>>(ApiConfig.auditLogs);
-        if (audRes.data != null && audRes.data!.isNotEmpty) {
+        if (audRes.data != null) {
           _auditLogs = audRes.data!.map((e) {
             final m = e as Map<String, dynamic>;
             final actorDisplay = m['userName'] as String? ?? m['actorId'] as String? ?? 'System';
@@ -215,7 +234,7 @@ class PaymentRepository {
     } finally {
       _isLoading = false;
       _hasSynced = true;
-      onChanged?.call();
+      notifyListeners();
     }
   }
 
@@ -364,15 +383,41 @@ class PaymentRepository {
   }
 
   Future<void> reviewRefund(String requestId, bool approve, {String? adminName, String? reason}) async {
-    await apiClient.post(
-      '${ApiConfig.refunds}/$requestId/review',
-      data: {
-        'approve': approve,
-        'reviewerName': adminName ?? 'Admin',
-        'rejectionReason': reason,
-      },
-    );
-    await refreshFromBackend();
+    final idx = _refundRequests.indexWhere((r) => r.id == requestId);
+    if (idx != -1) {
+      final current = _refundRequests[idx];
+      _refundRequests[idx] = RefundRequest(
+        id: current.id,
+        transactionId: current.transactionId,
+        reference: current.reference,
+        amount: current.amount,
+        customerNumber: current.customerNumber,
+        tellerId: current.tellerId,
+        tellerName: current.tellerName,
+        reason: current.reason,
+        notes: current.notes,
+        status: approve ? RefundStatus.approved : RefundStatus.rejected,
+        createdAt: current.createdAt,
+        reviewedAt: DateTime.now(),
+        reviewedBy: adminName ?? 'Admin',
+        rejectionReason: reason,
+      );
+      notifyListeners();
+    }
+    try {
+      await apiClient.post(
+        '${ApiConfig.refunds}/$requestId/review',
+        data: {
+          'approve': approve,
+          'reviewerName': adminName ?? 'Admin',
+          'rejectionReason': reason,
+        },
+      );
+      await refreshFromBackend();
+    } catch (_) {
+      await refreshFromBackend();
+      rethrow;
+    }
   }
 
   // --- GETTERS ---
@@ -383,42 +428,71 @@ class PaymentRepository {
   List<AppNotificationItem> getNotifications() => List.unmodifiable(_notifications);
 
   Future<String?> addTeller(AppUser teller) async {
-    final res = await apiClient.post<Map<String, dynamic>>(
-      ApiConfig.tellers,
-      data: {
-        'id': teller.id,
-        'name': teller.fullName,
-        'email': teller.email,
-        'phone': teller.phone,
-        'role': teller.role == UserRole.admin ? 'ADMIN' : 'TELLER',
-        'posId': teller.assignedPos.isNotEmpty ? teller.assignedPos.first : 'pos_01',
-      },
-    );
-    await refreshFromBackend();
-    return res.data?['tempSecret'] as String?;
+    // Optimistic local add
+    _tellers.add(teller);
+    notifyListeners();
+    try {
+      final res = await apiClient.post<Map<String, dynamic>>(
+        ApiConfig.tellers,
+        data: {
+          'id': teller.id,
+          'name': teller.fullName,
+          'email': teller.email,
+          'phone': teller.phone,
+          'role': teller.role == UserRole.admin ? 'ADMIN' : 'TELLER',
+          'posId': teller.assignedPos.isNotEmpty ? teller.assignedPos.first : 'pos_01',
+        },
+      );
+      await refreshFromBackend();
+      return res.data?['tempSecret'] as String?;
+    } catch (e) {
+      _tellers.removeWhere((t) => t.id == teller.id);
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> deleteTeller(String tellerId) async {
-    await apiClient.delete('${ApiConfig.tellers}/$tellerId');
+    final backup = List<AppUser>.from(_tellers);
     _tellers.removeWhere((t) => t.id == tellerId);
-    onChanged?.call();
-    await refreshFromBackend();
+    notifyListeners();
+    try {
+      await apiClient.delete('${ApiConfig.tellers}/$tellerId');
+      await refreshFromBackend();
+    } catch (e) {
+      _tellers = backup;
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> addPosDevice(PosDevice pos) async {
-    await apiClient.post(
-      ApiConfig.posDevices,
-      data: {
-        'id': pos.id,
-        'code': pos.serialNumber,
-        'name': pos.name,
-        'location': pos.location,
-      },
-    );
-    await refreshFromBackend();
+    _posDevices.add(pos);
+    notifyListeners();
+    try {
+      await apiClient.post(
+        ApiConfig.posDevices,
+        data: {
+          'id': pos.id,
+          'code': pos.serialNumber,
+          'name': pos.name,
+          'location': pos.location,
+        },
+      );
+      await refreshFromBackend();
+    } catch (e) {
+      _posDevices.removeWhere((p) => p.id == pos.id);
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> updatePosDevice(PosDevice pos) async {
+    final idx = _posDevices.indexWhere((p) => p.id == pos.id);
+    if (idx != -1) {
+      _posDevices[idx] = pos;
+      notifyListeners();
+    }
     try {
       await apiClient.put(
         '${ApiConfig.posDevices}/${pos.id}',
@@ -429,19 +503,22 @@ class PaymentRepository {
           'active': pos.status == PosStatus.online ? 1 : 0,
         },
       );
+      await refreshFromBackend();
     } catch (_) {}
-    final idx = _posDevices.indexWhere((p) => p.id == pos.id);
-    if (idx != -1) {
-      _posDevices[idx] = pos;
-      onChanged?.call();
-    }
   }
 
   Future<void> deletePosDevice(String posId) async {
-    await apiClient.delete('${ApiConfig.posDevices}/$posId');
+    final backup = List<PosDevice>.from(_posDevices);
     _posDevices.removeWhere((p) => p.id == posId);
-    onChanged?.call();
-    await refreshFromBackend();
+    notifyListeners();
+    try {
+      await apiClient.delete('${ApiConfig.posDevices}/$posId');
+      await refreshFromBackend();
+    } catch (e) {
+      _posDevices = backup;
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> changePassword({required String currentPassword, required String newPassword}) async {

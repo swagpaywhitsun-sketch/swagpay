@@ -111,6 +111,66 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
           ],
         ),
         actions: [
+          Consumer(
+            builder: (context, ref, _) {
+              final repo = ref.watch(paymentRepositoryProvider);
+              final isSyncing = repo.isLoading;
+              return Tooltip(
+                message: isSyncing ? 'Syncing live data from server...' : 'Live Synced • Click to sync now',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () {
+                    ref.read(paymentRepositoryProvider).refreshFromBackend();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSyncing ? AppColors.primaryLight : Colors.white24,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isSyncing)
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        else
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isSyncing ? 'SYNCING' : 'LIVE',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 4),
           IconButton(
             tooltip: 'Toggle Theme',
             icon: Icon(

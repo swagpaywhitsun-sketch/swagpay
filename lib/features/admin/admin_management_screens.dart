@@ -21,6 +21,14 @@ class AdminTellersScreen extends ConsumerStatefulWidget {
 class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
   final _searchCtrl = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
+    });
+  }
+
   void _showAddTellerDialog(BuildContext context) {
     final nameCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
@@ -474,6 +482,14 @@ class AdminPosScreen extends ConsumerStatefulWidget {
 class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
   final _searchCtrl = TextEditingController();
   PosDevice? _selectedPos;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
+    });
+  }
 
   void _showAddPosDialog(BuildContext context) {
     final codeCtrl = TextEditingController(text: 'POS-0${DateTime.now().millisecond}');
@@ -1025,6 +1041,14 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
   MoMoNetwork? _filterNetwork;
   int _currentPage = 1;
   int _pageSize = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
+    });
+  }
 
   @override
   void dispose() {

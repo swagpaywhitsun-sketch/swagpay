@@ -23,10 +23,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final repo = ref.read(paymentRepositoryProvider);
-      if (!repo.hasSynced) {
-        ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
-      }
+      ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
     });
   }
 

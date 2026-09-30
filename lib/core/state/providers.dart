@@ -44,13 +44,16 @@ class PaymentRepositoryNotifier extends Notifier<int> {
     _repo = PaymentRepository(
       apiClient: client,
       prefs: prefs,
-      // A sync can land after this notifier is disposed; state is then gone.
       onChanged: () {
-        if (_live) state++;
+        if (_live) {
+          Future.microtask(() {
+            if (_live) state++;
+          });
+        }
       },
     );
-    // Auto-refresh every 12 seconds to keep data live
-    _refreshTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+    // Real-time auto-refresh every 5 seconds to keep admin portal live
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       _repo.refreshFromBackend();
     });
     ref.onDispose(() {
@@ -172,8 +175,8 @@ class AuthNotifier extends Notifier<AuthState> {
 
   @override
   AuthState build() {
-    // Nothing is trusted locally: a session only exists after resumeSession()
-    // validates stored server tokens, or after a successful login.
+    _wireRefresh();
+    // Cold start is unauthenticated until resumeSession() validates stored tokens
     return const AuthState(currentUser: null, isDeviceAuthorized: true);
   }
 

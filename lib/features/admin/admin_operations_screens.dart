@@ -23,6 +23,14 @@ class _AdminRefundsScreenState extends ConsumerState<AdminRefundsScreen> {
   RefundStatus? _statusFilter;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final repo = ref.watch(paymentRepositoryProvider);
     final allRefunds = repo.getRefundRequests();
@@ -555,6 +563,14 @@ class AdminAuditLogsScreen extends ConsumerStatefulWidget {
 
 class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
   final _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

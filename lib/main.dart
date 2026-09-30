@@ -43,8 +43,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           state.matchedLocation == '/device-unauthorized' ||
           state.matchedLocation == '/forgot-password';
 
+      final hasStoredSession = tokenVault.readAccessToken() != null && tokenVault.readUserSnapshot() != null;
+
       // Restrict access to login page for unauthenticated users
       if (!auth.isAuthenticated) {
+        if (hasStoredSession) {
+          // Stored session in vault being resumed on page reload; do not kick to login
+          return null;
+        }
         return isAuthRoute ? null : '/teller/login';
       }
 
@@ -170,11 +176,23 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class SwagPayApp extends ConsumerWidget {
+class SwagPayApp extends ConsumerStatefulWidget {
   const SwagPayApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SwagPayApp> createState() => _SwagPayAppState();
+}
+
+class _SwagPayAppState extends ConsumerState<SwagPayApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Restore session on app boot so browser refresh maintains login state
+    ref.read(authProvider.notifier).resumeSession();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(routerProvider);
 
