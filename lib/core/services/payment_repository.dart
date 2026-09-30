@@ -274,9 +274,9 @@ class PaymentRepository {
     final currentUserId = tellerId ?? userSnapshot?['id'] as String?;
 
     return _transactions.where((t) {
-      // Local safety scoping: tellers only see their own counter ledger
+      // Strict teller isolation: each teller sees ONLY transactions they processed
       if (isTeller && currentUserId != null && currentUserId.isNotEmpty) {
-        if (t.tellerId.isNotEmpty && t.tellerId != currentUserId && !t.id.startsWith('tx_off_')) {
+        if (t.tellerId != currentUserId && !t.id.startsWith('tx_off_')) {
           return false;
         }
       }

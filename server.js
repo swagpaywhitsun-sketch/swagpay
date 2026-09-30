@@ -373,13 +373,8 @@ app.get('/api/transactions', async (req, res) => {
     const params = [];
 
     if (isTeller) {
-      if (req.auth.posId) {
-        params.push(req.auth.userId, req.auth.posId);
-        whereClause = 'WHERE (t."tellerId" = $1 OR t."posId" = $2)';
-      } else {
-        params.push(req.auth.userId);
-        whereClause = 'WHERE t."tellerId" = $1';
-      }
+      params.push(req.auth.userId);
+      whereClause = 'WHERE t."tellerId" = $1';
     } else if (req.query.scope === 'me') {
       params.push(req.auth.userId);
       whereClause = 'WHERE t."tellerId" = $1';

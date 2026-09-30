@@ -239,10 +239,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!repo.hasSynced && repo.isLoading) ...[
-                      _buildInitialSyncingBanner(isDark, cardBg),
-                      const SizedBox(height: 14),
-                    ] else if (repo.lastSyncError != null || (txns.isEmpty && repo.hasSynced)) ...[
+                    if (repo.lastSyncError != null) ...[
                       _buildSyncBanner(repo, isDark, cardBg),
                       const SizedBox(height: 14),
                     ],
@@ -377,49 +374,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
     );
   }
 
-  Widget _buildInitialSyncingBanner(bool isDark, Color cardBg) {
-    const accent = Color(0xFF229ED9);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.2,
-              valueColor: AlwaysStoppedAnimation<Color>(accent),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Syncing live counter transactions...',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: accent),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Connecting to backend node to retrieve latest data',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   // ── Reduced Compact KPI Card (Shopify Polaris style) ─────────────────────
   Widget _buildSyncBanner(PaymentRepository repo, bool isDark, Color cardBg) {
