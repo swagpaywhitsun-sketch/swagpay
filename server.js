@@ -51,6 +51,23 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+// Idempotent migrations: ensure foreign key columns allow nulls for safe deletions
+async function initDbMigrations() {
+  const migrations = [
+    'ALTER TABLE transactions ALTER COLUMN "tellerId" DROP NOT NULL',
+    'ALTER TABLE transactions ALTER COLUMN "posId" DROP NOT NULL',
+    'ALTER TABLE refund_requests ALTER COLUMN "tellerId" DROP NOT NULL',
+    'ALTER TABLE shifts ALTER COLUMN "tellerId" DROP NOT NULL',
+    'ALTER TABLE shifts ALTER COLUMN "posId" DROP NOT NULL',
+  ];
+  for (const sql of migrations) {
+    try {
+      await pool.query(sql);
+    } catch (_) {}
+  }
+}
+initDbMigrations();
+
 // Telco helper
 function formatGhanaMsisdn(phone) {
   const cleaned = (phone || '').replace(/\D/g, '');
@@ -405,14 +422,13 @@ app.get('/api/transactions', async (req, res) => {
 // ─── TELLERS & POS LIST ──────────────────────────────
 app.get('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, email, phone, role, "posId", active, "createdAt" FROM users ORDER BY "createdAt" ASC');
+    const result = await pool.query("SELECT id, name, email, phone, role, \"posId\", active, \"createdAt\" FROM users WHERE id != 'usr_archived' ORDER BY \"createdAt\" ASC");
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Creates an account with a server-generated secret that is hashed at rest and
 // Creates an account with a server-generated secret that is hashed at rest and
 // returned exactly once. No shared default PIN is ever written to the database.
 app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
@@ -466,10 +482,41 @@ app.delete('/api/tellers/:id', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, 
     await client.query('DELETE FROM sessions WHERE "userId" = $1', [id]);
     await client.query('DELETE FROM password_resets WHERE "userId" = $1', [id]);
 
-    // Preserve historical ledger integrity by disassociating the deleted user FK
-    await client.query('UPDATE transactions SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
-    await client.query('UPDATE refund_requests SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
-    await client.query('UPDATE shifts SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+    // Ensure foreign key columns allow nulls so updating cannot fail on NOT NULL
+    try {
+      await client.query('ALTER TABLE transactions ALTER COLUMN "tellerId" DROP NOT NULL');
+    } catch (_) {}
+    try {
+      await client.query('ALTER TABLE refund_requests ALTER COLUMN "tellerId" DROP NOT NULL');
+    } catch (_) {}
+    try {
+      await client.query('ALTER TABLE shifts ALTER COLUMN "tellerId" DROP NOT NULL');
+    } catch (_) {}
+
+    // Disassociate historical records from this teller
+    try {
+      await client.query('UPDATE transactions SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+    } catch (nullErr) {
+      // Fallback: reassign to archived staff profile if NOT NULL cannot be removed
+      await client.query(
+        `INSERT INTO users (id, name, email, pin, role, active, "createdAt", "updatedAt")
+         VALUES ('usr_archived', 'Archived Staff', 'archived@swagpay.internal', '', 'TELLER', 0, NOW(), NOW())
+         ON CONFLICT (id) DO NOTHING`
+      );
+      await client.query('UPDATE transactions SET "tellerId" = $2 WHERE "tellerId" = $1', [id, 'usr_archived']);
+    }
+
+    try {
+      await client.query('UPDATE refund_requests SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+    } catch (_) {
+      await client.query('UPDATE refund_requests SET "tellerId" = $2 WHERE "tellerId" = $1', [id, 'usr_archived']);
+    }
+
+    try {
+      await client.query('UPDATE shifts SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+    } catch (_) {
+      await client.query('UPDATE shifts SET "tellerId" = $2 WHERE "tellerId" = $1', [id, 'usr_archived']);
+    }
 
     // Delete user record
     await client.query('DELETE FROM users WHERE id = $1', [id]);

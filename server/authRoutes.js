@@ -257,9 +257,39 @@ module.exports = function registerAuthRoutes(app, pool) {
       await client.query('DELETE FROM sessions WHERE "userId" = $1', [id]);
       await client.query('DELETE FROM password_resets WHERE "userId" = $1', [id]);
 
-      await client.query('UPDATE transactions SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
-      await client.query('UPDATE refund_requests SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
-      await client.query('UPDATE shifts SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+      // Ensure foreign key columns allow nulls so updating cannot fail on NOT NULL
+      try {
+        await client.query('ALTER TABLE transactions ALTER COLUMN "tellerId" DROP NOT NULL');
+      } catch (_) {}
+      try {
+        await client.query('ALTER TABLE refund_requests ALTER COLUMN "tellerId" DROP NOT NULL');
+      } catch (_) {}
+      try {
+        await client.query('ALTER TABLE shifts ALTER COLUMN "tellerId" DROP NOT NULL');
+      } catch (_) {}
+
+      try {
+        await client.query('UPDATE transactions SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+      } catch (nullErr) {
+        await client.query(
+          `INSERT INTO users (id, name, email, pin, role, active, "createdAt", "updatedAt")
+           VALUES ('usr_archived', 'Archived Staff', 'archived@swagpay.internal', '', 'TELLER', 0, NOW(), NOW())
+           ON CONFLICT (id) DO NOTHING`
+        );
+        await client.query('UPDATE transactions SET "tellerId" = $2 WHERE "tellerId" = $1', [id, 'usr_archived']);
+      }
+
+      try {
+        await client.query('UPDATE refund_requests SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+      } catch (_) {
+        await client.query('UPDATE refund_requests SET "tellerId" = $2 WHERE "tellerId" = $1', [id, 'usr_archived']);
+      }
+
+      try {
+        await client.query('UPDATE shifts SET "tellerId" = NULL WHERE "tellerId" = $1', [id]);
+      } catch (_) {
+        await client.query('UPDATE shifts SET "tellerId" = $2 WHERE "tellerId" = $1', [id, 'usr_archived']);
+      }
 
       await client.query('DELETE FROM users WHERE id = $1', [id]);
 

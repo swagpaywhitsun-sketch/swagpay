@@ -841,7 +841,7 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
                                   ConstrainedBox(
                                     constraints: const BoxConstraints(maxWidth: 320),
                                     child: Text(
-                                      l.details,
+                                      (l.details.isNotEmpty && l.details != 'null' && l.details != 'NULL') ? l.details : '—',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
@@ -849,26 +849,47 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
                                   ),
                                 ),
                                 DataCell(
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Text(l.ip, style: const TextStyle(fontFamily: 'Courier', fontSize: 11)),
-                                      if (l.ip.isNotEmpty && l.ip != '—') ...[
-                                        const SizedBox(width: 4),
-                                        IconButton(
-                                          icon: const Icon(Icons.copy_rounded, size: 12),
-                                          tooltip: 'Copy IP',
-                                          splashRadius: 12,
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                          onPressed: () {
-                                            Clipboard.setData(ClipboardData(text: l.ip));
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text('Copied IP "${l.ip}"'), duration: const Duration(seconds: 1)),
-                                            );
-                                          },
-                                        ),
-                                      ],
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.devices_rounded, size: 12, color: AppColors.primary),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            l.device.isNotEmpty ? l.device : 'Web Portal',
+                                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            l.ip.isNotEmpty ? l.ip : '127.0.0.1',
+                                            style: const TextStyle(fontFamily: 'Courier', fontSize: 11, color: AppColors.textSecondary),
+                                          ),
+                                          if (l.ip.isNotEmpty && l.ip != '—') ...[
+                                            const SizedBox(width: 4),
+                                            IconButton(
+                                              icon: const Icon(Icons.copy_rounded, size: 12),
+                                              tooltip: 'Copy IP',
+                                              splashRadius: 12,
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
+                                              onPressed: () {
+                                                Clipboard.setData(ClipboardData(text: l.ip));
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(content: Text('Copied IP "${l.ip}"'), duration: const Duration(seconds: 1)),
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -918,6 +939,13 @@ class AdminReportsScreen extends ConsumerStatefulWidget {
 
 class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
   int _selectedDays = 30;
+
+  String _formatCompactCount(int n) {
+    if (n >= 1000000000) return '${(n / 1000000000).toStringAsFixed(1)}B';
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
+    return '$n';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1141,45 +1169,73 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
                               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                             const SizedBox(height: 24),
-                            SizedBox(
-                              height: 160,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: PieChart(
-                                      PieChartData(
-                                        sectionsSpace: 4,
-                                        centerSpaceRadius: 40,
-                                        sections: [
-                                          PieChartSectionData(
-                                            color: AppColors.success,
-                                            value: successTxns.isNotEmpty ? successTxns.length.toDouble() : 1.0,
-                                            title: '${successTxns.length}',
-                                            radius: 46,
-                                            titleStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                                          ),
-                                          PieChartSectionData(
-                                            color: AppColors.error,
-                                            value: failedTxns.isNotEmpty ? failedTxns.length.toDouble() : 0.05,
-                                            title: '${failedTxns.length}',
-                                            radius: 46,
-                                            titleStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                                          ),
+                            Builder(
+                              builder: (context) {
+                                final totalStatusCount = successTxns.length + failedTxns.length;
+                                final successPct = totalStatusCount > 0 ? (successTxns.length / totalStatusCount) * 100 : 100.0;
+                                final failedPct = totalStatusCount > 0 ? (failedTxns.length / totalStatusCount) * 100 : 0.0;
+                                final countFormat = NumberFormat('#,###');
+
+                                return SizedBox(
+                                  height: 160,
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            PieChart(
+                                              PieChartData(
+                                                sectionsSpace: 3,
+                                                centerSpaceRadius: 40,
+                                                sections: [
+                                                  PieChartSectionData(
+                                                    color: AppColors.success,
+                                                    value: successTxns.isNotEmpty ? successTxns.length.toDouble() : 1.0,
+                                                    title: (totalStatusCount > 0 && successPct >= 8) ? '${successPct.toStringAsFixed(1)}%' : '',
+                                                    radius: 44,
+                                                    titleStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
+                                                  ),
+                                                  PieChartSectionData(
+                                                    color: AppColors.error,
+                                                    value: failedTxns.isNotEmpty ? failedTxns.length.toDouble() : (successTxns.isEmpty ? 1.0 : 0.001),
+                                                    title: (totalStatusCount > 0 && failedPct >= 8) ? '${failedPct.toStringAsFixed(1)}%' : '',
+                                                    radius: 44,
+                                                    titleStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  _formatCompactCount(totalStatusCount),
+                                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                                                ),
+                                                const Text(
+                                                  'Total',
+                                                  style: TextStyle(fontSize: 9, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          _buildLegendDot(AppColors.success, 'Successful: ${countFormat.format(successTxns.length)} (${successPct.toStringAsFixed(1)}%)'),
+                                          const SizedBox(height: 12),
+                                          _buildLegendDot(AppColors.error, 'Failed: ${countFormat.format(failedTxns.length)} (${failedPct.toStringAsFixed(1)}%)'),
                                         ],
                                       ),
-                                    ),
-                                  ),
-                                  Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      _buildLegendDot(AppColors.success, 'Successful (${successTxns.length})'),
-                                      const SizedBox(height: 12),
-                                      _buildLegendDot(AppColors.error, 'Failed / Declined (${failedTxns.length})'),
                                     ],
                                   ),
-                                ],
-                              ),
+                                );
+                              },
                             ),
                           ],
                         ),

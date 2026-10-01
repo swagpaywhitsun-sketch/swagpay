@@ -17,6 +17,8 @@ class PosDevice {
   final DateTime lastSeen;
   final String? ipAddress;
 
+  bool get isActive => status != PosStatus.disabled;
+
   const PosDevice({
     required this.id,
     required this.name,

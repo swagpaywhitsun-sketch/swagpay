@@ -207,8 +207,35 @@ class PaymentRepository {
             final actorDisplay = m['userName'] as String? ?? m['actorId'] as String? ?? 'System';
             final roleDisplay = m['userRole'] as String? ?? 'Admin/Staff';
             final target = '${m['targetType'] ?? ''} ${m['targetId'] ?? ''}'.trim();
-            final meta = m['metadata'] != null ? m['metadata'].toString() : '';
-            var recordedIp = m['ipAddress'] as String? ?? '';
+
+            String deviceDisplay = 'Web Portal';
+            String detailsDisplay = '—';
+            final rawMeta = m['metadata'];
+            if (rawMeta != null) {
+              if (rawMeta is Map) {
+                if (rawMeta['device'] != null) deviceDisplay = rawMeta['device'].toString();
+                final copy = Map<String, dynamic>.from(rawMeta)..remove('device');
+                detailsDisplay = copy.isNotEmpty ? copy.toString() : '—';
+              } else {
+                final str = rawMeta.toString().trim();
+                if (str.isNotEmpty && str != 'null' && str != 'NULL') {
+                  try {
+                    final decoded = jsonDecode(str);
+                    if (decoded is Map) {
+                      if (decoded['device'] != null) deviceDisplay = decoded['device'].toString();
+                      final copy = Map<String, dynamic>.from(decoded)..remove('device');
+                      detailsDisplay = copy.isNotEmpty ? jsonEncode(copy) : '—';
+                    } else {
+                      detailsDisplay = str;
+                    }
+                  } catch (_) {
+                    detailsDisplay = str;
+                  }
+                }
+              }
+            }
+
+            var recordedIp = (m['ipAddress'] ?? '').toString().trim();
             if (recordedIp.isEmpty || recordedIp == '127.0.0.1' || recordedIp == '::1') {
               if (_clientRemoteIp.isNotEmpty && _clientRemoteIp != '127.0.0.1') {
                 recordedIp = _clientRemoteIp;
@@ -216,16 +243,17 @@ class PaymentRepository {
                 recordedIp = '127.0.0.1';
               }
             }
+
             return AuditLog(
-              id: m['id'] as String? ?? 'log_${DateTime.now().millisecondsSinceEpoch}',
-              timestamp: m['createdAt'] != null ? DateTime.tryParse(m['createdAt'] as String) ?? DateTime.now() : DateTime.now(),
+              id: (m['id'] ?? 'log_${DateTime.now().millisecondsSinceEpoch}').toString(),
+              timestamp: m['createdAt'] != null ? DateTime.tryParse(m['createdAt'].toString()) ?? DateTime.now() : DateTime.now(),
               user: actorDisplay,
               role: roleDisplay,
-              action: m['action'] as String? ?? 'EVENT',
+              action: (m['action'] ?? 'EVENT').toString(),
               entity: target.isNotEmpty ? target : 'SYSTEM',
-              details: meta,
+              details: detailsDisplay,
               ip: recordedIp,
-              device: 'SwagPay Node',
+              device: deviceDisplay,
             );
           }).toList();
         }

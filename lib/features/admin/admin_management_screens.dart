@@ -726,8 +726,6 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
             const Divider(height: 12),
             _buildDetailTile('Last Heartbeat', dateFormat.format(pos.lastSeen)),
             const Divider(height: 12),
-            _buildDetailTile('Whitelist Status', pos.isWhitelisted ? 'Authorized & Active' : 'Locked / Unapproved'),
-            const Divider(height: 12),
             _buildDetailTile('Connection Status', pos.status == PosStatus.online ? 'Online' : 'Offline'),
           ],
         ),
@@ -782,7 +780,7 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
     }).toList();
 
     final onlineCount = allDevices.where((p) => p.status == PosStatus.online).length;
-    final whitelistedCount = allDevices.where((p) => p.isWhitelisted).length;
+    final activeCount = allDevices.where((p) => p.isActive).length;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
@@ -800,7 +798,7 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                   const Text('POS Hardware & Terminals', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
                   Text(
-                    'Hardware terminal whitelist, serial validation, and remote device monitoring',
+                    'Hardware POS terminal provision, branch assignment, and device monitoring',
                     style: TextStyle(color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
@@ -851,11 +849,11 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                     subtitle: '${allDevices.length - onlineCount} disconnected',
                   ),
                   StatCard(
-                    title: 'Whitelisted Nodes',
-                    value: '$whitelistedCount',
-                    icon: Icons.verified_user_rounded,
+                    title: 'Active Terminals',
+                    value: '$activeCount',
+                    icon: Icons.check_circle_outline_rounded,
                     accentColor: AppColors.gold,
-                    subtitle: 'Authorized hardware',
+                    subtitle: 'Ready for billing',
                   ),
                   StatCard(
                     title: 'Location Hubs',
@@ -946,7 +944,6 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                             DataColumn(label: Text('DEVICE / CODE', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('LOCATION / COUNTER', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('LAST HEARTBEAT', style: TextStyle(fontWeight: FontWeight.bold))),
-                            DataColumn(label: Text('WHITELIST LOCK', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold))),
                           ],
@@ -1023,17 +1020,6 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                                 ),
                                 DataCell(Text(p.location.isNotEmpty ? p.location : 'Main Counter', style: const TextStyle(fontSize: 12))),
                                 DataCell(Text(dateFormat.format(p.lastSeen), style: const TextStyle(fontSize: 12))),
-                                DataCell(
-                                  Switch(
-                                    value: p.isWhitelisted,
-                                    onChanged: (val) {
-                                      repo.updatePosDevice(p.copyWith(isWhitelisted: val));
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('${p.name} whitelist status updated to $val')),
-                                      );
-                                    },
-                                  ),
-                                ),
                                 DataCell(
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
