@@ -54,8 +54,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   id VARCHAR(64) PRIMARY KEY,
   reference VARCHAR(128) UNIQUE NOT NULL,
   "gatewayReference" VARCHAR(128),
-  "tellerId" VARCHAR(64) REFERENCES users(id),
-  "posId" VARCHAR(64) REFERENCES pos_terminals(id),
+  "tellerId" VARCHAR(64),
+  "posId" VARCHAR(64),
   network VARCHAR(32) NOT NULL DEFAULT 'MTN', -- 'MTN', 'VODAFONE', 'AIRTELTIGO'
   "momoNumber" VARCHAR(32) NOT NULL,
   "customerName" VARCHAR(255),

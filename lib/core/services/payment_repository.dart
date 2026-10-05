@@ -148,13 +148,15 @@ class PaymentRepository {
           _tellers = telRes.data!
               .map((e) {
                 final m = e as Map<String, dynamic>;
+                final rawPos = m['posId']?.toString().trim();
+                final posVal = (rawPos != null && rawPos.isNotEmpty && rawPos != 'null') ? rawPos : 'ANY_POS';
                 return AppUser(
                   id: (m['id'] ?? '').toString(),
                   fullName: (m['name'] ?? 'Staff Member').toString(),
                   email: (m['email'] ?? '').toString(),
                   phone: (m['phone'] ?? '').toString(),
                   role: (m['role']?.toString().toUpperCase() ?? '').contains('ADMIN') ? UserRole.admin : UserRole.teller,
-                  assignedPos: [m['posId']?.toString() ?? 'pos_01'],
+                  assignedPos: [posVal],
                   singleTxnLimit: (m['singleTxnLimit'] as num?)?.toDouble() ?? 500000.0,
                   dailyLimit: (m['dailyLimit'] as num?)?.toDouble() ?? 5000000.0,
                   isActive: (m['active'] as num?)?.toInt() == 1,

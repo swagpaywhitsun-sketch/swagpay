@@ -56,12 +56,20 @@ async function initDbMigrations() {
   const migrations = [
     'ALTER TABLE transactions ALTER COLUMN "tellerId" DROP NOT NULL',
     'ALTER TABLE transactions ALTER COLUMN "posId" DROP NOT NULL',
-    'ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_posId_fkey',
+    'ALTER TABLE transactions DROP CONSTRAINT IF EXISTS "transactions_posId_fkey"',
+    'ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_posid_fkey',
+    'ALTER TABLE transactions DROP CONSTRAINT IF EXISTS "transactions_tellerId_fkey"',
     'ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_tellerid_fkey',
     'ALTER TABLE refund_requests ALTER COLUMN "tellerId" DROP NOT NULL',
     'ALTER TABLE shifts ALTER COLUMN "tellerId" DROP NOT NULL',
     'ALTER TABLE shifts ALTER COLUMN "posId" DROP NOT NULL',
-    'ALTER TABLE shifts DROP CONSTRAINT IF EXISTS shifts_posId_fkey',
+    'ALTER TABLE shifts DROP CONSTRAINT IF EXISTS "shifts_posId_fkey"',
+    'ALTER TABLE shifts DROP CONSTRAINT IF EXISTS shifts_posid_fkey',
+    'ALTER TABLE shifts DROP CONSTRAINT IF EXISTS "shifts_tellerId_fkey"',
+    'ALTER TABLE shifts DROP CONSTRAINT IF EXISTS shifts_tellerid_fkey',
+    'ALTER TABLE users ALTER COLUMN "posId" DROP NOT NULL',
+    'ALTER TABLE users DROP CONSTRAINT IF EXISTS "users_posId_fkey"',
+    'ALTER TABLE users DROP CONSTRAINT IF EXISTS users_posid_fkey',
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "singleTxnLimit" DOUBLE PRECISION DEFAULT 500000',
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "dailyLimit" DOUBLE PRECISION DEFAULT 5000000',
     "INSERT INTO pos_terminals (id, code, name, location, active) VALUES ('POS-01', 'POS-01', 'Counter Terminal 01', 'Main Branch', 1) ON CONFLICT (id) DO NOTHING",
@@ -515,7 +523,10 @@ app.get('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =>
        WHERE id != 'usr_archived'
        ORDER BY "createdAt" ASC`
     );
-    res.json(result.rows);
+    res.json(result.rows.map(r => ({
+      ...r,
+      posId: r.posId || 'ANY_POS'
+    })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -559,6 +570,9 @@ app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =
   const dLimit = parseFloat(dailyLimit) || 5000000.0;
   const tellerId = id || `usr_${crypto.randomUUID().slice(0, 8)}`;
   const normalised = ['ADMIN', 'SUPER_ADMIN'].includes(String(role).toUpperCase()) ? String(role).toUpperCase() : 'TELLER';
+  const rawPos = (posId || '').toString().trim();
+  const effectivePosId = (rawPos && rawPos !== 'ANY_POS' && rawPos !== 'Universal Access' && rawPos !== 'null' && rawPos !== 'undefined') ? rawPos : null;
+
   try {
     const existing = await pool.query('SELECT id FROM users WHERE id = $1', [tellerId]);
     if (existing.rows.length > 0) {
@@ -566,18 +580,18 @@ app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =
         `UPDATE users
          SET name = $2, email = $3, phone = $4, role = $5, "posId" = $6, "singleTxnLimit" = $7, "dailyLimit" = $8, "pinHash" = $9, "updatedAt" = NOW()
          WHERE id = $1`,
-        [tellerId, name, email, phone || '', normalised, posId || null, sLimit, dLimit, hashPassword(defaultSecret)]
+        [tellerId, name, email, phone || '', normalised, effectivePosId, sLimit, dLimit, hashPassword(defaultSecret)]
       );
-      recordAudit(pool, req.auth.userId, 'TELLER_UPDATED', 'USER', tellerId, { name, email, role: normalised, posId, singleTxnLimit: sLimit, dailyLimit: dLimit }, req);
+      recordAudit(pool, req.auth.userId, 'TELLER_UPDATED', 'USER', tellerId, { name, email, role: normalised, posId: effectivePosId || 'ANY_POS', singleTxnLimit: sLimit, dailyLimit: dLimit }, req);
       return res.json({ success: true, id: tellerId, updated: true, initialPassword: defaultSecret, tempSecret: defaultSecret });
     }
 
     await pool.query(
       `INSERT INTO users (id, name, email, phone, pin, "pinHash", role, "posId", "singleTxnLimit", "dailyLimit", active, "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, 1, NOW(), NOW())`,
-      [tellerId, name, email, phone || '', hashPassword(defaultSecret), normalised, posId || null, sLimit, dLimit]
+      [tellerId, name, email, phone || '', hashPassword(defaultSecret), normalised, effectivePosId, sLimit, dLimit]
     );
-    recordAudit(pool, req.auth.userId, 'TELLER_CREATED', 'USER', tellerId, { name, email, role: normalised, posId, singleTxnLimit: sLimit, dailyLimit: dLimit }, req);
+    recordAudit(pool, req.auth.userId, 'TELLER_CREATED', 'USER', tellerId, { name, email, role: normalised, posId: effectivePosId || 'ANY_POS', singleTxnLimit: sLimit, dailyLimit: dLimit }, req);
     res.json({
       success: true,
       id: tellerId,
