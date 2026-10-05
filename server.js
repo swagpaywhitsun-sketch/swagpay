@@ -51,14 +51,19 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// Idempotent migrations: ensure foreign key columns allow nulls for safe deletions
+// Idempotent migrations: ensure foreign key columns allow nulls for safe deletions and flexible POS usage
 async function initDbMigrations() {
   const migrations = [
     'ALTER TABLE transactions ALTER COLUMN "tellerId" DROP NOT NULL',
     'ALTER TABLE transactions ALTER COLUMN "posId" DROP NOT NULL',
+    'ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_posId_fkey',
+    'ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_tellerid_fkey',
     'ALTER TABLE refund_requests ALTER COLUMN "tellerId" DROP NOT NULL',
     'ALTER TABLE shifts ALTER COLUMN "tellerId" DROP NOT NULL',
     'ALTER TABLE shifts ALTER COLUMN "posId" DROP NOT NULL',
+    'ALTER TABLE shifts DROP CONSTRAINT IF EXISTS shifts_posId_fkey',
+    "INSERT INTO pos_terminals (id, code, name, location, active) VALUES ('POS-01', 'POS-01', 'Counter Terminal 01', 'Main Branch', 1) ON CONFLICT (id) DO NOTHING",
+    "INSERT INTO pos_terminals (id, code, name, location, active) VALUES ('pos_01', 'POS-01', 'Counter Terminal 01', 'Main Branch', 1) ON CONFLICT (id) DO NOTHING",
   ];
   for (const sql of migrations) {
     try {
@@ -97,6 +102,16 @@ function detectNetwork(phone) {
   return { network: 'MTN', provider: 'mtn', label: 'MTN MoMo' };
 }
 
+function resolveNetwork(phone, chosen) {
+  if (chosen) {
+    const c = String(chosen).toLowerCase().trim();
+    if (c.includes('mtn')) return { network: 'MTN', provider: 'mtn', label: 'MTN MoMo' };
+    if (c.includes('voda') || c.includes('telecel')) return { network: 'VODAFONE', provider: 'vodafone', label: 'Telecel Cash' };
+    if (c.includes('airtel') || c.includes('at')) return { network: 'AIRTELTIGO', provider: 'airtel', label: 'AT Money' };
+  }
+  return detectNetwork(phone);
+}
+
 // ─── HEALTH ───────────────────────────────────────────
 app.get('/health', async (req, res) => {
   try {
@@ -126,7 +141,7 @@ app.use('/api', (req, res, next) => {
 app.get('/api/account/lookup/:phone', async (req, res) => {
   const { phone } = req.params;
   const msisdn = formatGhanaMsisdn(phone);
-  const net = detectNetwork(phone);
+  const net = resolveNetwork(phone, req.query.network || req.query.provider);
 
   try {
     const url = `${WHITSUNPAY_CONFIG.baseUrl}/api/v1/account/lookup/${encodeURIComponent(msisdn)}/${net.provider}`;
@@ -173,10 +188,14 @@ app.get('/api/account/lookup/:phone', async (req, res) => {
 
 // ─── INITIATE MOMO PAYMENT ────────────────────────────
 app.post('/api/payments/initiate', enforceTellerIdentity, async (req, res) => {
-  const { amount, momoNumber, customerName } = req.body;
-  // Teller identity and terminal always come from the verified session token.
+  const { amount, momoNumber, customerName, network, provider } = req.body;
+  // Teller identity comes from verified session token
   const tellerId = req.auth.userId;
-  const posId = req.auth.role === 'TELLER' ? req.auth.posId : (req.body.posId || req.auth.posId);
+  // Allow any user or teller to perform transactions from any POS terminal
+  const posId = (req.body.posId && String(req.body.posId).trim()) ||
+                (req.headers['x-pos-id'] && String(req.headers['x-pos-id']).trim()) ||
+                req.auth.posId ||
+                'POS-01';
 
   const parsedAmount = parseFloat(amount);
   if (!parsedAmount || parsedAmount <= 0) {
@@ -186,15 +205,15 @@ app.post('/api/payments/initiate', enforceTellerIdentity, async (req, res) => {
     return res.status(400).json({ error: 'Valid Ghana phone number required' });
   }
 
-  const net = detectNetwork(momoNumber);
+  const net = resolveNetwork(momoNumber, network || provider);
   const msisdn = formatGhanaMsisdn(momoNumber);
   const idempotencyKey = String(req.headers['x-idempotency-key'] || req.body.idempotencyKey || req.body.reference || '').trim();
   const reference = idempotencyKey || `WP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
   const receiptNumber = `RCPT-${Math.floor(100000 + Math.random() * 900000)}`;
   const effectiveTeller = tellerId;
-  const effectivePos = posId;
-  if (!effectiveTeller || !effectivePos) {
-    return res.status(403).json({ error: 'Session is not bound to a POS terminal' });
+  const effectivePos = posId || 'POS-01';
+  if (!effectiveTeller) {
+    return res.status(403).json({ error: 'Session is not authenticated' });
   }
   const txnId = `tx_${Date.now()}`;
 
@@ -221,6 +240,18 @@ app.post('/api/payments/initiate', enforceTellerIdentity, async (req, res) => {
           message: 'Existing transaction record returned (Idempotent)',
         });
       }
+    }
+
+    // Ensure POS terminal record exists for smooth relational reporting
+    if (effectivePos) {
+      try {
+        await pool.query(
+          `INSERT INTO pos_terminals (id, code, name, location, active, "createdAt", "updatedAt")
+           VALUES ($1, $1, $1, 'Active Terminal', 1, NOW(), NOW())
+           ON CONFLICT (id) DO NOTHING`,
+          [effectivePos]
+        );
+      } catch (_) {}
     }
 
     // 1. Insert into Supabase PostgreSQL database

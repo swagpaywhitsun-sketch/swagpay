@@ -203,9 +203,7 @@ class _SwagPayAppState extends ConsumerState<SwagPayApp> {
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: router,
-      builder: (context, child) => SelectionArea(
-        child: child ?? const SizedBox.shrink(),
-      ),
+      builder: (context, child) => child ?? const SizedBox.shrink(),
     );
   }
 }

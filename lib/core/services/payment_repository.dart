@@ -267,12 +267,13 @@ class PaymentRepository {
   }
 
   // --- REAL CUSTOMER LOOKUP (WHITSUNPAY) ---
-  Future<Customer?> lookupCustomer(String phone) async {
+  Future<Customer?> lookupCustomer(String phone, {MoMoNetwork? network}) async {
     final clean = phone.trim().replaceAll(RegExp(r'\D'), '');
     if (clean.length < 9) return null;
 
     try {
-      final res = await apiClient.get<Map<String, dynamic>>('${ApiConfig.accountLookup}/$clean');
+      final query = network != null ? '?network=${network.name}' : '';
+      final res = await apiClient.get<Map<String, dynamic>>('${ApiConfig.accountLookup}/$clean$query');
       if (res.data != null && res.data!['name'] != null) {
         return Customer(
           id: clean,
@@ -295,7 +296,12 @@ class PaymentRepository {
     String? customerName,
     required String tellerId,
     required String posId,
+    MoMoNetwork? network,
   }) async {
+    final effectivePos = posId.trim().isNotEmpty
+        ? posId.trim()
+        : (_posDevices.isNotEmpty ? _posDevices.first.id : 'POS-01');
+
     final res = await apiClient.post<Map<String, dynamic>>(
       ApiConfig.initiatePayment,
       data: {
@@ -303,7 +309,8 @@ class PaymentRepository {
         'amount': amount,
         if (customerName != null && customerName.isNotEmpty) 'customerName': customerName,
         'tellerId': tellerId,
-        'posId': posId,
+        'posId': effectivePos,
+        if (network != null) 'network': network.name,
       },
     );
 
@@ -575,6 +582,9 @@ class PaymentRepository {
     required String posId,
     MoMoNetwork? network,
   }) {
+    final effectivePos = posId.trim().isNotEmpty
+        ? posId.trim()
+        : (_posDevices.isNotEmpty ? _posDevices.first.id : 'POS-01');
     final now = DateTime.now();
     final ref = 'OFF-${now.millisecondsSinceEpoch}-${(1000 + (now.microsecond % 9000))}';
     final rcpt = 'RCPT-OFF-${now.millisecondsSinceEpoch % 1000000}';
@@ -590,7 +600,7 @@ class PaymentRepository {
       customerName: customerName ?? 'Counter Customer',
       tellerId: tellerId,
       tellerName: tellerName,
-      posId: posId,
+      posId: effectivePos,
       timestamp: now,
       receiptNumber: rcpt,
       idempotencyKey: 'idemp_off_${now.millisecondsSinceEpoch}',

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/models/customer.dart';
+import '../../core/models/pos_device.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
@@ -28,10 +29,11 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
   final _phoneController = TextEditingController();
   final _amountController = TextEditingController();
+  MoMoNetwork? _selectedNetwork;
   Customer? _lookupCustomer;
   bool _isLookingUp = false;
   Future<Customer?>? _lookupFuture;
-  String? _detectedNetwork;
+  String? _selectedPosId;
 
   String? _activeReference;
   PaymentTransaction? _completedTransaction;
@@ -49,48 +51,61 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     super.dispose();
   }
 
-  void _onPhoneChanged(String val) async {
-    final clean = val.replaceAll(RegExp(r'\D'), '');
-    String? net;
-    String prefix = '';
-    if (clean.startsWith('233') && clean.length >= 5) {
-      prefix = '0${clean.substring(3, 5)}';
-    } else if (clean.startsWith('0') && clean.length >= 3) {
-      prefix = clean.substring(0, 3);
-    }
-
-    if (['024', '025', '053', '054', '055', '059'].contains(prefix)) {
-      net = 'MTN MoMo';
-    } else if (['020', '050'].contains(prefix)) {
-      net = 'Telecel Cash';
-    } else if (['026', '056', '027', '057'].contains(prefix)) {
-      net = 'AT Money';
-    }
-
-    setState(() => _detectedNetwork = net);
-
+  void _selectNetwork(MoMoNetwork network) {
+    if (_selectedNetwork == network) return;
+    setState(() => _selectedNetwork = network);
+    final clean = _phoneController.text.replaceAll(RegExp(r'\D'), '');
     if (clean.length >= 10) {
-      setState(() {
-        _isLookingUp = true;
-        _lookupCustomer = null;
-      });
-      final future = ref.read(paymentRepositoryProvider).lookupCustomer(clean);
-      _lookupFuture = future;
-      final cust = await future;
-      if (mounted && _lookupFuture == future) {
+      _performCustomerLookup(clean, network: network);
+    }
+  }
+
+  void _onPhoneChanged(String val) {
+    final clean = val.replaceAll(RegExp(r'\D'), '');
+    // Strictly require teller to select carrier first. No auto-detection based on prefix!
+    if (clean.length >= 10 && _selectedNetwork != null) {
+      _performCustomerLookup(clean, network: _selectedNetwork);
+    } else {
+      if (_lookupCustomer != null || _isLookingUp) {
         setState(() {
           _isLookingUp = false;
-          _lookupCustomer = cust;
+          _lookupCustomer = null;
         });
       }
-    } else {
       _lookupFuture = null;
+    }
+  }
+
+  void _performCustomerLookup(String cleanPhone, {MoMoNetwork? network}) async {
+    setState(() {
+      _isLookingUp = true;
+      _lookupCustomer = null;
+    });
+    final net = network ?? _selectedNetwork;
+    final future = ref.read(paymentRepositoryProvider).lookupCustomer(cleanPhone, network: net);
+    _lookupFuture = future;
+    final cust = await future;
+    if (mounted && _lookupFuture == future) {
+      setState(() {
+        _isLookingUp = false;
+        _lookupCustomer = cust;
+      });
     }
   }
 
   double get _currentAmount => double.tryParse(_amountController.text.trim()) ?? 0.0;
 
   void _startMoMoCollection() async {
+    if (_selectedNetwork == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a carrier network (MTN, Vodafone, or Airtel) first.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     final user = ref.read(authProvider).currentUser;
     final repo = ref.read(paymentRepositoryProvider);
     if (user == null) {
@@ -109,12 +124,20 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       if (_lookupCustomer == null && _lookupFuture != null) {
         _lookupCustomer = await _lookupFuture;
       }
+      final posDevices = repo.getPosDevices();
+      final effectivePos = (_selectedPosId != null && _selectedPosId!.isNotEmpty)
+          ? _selectedPosId!
+          : (user.assignedPos.firstOrNull?.isNotEmpty == true
+              ? user.assignedPos.first
+              : (posDevices.isNotEmpty ? posDevices.first.id : 'POS-01'));
+
       final initRes = await repo.initiateMoMoPayment(
         momoNumber: _phoneController.text.trim(),
         amount: _currentAmount,
         customerName: _lookupCustomer?.name,
         tellerId: user.id,
-        posId: user.assignedPos.firstOrNull ?? '',
+        posId: effectivePos,
+        network: _selectedNetwork,
       );
 
       _activeReference = initRes['reference'] as String;
@@ -129,7 +152,10 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         }
 
         try {
-          final txn = await repo.checkPaymentStatus(_activeReference!);
+          var txn = await repo.checkPaymentStatus(_activeReference!);
+          if (_selectedNetwork != null && txn.network != _selectedNetwork) {
+            txn = txn.copyWith(network: _selectedNetwork);
+          }
           if (txn.status == TransactionStatus.success) {
             timer.cancel();
             setState(() {
@@ -170,7 +196,10 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     setState(() => _isRechecking = true);
     final repo = ref.read(paymentRepositoryProvider);
     try {
-      final txn = await repo.checkPaymentStatus(_activeReference!);
+      var txn = await repo.checkPaymentStatus(_activeReference!);
+      if (_selectedNetwork != null && txn.network != _selectedNetwork) {
+        txn = txn.copyWith(network: _selectedNetwork);
+      }
       if (!mounted) return;
       setState(() {
         _isRechecking = false;
@@ -201,11 +230,11 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     _pollingTimer?.cancel();
     setState(() {
       _currentStep = 1;
+      _selectedNetwork = null;
       _phoneController.clear();
       _amountController.clear();
       _lookupCustomer = null;
       _lookupFuture = null;
-      _detectedNetwork = null;
       _activeReference = null;
       _completedTransaction = null;
       _errorMessage = null;
@@ -285,14 +314,234 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Customer card
+        // Active POS Terminal selector (allow any user or teller to operate from any POS)
+        Consumer(
+          builder: (context, ref, _) {
+            final repo = ref.watch(paymentRepositoryProvider);
+            final user = ref.watch(authProvider).currentUser;
+            final devices = repo.getPosDevices();
+            final currentPos = (_selectedPosId != null && _selectedPosId!.isNotEmpty)
+                ? _selectedPosId!
+                : (user?.assignedPos.firstOrNull?.isNotEmpty == true
+                    ? user!.assignedPos.first
+                    : (devices.isNotEmpty ? devices.first.id : 'POS-01'));
+            final currentDeviceName = devices.firstWhere(
+              (p) => p.id == currentPos || p.serialNumber == currentPos,
+              orElse: () => PosDevice(
+                id: currentPos,
+                name: currentPos,
+                serialNumber: currentPos,
+                location: 'Front Counter',
+                branch: 'Main Branch',
+                deviceFingerprint: 'DEV-$currentPos',
+                lastSeen: DateTime.now(),
+              ),
+            ).name;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E22) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderColor),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1570A6).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.point_of_sale_rounded, color: Color(0xFF1570A6), size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('ACTIVE POS TERMINAL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: muted, letterSpacing: 0.5)),
+                        const SizedBox(height: 1),
+                        Text('$currentDeviceName ($currentPos)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: heading)),
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Switch POS Terminal',
+                    offset: const Offset(0, 36),
+                    icon: const Icon(Icons.swap_horiz_rounded, size: 20, color: Color(0xFF1570A6)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    color: isDark ? const Color(0xFF27272A) : Colors.white,
+                    onSelected: (val) {
+                      setState(() => _selectedPosId = val);
+                    },
+                    itemBuilder: (ctx) {
+                      final allOptions = devices.isNotEmpty
+                          ? devices
+                          : [
+                              PosDevice(
+                                id: 'POS-01',
+                                name: 'Counter Terminal 01',
+                                serialNumber: 'POS-01',
+                                location: 'Main Desk',
+                                branch: 'Main Branch',
+                                deviceFingerprint: 'DEV-POS-01',
+                                lastSeen: DateTime.now(),
+                              ),
+                            ];
+                      return allOptions.map((p) => PopupMenuItem(
+                        value: p.id,
+                        child: Row(
+                          children: [
+                            Icon(
+                              p.id == currentPos ? Icons.radio_button_checked : Icons.radio_button_off,
+                              size: 16,
+                              color: p.id == currentPos ? const Color(0xFF1570A6) : muted,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text('${p.name} (${p.serialNumber})', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                          ],
+                        ),
+                      )).toList();
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+
+        // 1. CARRIER SELECTION (FIRST STEP)
         _card(
           cardBg: cardBg,
           borderColor: borderColor,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _sectionLabel('CUSTOMER NUMBER', muted),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _sectionLabel('1. SELECT CARRIER NETWORK', muted),
+                  if (_selectedNetwork != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      margin: const EdgeInsets.only(bottom: 6),
+                      decoration: BoxDecoration(
+                        color: _getNetworkBrandColor(_selectedNetwork!).withValues(alpha: isDark ? 0.2 : 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        _selectedNetwork!.label,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: _getNetworkBrandColor(_selectedNetwork!),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildCarrierCard(
+                      network: MoMoNetwork.mtn,
+                      isDark: isDark,
+                      defaultBorderColor: borderColor,
+                      muted: muted,
+                      heading: heading,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildCarrierCard(
+                      network: MoMoNetwork.vodafone,
+                      isDark: isDark,
+                      defaultBorderColor: borderColor,
+                      muted: muted,
+                      heading: heading,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildCarrierCard(
+                      network: MoMoNetwork.airtel,
+                      isDark: isDark,
+                      defaultBorderColor: borderColor,
+                      muted: muted,
+                      heading: heading,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: _selectedNetwork == null
+                      ? const Color(0xFF1570A6).withValues(alpha: isDark ? 0.15 : 0.08)
+                      : _getNetworkBrandColor(_selectedNetwork!).withValues(alpha: isDark ? 0.16 : 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _selectedNetwork == null ? Icons.touch_app_rounded : Icons.check_circle_rounded,
+                      size: 15,
+                      color: _selectedNetwork == null
+                          ? const Color(0xFF1570A6)
+                          : _getNetworkBrandColor(_selectedNetwork!),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        _selectedNetwork == null
+                            ? 'Please select carrier first (MTN, Vodafone, or Airtel)'
+                            : 'Selected: ${_selectedNetwork!.carrierName} (${_selectedNetwork!.serviceName}) — ready for number',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: _selectedNetwork == null
+                              ? (isDark ? Colors.white70 : const Color(0xFF1570A6))
+                              : _getNetworkBrandColor(_selectedNetwork!),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // 2. CUSTOMER PHONE NUMBER (SECOND STEP)
+        _card(
+          cardBg: cardBg,
+          borderColor: borderColor,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _sectionLabel('2. CUSTOMER PHONE NUMBER', muted),
+                  if (_selectedNetwork != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        'Carrier: ${_selectedNetwork!.carrierName}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: _getNetworkBrandColor(_selectedNetwork!),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               TextField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
@@ -307,23 +556,31 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   hintText: 'e.g. 0550402859',
                   counterText: '',
                   hintStyle: TextStyle(color: muted.withValues(alpha: 0.6), fontSize: 15),
-                  prefixIcon: Icon(Icons.phone_android_rounded, size: 20, color: muted),
+                  prefixIcon: Icon(
+                    Icons.phone_android_rounded,
+                    size: 20,
+                    color: _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : muted,
+                  ),
                   suffixIcon: _isLookingUp
                       ? const Padding(
                           padding: EdgeInsets.all(12.0),
                           child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                         )
-                      : (_detectedNetwork != null
+                      : (_selectedNetwork != null
                           ? Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               margin: const EdgeInsets.only(right: 8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF229ED9).withValues(alpha: 0.12),
+                                color: _getNetworkBrandColor(_selectedNetwork!).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                _detectedNetwork!,
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1570A6)),
+                                _selectedNetwork!.serviceName,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: _getNetworkBrandColor(_selectedNetwork!),
+                                ),
                               ),
                             )
                           : null),
@@ -336,7 +593,10 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF1570A6), width: 1.5),
+                    borderSide: BorderSide(
+                      color: _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6),
+                      width: 1.5,
+                    ),
                   ),
                 ),
               ),
@@ -371,14 +631,14 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         ),
         const SizedBox(height: 12),
 
-        // Amount card
+        // 3. AMOUNT TO COLLECT (THIRD STEP)
         _card(
           cardBg: cardBg,
           borderColor: borderColor,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _sectionLabel('AMOUNT TO COLLECT (GHS)', muted),
+              _sectionLabel('3. AMOUNT TO COLLECT (GHS)', muted),
               TextField(
                 controller: _amountController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -402,32 +662,82 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [10, 20, 50, 100, 200, 500].map((val) {
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        _amountController.text = val.toStringAsFixed(2);
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Text(
+                        'GH₵ $val',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: heading,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 16),
 
         // Primary action
-        SizedBox(
-          height: 52,
-          child: ElevatedButton.icon(
-            onPressed: (_currentAmount <= 0 || _phoneController.text.trim().length < 9)
-                ? null
-                : _startMoMoCollection,
-            icon: const Icon(Icons.send_rounded, size: 18),
-            label: const Text(
-              'Send MoMo Prompt to Customer',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1570A6),
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: isDark ? const Color(0xFF27272A) : const Color(0xFFE1E3E5),
-              disabledForegroundColor: muted,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
+        Builder(
+          builder: (context) {
+            final cleanPhone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+            final hasCarrier = _selectedNetwork != null;
+            final hasValidPhone = cleanPhone.length >= 9;
+            final hasValidAmount = _currentAmount > 0;
+            final canSubmit = hasCarrier && hasValidPhone && hasValidAmount;
+
+            String buttonText;
+            if (!hasCarrier) {
+              buttonText = 'Step 1: Select Carrier Network Above';
+            } else if (!hasValidPhone) {
+              buttonText = 'Step 2: Enter Customer Phone Number';
+            } else if (!hasValidAmount) {
+              buttonText = 'Step 3: Enter Amount to Collect';
+            } else {
+              buttonText = 'Send ${_selectedNetwork!.carrierName} MoMo Prompt (GH₵ ${_currentAmount.toStringAsFixed(2)})';
+            }
+
+            return SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: canSubmit ? _startMoMoCollection : null,
+                icon: const Icon(Icons.send_rounded, size: 18),
+                label: Text(
+                  buttonText,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: hasCarrier ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6),
+                  foregroundColor: _selectedNetwork == MoMoNetwork.mtn ? Colors.black : Colors.white,
+                  disabledBackgroundColor: isDark ? const Color(0xFF27272A) : const Color(0xFFE1E3E5),
+                  disabledForegroundColor: muted,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -454,30 +764,65 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               child: CircularProgressIndicator(
                 strokeWidth: 7,
                 backgroundColor: borderColor,
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1570A6)),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6),
+                ),
               ),
             ),
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.touch_app_rounded, size: 34, color: Color(0xFF1570A6)),
+                Icon(
+                  Icons.touch_app_rounded,
+                  size: 34,
+                  color: _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   '${_pollingElapsedSeconds}s',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1570A6)),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6),
+                  ),
                 ),
               ],
             ),
           ],
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
+        if (_selectedNetwork != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: _getNetworkBrandColor(_selectedNetwork!).withValues(alpha: isDark ? 0.2 : 0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _getNetworkBrandColor(_selectedNetwork!).withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.cell_tower_rounded, size: 16, color: _getNetworkBrandColor(_selectedNetwork!)),
+                const SizedBox(width: 6),
+                Text(
+                  _selectedNetwork!.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: _getNetworkBrandColor(_selectedNetwork!),
+                  ),
+                ),
+              ],
+            ),
+          ),
         Text(
           'Awaiting Customer MoMo PIN',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: heading),
         ),
         const SizedBox(height: 8),
         Text(
-          'USSD debit prompt of GH₵ ${_currentAmount.toStringAsFixed(2)} was sent to ${_phoneController.text}.\nCustomer is entering their PIN on their phone.',
+          '${_selectedNetwork?.label ?? "MoMo"} prompt of GH₵ ${_currentAmount.toStringAsFixed(2)} was sent to ${_phoneController.text}.\nCustomer is entering their PIN on their phone.',
           textAlign: TextAlign.center,
           style: TextStyle(color: muted, fontSize: 13.5, height: 1.5),
         ),
@@ -645,13 +990,20 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                 return;
               }
               final repo = ref.read(paymentRepositoryProvider);
+              final posDevices = repo.getPosDevices();
+              final effectivePos = (_selectedPosId != null && _selectedPosId!.isNotEmpty)
+                  ? _selectedPosId!
+                  : (user.assignedPos.firstOrNull?.isNotEmpty == true
+                      ? user.assignedPos.first
+                      : (posDevices.isNotEmpty ? posDevices.first.id : 'POS-01'));
               final txn = repo.recordOfflineTransaction(
                 momoNumber: _phoneController.text.trim(),
                 amount: _currentAmount,
                 customerName: _lookupCustomer?.name,
                 tellerId: user.id,
                 tellerName: user.fullName,
-                posId: user.assignedPos.firstOrNull ?? '',
+                posId: effectivePos,
+                network: _selectedNetwork,
               );
               _pollingTimer?.cancel();
               setState(() {
@@ -798,4 +1150,117 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: color),
     ),
   );
+
+  Widget _buildCarrierCard({
+    required MoMoNetwork network,
+    required bool isDark,
+    required Color defaultBorderColor,
+    required Color muted,
+    required Color heading,
+  }) {
+    final isSelected = _selectedNetwork == network;
+    final brandColor = _getNetworkBrandColor(network);
+    final selectedBg = _getNetworkSelectedBg(network, isDark);
+
+    return InkWell(
+      onTap: () => _selectNetwork(network),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? selectedBg
+              : (isDark ? const Color(0xFF27272A) : const Color(0xFFF8F9FA)),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? brandColor : defaultBorderColor,
+            width: isSelected ? 2.0 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: brandColor.withValues(alpha: 0.18),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: brandColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    network.carrierName,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: network == MoMoNetwork.mtn ? Colors.black : Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                Icon(
+                  isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                  size: 16,
+                  color: isSelected ? brandColor : muted.withValues(alpha: 0.4),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              network.carrierName,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: heading,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              network.serviceName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? brandColor : muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getNetworkBrandColor(MoMoNetwork network) {
+    switch (network) {
+      case MoMoNetwork.mtn:
+        return const Color(0xFFE5A900);
+      case MoMoNetwork.vodafone:
+        return const Color(0xFFE11D48);
+      case MoMoNetwork.airtel:
+        return const Color(0xFF0284C7);
+    }
+  }
+
+  Color _getNetworkSelectedBg(MoMoNetwork network, bool isDark) {
+    switch (network) {
+      case MoMoNetwork.mtn:
+        return isDark ? const Color(0xFF2E2405) : const Color(0xFFFFFBEB);
+      case MoMoNetwork.vodafone:
+        return isDark ? const Color(0xFF2E1015) : const Color(0xFFFFF1F2);
+      case MoMoNetwork.airtel:
+        return isDark ? const Color(0xFF0C1F38) : const Color(0xFFF0F9FF);
+    }
+  }
 }

@@ -11,6 +11,41 @@ enum MoMoNetwork {
   airtel,
 }
 
+extension MoMoNetworkHelper on MoMoNetwork {
+  String get carrierName {
+    switch (this) {
+      case MoMoNetwork.mtn:
+        return 'MTN';
+      case MoMoNetwork.vodafone:
+        return 'Vodafone';
+      case MoMoNetwork.airtel:
+        return 'Airtel';
+    }
+  }
+
+  String get serviceName {
+    switch (this) {
+      case MoMoNetwork.mtn:
+        return 'MTN MoMo';
+      case MoMoNetwork.vodafone:
+        return 'Telecel Cash';
+      case MoMoNetwork.airtel:
+        return 'AT Money';
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case MoMoNetwork.mtn:
+        return 'MTN MoMo';
+      case MoMoNetwork.vodafone:
+        return 'Vodafone / Telecel';
+      case MoMoNetwork.airtel:
+        return 'Airtel / AT Money';
+    }
+  }
+}
+
 class PaymentTransaction {
   final String id;
   final String reference;
