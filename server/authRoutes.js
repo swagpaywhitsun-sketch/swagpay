@@ -102,12 +102,28 @@ module.exports = function registerAuthRoutes(app, pool) {
         return issueSession(pool, { ...shaped, id: user.id, user: shaped }, deviceId, deviceName, res);
       }
 
-      // 2. Database users only — exact credential match, no role guessing.
-      const userRes = await pool.query(
-        `SELECT id, name, email, phone, role, "posId", active, pin, "pinHash", "deviceId"
-         FROM users WHERE email = $1 OR phone = $1 OR id = $1 LIMIT 1`,
-        [identifier]
-      );
+      // 2. Database users lookup: supports Phone Number, Email, or Staff ID
+      const cleanDigits = identifier.replace(/\D/g, '');
+      let userRes;
+      if (cleanDigits.length >= 9) {
+        const last9 = cleanDigits.slice(-9);
+        userRes = await pool.query(
+          `SELECT id, name, email, phone, role, "posId", active, pin, "pinHash", "deviceId"
+           FROM users
+           WHERE email = $1 
+              OR phone = $1 
+              OR id = $1 
+              OR RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 9) = $2
+           LIMIT 1`,
+          [identifier, last9]
+        );
+      } else {
+        userRes = await pool.query(
+          `SELECT id, name, email, phone, role, "posId", active, pin, "pinHash", "deviceId"
+           FROM users WHERE email = $1 OR phone = $1 OR id = $1 LIMIT 1`,
+          [identifier]
+        );
+      }
       if (userRes.rows.length === 0) {
         return res.status(401).json({ success: false, message: 'Invalid credentials' });
       }

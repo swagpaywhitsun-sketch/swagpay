@@ -256,13 +256,17 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
           const SizedBox(height: 20),
         ],
 
-        // Email / Identifier
+        // Phone / Email / Identifier
         TextField(
           controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
+          keyboardType: TextInputType.text,
+          autocorrect: false,
+          enableSuggestions: false,
           decoration: const InputDecoration(
-            labelText: 'Email or Teller / Admin ID',
-            prefixIcon: Icon(Icons.badge_outlined),
+            labelText: 'Phone Number or Email',
+            hintText: 'e.g. 024XXXXXXX or teller@swagpay.com',
+            prefixIcon: Icon(Icons.phone_iphone_rounded),
+            helperText: 'Sign in with your registered phone number or email',
           ),
         ),
         const SizedBox(height: 16),

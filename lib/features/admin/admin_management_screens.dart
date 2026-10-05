@@ -158,6 +158,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                   _showCredentialsDialog(
                     context,
                     name: newTeller.fullName,
+                    phone: newTeller.phone,
                     email: newTeller.email,
                     password: secret ?? pwd,
                     pos: selectedPosId == 'ANY_POS' ? 'Universal Access (Any Terminal)' : selectedPosId,
@@ -175,6 +176,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
   void _showCredentialsDialog(
     BuildContext context, {
     required String name,
+    required String phone,
     required String email,
     required String password,
     required String pos,
@@ -221,6 +223,25 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                 ),
                 child: Column(
                   children: [
+                    if (phone.trim().isNotEmpty) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.phone_iphone_rounded, size: 16, color: Color(0xFF1570A6)),
+                              SizedBox(width: 6),
+                              Text('Login Phone:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                          SelectableText(
+                            phone,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF1570A6)),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 16),
+                    ],
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -264,7 +285,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'The staff member can sign in from any POS terminal using this email and password.',
+                      'The staff member can easily sign in from any POS terminal using either their Phone Number or Email with this password.',
                       style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
                     ),
                   ),
@@ -276,7 +297,10 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
         actions: [
           OutlinedButton.icon(
             onPressed: () {
-              Clipboard.setData(ClipboardData(text: 'Email: $email\nPassword: $password\nTerminal: $pos'));
+              final phoneLine = phone.trim().isNotEmpty ? 'Login Phone: $phone\n' : '';
+              Clipboard.setData(ClipboardData(
+                text: 'SwagPay Teller Login Credentials:\n${phoneLine}Login Email: $email\nPassword: $password\nTerminal Access: $pos',
+              ));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Credentials copied to clipboard!'),

@@ -18,9 +18,17 @@ function fakePool(users) {
   return {
     writes,
     async query(sql, params = []) {
-      if (/FROM users WHERE/i.test(sql)) {
+      if (/FROM users/i.test(sql)) {
         const id = (params[0] || '').toLowerCase();
-        const row = users.find((u) => (u.email || '').toLowerCase() === id || u.phone === id || u.id === id);
+        const digits = id.replace(/\D/g, '');
+        const last9 = digits.length >= 9 ? digits.slice(-9) : (params[1] || null);
+        const row = users.find((u) => {
+          if ((u.email || '').toLowerCase() === id) return true;
+          if (u.id === id) return true;
+          if (u.phone === id) return true;
+          if (last9 && (u.phone || '').replace(/\D/g, '').endsWith(last9)) return true;
+          return false;
+        });
         return { rows: row ? [{ active: 1, deviceId: null, pinHash: null, ...row }] : [] };
       }
       if (/UPDATE users SET "deviceId"/i.test(sql)) {
@@ -216,4 +224,28 @@ test('forgot password does not leak secrets and requires user-bound OTP verifica
     server.close();
   }
 });
+
+test('tellers can log in using their phone number', async () => {
+  const secret = auth.hashPassword('Swag@1234');
+  const pool = fakePool([
+    {
+      id: 'usr_teller_phone',
+      email: 'teller_phone@swagpay.test',
+      phone: '0241234567',
+      role: 'TELLER',
+      pinHash: secret,
+    },
+  ]);
+
+  // Login with exact phone
+  const resExact = await login(pool, { identifier: '0241234567', password: 'Swag@1234' });
+  assert.equal(resExact.status, 200);
+  assert.equal(resExact.body.user.id, 'usr_teller_phone');
+
+  // Login with international prefix 233241234567
+  const resPrefix = await login(pool, { identifier: '233241234567', password: 'Swag@1234' });
+  assert.equal(resPrefix.status, 200);
+  assert.equal(resPrefix.body.user.id, 'usr_teller_phone');
+});
+
 
