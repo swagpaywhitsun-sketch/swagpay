@@ -62,6 +62,8 @@ async function initDbMigrations() {
     'ALTER TABLE shifts ALTER COLUMN "tellerId" DROP NOT NULL',
     'ALTER TABLE shifts ALTER COLUMN "posId" DROP NOT NULL',
     'ALTER TABLE shifts DROP CONSTRAINT IF EXISTS shifts_posId_fkey',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "singleTxnLimit" DOUBLE PRECISION DEFAULT 500000',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "dailyLimit" DOUBLE PRECISION DEFAULT 5000000',
     "INSERT INTO pos_terminals (id, code, name, location, active) VALUES ('POS-01', 'POS-01', 'Counter Terminal 01', 'Main Branch', 1) ON CONFLICT (id) DO NOTHING",
     "INSERT INTO pos_terminals (id, code, name, location, active) VALUES ('pos_01', 'POS-01', 'Counter Terminal 01', 'Main Branch', 1) ON CONFLICT (id) DO NOTHING",
   ];
@@ -287,13 +289,19 @@ app.post('/api/payments/initiate', enforceTellerIdentity, async (req, res) => {
       },
     };
 
+    const host = req.get('host') || '127.0.0.1:4000';
+    const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+    const dynamicCallback = process.env.PUBLIC_URL
+      ? `${process.env.PUBLIC_URL}/api/payments/webhook`
+      : `${proto}://${host}/api/payments/webhook`;
+
     const gwRes = await fetch(`${WHITSUNPAY_CONFIG.baseUrl}/api/v1/payments`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         'x-client-id': WHITSUNPAY_CONFIG.clientId,
         'x-api-key': WHITSUNPAY_CONFIG.apiKey,
-        'x-callback-url': 'https://developer.whitsun.dev/callback',
+        'x-callback-url': dynamicCallback,
       },
       body: JSON.stringify(payload),
     });
@@ -383,19 +391,30 @@ app.get('/api/payments/status/:ref', async (req, res) => {
     }
 
     const data = await gwRes.json().catch(() => ({}));
-    const rawStatus = String(data.status || data.state || '').toUpperCase();
+    const nestedStatus = data.data && typeof data.data === 'object' ? (data.data.status || data.data.state || '') : '';
+    const rawStatus = String(data.status || data.state || nestedStatus || data.transactionStatus || data.paymentStatus || '').toUpperCase();
+    const rawMsg = data.message || data.detail || data.title || (data.data && data.data.message) || '';
+    const upperMsg = String(rawMsg).toUpperCase();
 
     let newStatus = 'PENDING';
-    if (['SUCCESS', 'SUCCESSFUL', 'PAID', 'DELIVERED'].includes(rawStatus)) {
+    if (['SUCCESS', 'SUCCESSFUL', 'PAID', 'DELIVERED', 'COMPLETED', 'AUTHORIZED', 'APPROVED'].includes(rawStatus)) {
       newStatus = 'SUCCESS';
-    } else if (['FAILED', 'EXPIRED', 'CANCELLED', 'REJECTED'].includes(rawStatus)) {
+    } else if (
+      ['FAILED', 'EXPIRED', 'CANCELLED', 'CANCELED', 'REJECTED', 'DECLINED', 'USER_DECLINED', 'USER_CANCELLED', 'TIMEOUT', 'TIMEDOUT', 'USER_TIMEOUT', 'ABORTED', 'DENIED', 'INSUFFICIENT_FUNDS', 'WRONG_PIN'].includes(rawStatus) ||
+      upperMsg.includes('DECLINED') || upperMsg.includes('REJECT') || upperMsg.includes('CANCEL') || upperMsg.includes('EXPIRE') || upperMsg.includes('TIMEOUT') || upperMsg.includes('INSUFFICIENT')
+    ) {
       newStatus = 'FAILED';
+    }
+
+    let finalReason = rawMsg || txn.failureReason;
+    if (newStatus === 'FAILED' && !finalReason) {
+      finalReason = 'Payment declined by customer on handset';
     }
 
     if (newStatus !== 'PENDING') {
       await pool.query(
         'UPDATE transactions SET status = $1, "failureReason" = $2, "updatedAt" = NOW() WHERE reference = $3',
-        [newStatus, data.message || null, cleanRef]
+        [newStatus, finalReason, cleanRef]
       );
     }
 
@@ -408,11 +427,48 @@ app.get('/api/payments/status/:ref', async (req, res) => {
       customerName: txn.customerName,
       momoNumber: txn.momoNumber,
       network: txn.network,
-      failureReason: data.message || txn.failureReason,
+      failureReason: finalReason,
       createdAt: txn.createdAt,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── WHITSUNPAY REAL-TIME WEBHOOK & CALLBACK ─────────
+app.post(['/api/payments/webhook', '/api/payments/callback'], async (req, res) => {
+  try {
+    const body = req.body || {};
+    const ref = body.transactionReference || body.reference || body.clientReference || (body.data && (body.data.transactionReference || body.data.reference));
+    if (!ref) {
+      return res.status(200).json({ received: true });
+    }
+
+    const nestedStatus = body.data && typeof body.data === 'object' ? (body.data.status || body.data.state || '') : '';
+    const rawStatus = String(body.status || body.state || nestedStatus || body.transactionStatus || body.paymentStatus || '').toUpperCase();
+    const rawMsg = body.message || body.detail || body.title || (body.data && body.data.message) || '';
+    const upperMsg = String(rawMsg).toUpperCase();
+
+    let newStatus = null;
+    if (['SUCCESS', 'SUCCESSFUL', 'PAID', 'DELIVERED', 'COMPLETED', 'AUTHORIZED', 'APPROVED'].includes(rawStatus)) {
+      newStatus = 'SUCCESS';
+    } else if (
+      ['FAILED', 'EXPIRED', 'CANCELLED', 'CANCELED', 'REJECTED', 'DECLINED', 'USER_DECLINED', 'USER_CANCELLED', 'TIMEOUT', 'TIMEDOUT', 'USER_TIMEOUT', 'ABORTED', 'DENIED', 'INSUFFICIENT_FUNDS', 'WRONG_PIN'].includes(rawStatus) ||
+      upperMsg.includes('DECLINED') || upperMsg.includes('REJECT') || upperMsg.includes('CANCEL') || upperMsg.includes('EXPIRE') || upperMsg.includes('TIMEOUT') || upperMsg.includes('INSUFFICIENT')
+    ) {
+      newStatus = 'FAILED';
+    }
+
+    if (newStatus) {
+      const reason = rawMsg || (newStatus === 'FAILED' ? 'Payment declined by customer on handset' : null);
+      await pool.query(
+        'UPDATE transactions SET status = $1, "failureReason" = $2, "updatedAt" = NOW() WHERE reference = $3',
+        [newStatus, reason, ref]
+      );
+    }
+    return res.status(200).json({ received: true, status: newStatus });
+  } catch (err) {
+    return res.status(200).json({ received: true, error: err.message });
   }
 });
 
@@ -453,46 +509,82 @@ app.get('/api/transactions', async (req, res) => {
 // ─── TELLERS & POS LIST ──────────────────────────────
 app.get('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   try {
-    const result = await pool.query("SELECT id, name, email, phone, role, \"posId\", active, \"createdAt\" FROM users WHERE id != 'usr_archived' ORDER BY \"createdAt\" ASC");
+    const result = await pool.query(
+      `SELECT id, name, email, phone, role, "posId", "singleTxnLimit", "dailyLimit", active, "createdAt"
+       FROM users
+       WHERE id != 'usr_archived'
+       ORDER BY "createdAt" ASC`
+    );
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Updates staff transaction limits (Single Txn Limit & Daily Limit)
+app.put('/api/tellers/:id/limits', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  const singleTxnLimit = Number(req.body.singleTxnLimit);
+  const dailyLimit = Number(req.body.dailyLimit);
+  if (isNaN(singleTxnLimit) || isNaN(dailyLimit) || singleTxnLimit <= 0 || dailyLimit <= 0) {
+    return res.status(400).json({ success: false, message: 'Invalid limit values provided' });
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE users
+       SET "singleTxnLimit" = $1, "dailyLimit" = $2, "updatedAt" = NOW()
+       WHERE id = $3
+       RETURNING id, name, email, "singleTxnLimit", "dailyLimit"`,
+      [singleTxnLimit, dailyLimit, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Teller not found' });
+    }
+    recordAudit(pool, req.auth.userId, 'TELLER_LIMITS_CONFIGURED', 'USER', id, { singleTxnLimit, dailyLimit }, req);
+    res.json({ success: true, teller: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Creates an account with a server-generated secret that is hashed at rest and
 // returned exactly once. No shared default PIN is ever written to the database.
 app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
-  const { id, name, email, phone, role, posId } = req.body;
+  const { id, name, email, phone, role, posId, singleTxnLimit, dailyLimit, initialPassword, password } = req.body;
   if (!name || !email) {
     return res.status(400).json({ success: false, message: 'name and email are required' });
   }
+  const defaultSecret = (initialPassword || password || '').trim() || 'Swag@1234';
+  const sLimit = parseFloat(singleTxnLimit) || 500000.0;
+  const dLimit = parseFloat(dailyLimit) || 5000000.0;
   const tellerId = id || `usr_${crypto.randomUUID().slice(0, 8)}`;
-  const tempSecret = crypto.randomBytes(9).toString('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 8) || 'Swag' + Date.now().toString(36);
   const normalised = ['ADMIN', 'SUPER_ADMIN'].includes(String(role).toUpperCase()) ? String(role).toUpperCase() : 'TELLER';
   try {
     const existing = await pool.query('SELECT id FROM users WHERE id = $1', [tellerId]);
     if (existing.rows.length > 0) {
       await pool.query(
-        `UPDATE users SET name = $2, email = $3, phone = $4, role = $5, "posId" = $6, "updatedAt" = NOW()
+        `UPDATE users
+         SET name = $2, email = $3, phone = $4, role = $5, "posId" = $6, "singleTxnLimit" = $7, "dailyLimit" = $8, "pinHash" = $9, "updatedAt" = NOW()
          WHERE id = $1`,
-        [tellerId, name, email, phone || '', normalised, posId || null]
+        [tellerId, name, email, phone || '', normalised, posId || null, sLimit, dLimit, hashPassword(defaultSecret)]
       );
-      recordAudit(pool, req.auth.userId, 'TELLER_UPDATED', 'USER', tellerId, { name, email, role: normalised, posId }, req);
-      return res.json({ success: true, id: tellerId, updated: true });
+      recordAudit(pool, req.auth.userId, 'TELLER_UPDATED', 'USER', tellerId, { name, email, role: normalised, posId, singleTxnLimit: sLimit, dailyLimit: dLimit }, req);
+      return res.json({ success: true, id: tellerId, updated: true, initialPassword: defaultSecret, tempSecret: defaultSecret });
     }
 
     await pool.query(
-      `INSERT INTO users (id, name, email, phone, pin, "pinHash", role, "posId", active, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, '', $5, $6, $7, 1, NOW(), NOW())`,
-      [tellerId, name, email, phone || '', hashPassword(tempSecret), normalised, posId || null]
+      `INSERT INTO users (id, name, email, phone, pin, "pinHash", role, "posId", "singleTxnLimit", "dailyLimit", active, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, 1, NOW(), NOW())`,
+      [tellerId, name, email, phone || '', hashPassword(defaultSecret), normalised, posId || null, sLimit, dLimit]
     );
-    recordAudit(pool, req.auth.userId, 'TELLER_CREATED', 'USER', tellerId, { name, email, role: normalised, posId }, req);
+    recordAudit(pool, req.auth.userId, 'TELLER_CREATED', 'USER', tellerId, { name, email, role: normalised, posId, singleTxnLimit: sLimit, dailyLimit: dLimit }, req);
     res.json({
       success: true,
       id: tellerId,
-      tempSecret,
-      warning: 'Share this secret once — it cannot be retrieved later.',
+      tempSecret: defaultSecret,
+      initialPassword: defaultSecret,
+      defaultPassword: defaultSecret,
+      warning: `Share this password with the staff member: ${defaultSecret}`,
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

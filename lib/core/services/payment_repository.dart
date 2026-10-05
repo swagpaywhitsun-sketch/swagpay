@@ -92,11 +92,17 @@ class PaymentRepository {
     } catch (_) {}
   }
 
+  final Set<String> _deletedTellerIds = {};
+  final Set<String> _deletedPosIds = {};
+
   Future<void>? _activeSync;
 
   /// Startup, the periodic timer and pull-to-refresh would otherwise issue
   /// overlapping copies of the same requests.
-  Future<void> refreshFromBackend() {
+  Future<void> refreshFromBackend({bool force = false}) {
+    if (force) {
+      return _activeSync = _syncFromBackend().whenComplete(() => _activeSync = null);
+    }
     return _activeSync ??= _syncFromBackend().whenComplete(() => _activeSync = null);
   }
 
@@ -139,18 +145,23 @@ class PaymentRepository {
       try {
         final telRes = await apiClient.get<List<dynamic>>(ApiConfig.tellers);
         if (telRes.data != null) {
-          _tellers = telRes.data!.map((e) {
-            final m = e as Map<String, dynamic>;
-            return AppUser(
-              id: (m['id'] ?? '').toString(),
-              fullName: (m['name'] ?? 'Staff Member').toString(),
-              email: (m['email'] ?? '').toString(),
-              phone: (m['phone'] ?? '').toString(),
-              role: (m['role']?.toString().toUpperCase() ?? '').contains('ADMIN') ? UserRole.admin : UserRole.teller,
-              assignedPos: [m['posId']?.toString() ?? 'pos_01'],
-              isActive: (m['active'] as num?)?.toInt() == 1,
-            );
-          }).toList();
+          _tellers = telRes.data!
+              .map((e) {
+                final m = e as Map<String, dynamic>;
+                return AppUser(
+                  id: (m['id'] ?? '').toString(),
+                  fullName: (m['name'] ?? 'Staff Member').toString(),
+                  email: (m['email'] ?? '').toString(),
+                  phone: (m['phone'] ?? '').toString(),
+                  role: (m['role']?.toString().toUpperCase() ?? '').contains('ADMIN') ? UserRole.admin : UserRole.teller,
+                  assignedPos: [m['posId']?.toString() ?? 'pos_01'],
+                  singleTxnLimit: (m['singleTxnLimit'] as num?)?.toDouble() ?? 500000.0,
+                  dailyLimit: (m['dailyLimit'] as num?)?.toDouble() ?? 5000000.0,
+                  isActive: (m['active'] as num?)?.toInt() == 1,
+                );
+              })
+              .where((t) => !_deletedTellerIds.contains(t.id))
+              .toList();
         }
       } catch (_) {}
 
@@ -158,20 +169,23 @@ class PaymentRepository {
       try {
         final posRes = await apiClient.get<List<dynamic>>(ApiConfig.posDevices);
         if (posRes.data != null) {
-          _posDevices = posRes.data!.map((e) {
-            final m = e as Map<String, dynamic>;
-            return PosDevice(
-              id: (m['id'] ?? '').toString(),
-              name: (m['name'] ?? 'POS Terminal').toString(),
-              serialNumber: (m['code'] ?? m['serialNumber'] ?? '').toString(),
-              deviceFingerprint: (m['code'] ?? m['serialNumber'] ?? '').toString(),
-              branch: (m['location'] ?? m['branch'] ?? 'Main').toString(),
-              location: (m['location'] ?? m['branch'] ?? '').toString(),
-              status: (m['active'] as num?)?.toInt() == 1 ? PosStatus.online : PosStatus.offline,
-              isWhitelisted: true,
-              lastSeen: DateTime.now(),
-            );
-          }).toList();
+          _posDevices = posRes.data!
+              .map((e) {
+                final m = e as Map<String, dynamic>;
+                return PosDevice(
+                  id: (m['id'] ?? '').toString(),
+                  name: (m['name'] ?? 'POS Terminal').toString(),
+                  serialNumber: (m['code'] ?? m['serialNumber'] ?? '').toString(),
+                  deviceFingerprint: (m['code'] ?? m['serialNumber'] ?? '').toString(),
+                  branch: (m['location'] ?? m['branch'] ?? 'Main').toString(),
+                  location: (m['location'] ?? m['branch'] ?? '').toString(),
+                  status: (m['active'] as num?)?.toInt() == 1 ? PosStatus.online : PosStatus.offline,
+                  isWhitelisted: true,
+                  lastSeen: DateTime.now(),
+                );
+              })
+              .where((p) => !_deletedPosIds.contains(p.id))
+              .toList();
         }
       } catch (_) {}
 
@@ -462,7 +476,7 @@ class PaymentRepository {
   List<AuditLog> getAuditLogs() => List.unmodifiable(_auditLogs);
   List<AppNotificationItem> getNotifications() => List.unmodifiable(_notifications);
 
-  Future<String?> addTeller(AppUser teller) async {
+  Future<String?> addTeller(AppUser teller, {String? initialPassword}) async {
     // Optimistic local add
     _tellers.add(teller);
     notifyListeners();
@@ -475,11 +489,14 @@ class PaymentRepository {
           'email': teller.email,
           'phone': teller.phone,
           'role': teller.role == UserRole.admin ? 'ADMIN' : 'TELLER',
-          'posId': teller.assignedPos.isNotEmpty ? teller.assignedPos.first : 'pos_01',
+          'posId': teller.assignedPos.isNotEmpty ? teller.assignedPos.first : 'ANY_POS',
+          'singleTxnLimit': teller.singleTxnLimit,
+          'dailyLimit': teller.dailyLimit,
+          'initialPassword': initialPassword ?? 'Swag@1234',
         },
       );
-      await refreshFromBackend();
-      return res.data?['tempSecret'] as String?;
+      await refreshFromBackend(force: true);
+      return (res.data?['initialPassword'] ?? res.data?['tempSecret']) as String? ?? initialPassword ?? 'Swag@1234';
     } catch (e) {
       _tellers.removeWhere((t) => t.id == teller.id);
       notifyListeners();
@@ -488,15 +505,45 @@ class PaymentRepository {
   }
 
   Future<void> deleteTeller(String tellerId) async {
+    _deletedTellerIds.add(tellerId);
     final backup = List<AppUser>.from(_tellers);
     _tellers.removeWhere((t) => t.id == tellerId);
     notifyListeners();
     try {
       await apiClient.delete('${ApiConfig.tellers}/$tellerId');
-      await refreshFromBackend();
+      await refreshFromBackend(force: true);
     } catch (e) {
+      _deletedTellerIds.remove(tellerId);
       _tellers = backup;
       notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> updateTellerLimits(
+    String tellerId, {
+    required double singleTxnLimit,
+    required double dailyLimit,
+  }) async {
+    final idx = _tellers.indexWhere((t) => t.id == tellerId);
+    if (idx != -1) {
+      _tellers[idx] = _tellers[idx].copyWith(
+        singleTxnLimit: singleTxnLimit,
+        dailyLimit: dailyLimit,
+      );
+      notifyListeners();
+    }
+    try {
+      await apiClient.put(
+        '${ApiConfig.tellers}/$tellerId/limits',
+        data: {
+          'singleTxnLimit': singleTxnLimit,
+          'dailyLimit': dailyLimit,
+        },
+      );
+      await refreshFromBackend(force: true);
+    } catch (e) {
+      await refreshFromBackend(force: true);
       rethrow;
     }
   }
@@ -514,7 +561,7 @@ class PaymentRepository {
           'location': pos.location,
         },
       );
-      await refreshFromBackend();
+      await refreshFromBackend(force: true);
     } catch (e) {
       _posDevices.removeWhere((p) => p.id == pos.id);
       notifyListeners();
@@ -538,18 +585,20 @@ class PaymentRepository {
           'active': pos.status == PosStatus.online ? 1 : 0,
         },
       );
-      await refreshFromBackend();
+      await refreshFromBackend(force: true);
     } catch (_) {}
   }
 
   Future<void> deletePosDevice(String posId) async {
+    _deletedPosIds.add(posId);
     final backup = List<PosDevice>.from(_posDevices);
     _posDevices.removeWhere((p) => p.id == posId);
     notifyListeners();
     try {
       await apiClient.delete('${ApiConfig.posDevices}/$posId');
-      await refreshFromBackend();
+      await refreshFromBackend(force: true);
     } catch (e) {
+      _deletedPosIds.remove(posId);
       _posDevices = backup;
       notifyListeners();
       rethrow;

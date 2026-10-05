@@ -41,11 +41,13 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   bool _isRechecking = false;
 
   Timer? _pollingTimer;
-  int _pollingElapsedSeconds = 0;
+  Timer? _countdownTimer;
+  int _remainingSeconds = 60;
 
   @override
   void dispose() {
     _pollingTimer?.cancel();
+    _countdownTimer?.cancel();
     _phoneController.dispose();
     _amountController.dispose();
     super.dispose();
@@ -115,7 +117,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
     setState(() {
       _currentStep = 2; // Awaiting Customer PIN
-      _pollingElapsedSeconds = 0;
+      _remainingSeconds = 60; // 60s active countdown
       _errorMessage = null;
     });
 
@@ -142,11 +144,29 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
       _activeReference = initRes['reference'] as String;
 
-      // Start status polling every 2.5 seconds
+      // Active 1-second countdown timer for visible countdown
+      _countdownTimer?.cancel();
+      _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted || _currentStep != 2) {
+          timer.cancel();
+          return;
+        }
+        setState(() {
+          if (_remainingSeconds > 0) {
+            _remainingSeconds--;
+          } else {
+            timer.cancel();
+            _pollingTimer?.cancel();
+            _errorMessage = 'Customer MoMo prompt timed out (60s). Customer did not enter PIN on handset.';
+            _currentStep = 4; // Failed
+          }
+        });
+      });
+
+      // Rapid status polling every 1.5 seconds for instant decline/approval response
       _pollingTimer?.cancel();
-      _pollingTimer = Timer.periodic(const Duration(milliseconds: 2500), (timer) async {
-        _pollingElapsedSeconds += 2;
-        if (!mounted) {
+      _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) async {
+        if (!mounted || _currentStep != 2) {
           timer.cancel();
           return;
         }
@@ -158,32 +178,27 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           }
           if (txn.status == TransactionStatus.success) {
             timer.cancel();
+            _countdownTimer?.cancel();
             setState(() {
               _completedTransaction = txn;
               _currentStep = 3; // Success
             });
           } else if (txn.status == TransactionStatus.failed) {
             timer.cancel();
+            _countdownTimer?.cancel();
             setState(() {
               _completedTransaction = txn;
-              _errorMessage = txn.failureReason ?? 'Payment declined by customer';
-              _currentStep = 4; // Failed
+              _errorMessage = txn.failureReason ?? 'Payment declined by customer on handset';
+              _currentStep = 4; // Immediately show Failed / Declined!
             });
           }
         } catch (_) {
           // Network fluctuation during polling — do not treat as failure
         }
-
-        // Timeout after 90 seconds — transition to In-Flight Verification rather than declaring failed
-        if (_pollingElapsedSeconds >= 90) {
-          timer.cancel();
-          setState(() {
-            _errorMessage = 'Gateway authorization in-flight (90s limit reached without definitive status)';
-            _currentStep = 5; // In-Flight Settlement Check
-          });
-        }
       });
     } catch (e) {
+      _countdownTimer?.cancel();
+      _pollingTimer?.cancel();
       setState(() {
         _errorMessage = e.toString().replaceAll('ApiException: ', '');
         _currentStep = 4;
@@ -191,7 +206,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     }
   }
 
-  Future<void> _recheckStatus() async {
+  Future<void> _checkManualStatus() async {
     if (_activeReference == null) return;
     setState(() => _isRechecking = true);
     final repo = ref.read(paymentRepositoryProvider);
@@ -206,15 +221,22 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         _completedTransaction = txn;
       });
       if (txn.status == TransactionStatus.success) {
+        _pollingTimer?.cancel();
+        _countdownTimer?.cancel();
         setState(() => _currentStep = 3);
       } else if (txn.status == TransactionStatus.failed) {
+        _pollingTimer?.cancel();
+        _countdownTimer?.cancel();
         setState(() {
-          _errorMessage = txn.failureReason ?? 'Payment was declined by network operator';
+          _errorMessage = txn.failureReason ?? 'Payment declined by customer on handset';
           _currentStep = 4;
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Transaction still processing at telco switch. Please re-check in a moment.')),
+          const SnackBar(
+            content: Text('Prompt is still pending on customer handset. Awaiting PIN entry...'),
+            duration: Duration(seconds: 2),
+          ),
         );
       }
     } catch (e) {
@@ -226,10 +248,16 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     }
   }
 
+  Future<void> _recheckStatus() async {
+    return _checkManualStatus();
+  }
+
   void _resetFlow() {
     _pollingTimer?.cancel();
+    _countdownTimer?.cancel();
     setState(() {
       _currentStep = 1;
+      _remainingSeconds = 60;
       _selectedNetwork = null;
       _phoneController.clear();
       _amountController.clear();
@@ -277,9 +305,14 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: _buildCurrentContent(context),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: _buildCurrentContent(context),
+            ),
+          ),
         ),
       ),
       bottomNavigationBar: const AppThinFooter(),
@@ -750,40 +783,46 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
     final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
     final heading = isDark ? Colors.white : const Color(0xFF303030);
+    final brandColor = _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6);
+    final isUrgent = _remainingSeconds <= 15;
+    final countdownColor = isUrgent ? const Color(0xFFE65100) : brandColor;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         Stack(
           alignment: Alignment.center,
           children: [
             SizedBox(
-              width: 130,
-              height: 130,
+              width: 150,
+              height: 150,
               child: CircularProgressIndicator(
-                strokeWidth: 7,
-                backgroundColor: borderColor,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6),
-                ),
+                value: (_remainingSeconds.clamp(0, 60)) / 60.0,
+                strokeWidth: 8,
+                backgroundColor: isDark ? const Color(0xFF2A2A2E) : const Color(0xFFE5E7EB),
+                valueColor: AlwaysStoppedAnimation<Color>(countdownColor),
               ),
             ),
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.touch_app_rounded,
-                  size: 34,
-                  color: _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6),
-                ),
-                const SizedBox(height: 4),
                 Text(
-                  '${_pollingElapsedSeconds}s',
+                  '$_remainingSeconds',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 42,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1.5,
+                    color: countdownColor,
+                  ),
+                ),
+                Text(
+                  'SEC REMAINING',
+                  style: TextStyle(
+                    fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6),
+                    letterSpacing: 1.2,
+                    color: muted,
                   ),
                 ),
               ],
@@ -796,21 +835,21 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
-              color: _getNetworkBrandColor(_selectedNetwork!).withValues(alpha: isDark ? 0.2 : 0.12),
+              color: brandColor.withValues(alpha: isDark ? 0.2 : 0.12),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _getNetworkBrandColor(_selectedNetwork!).withValues(alpha: 0.5)),
+              border: Border.all(color: brandColor.withValues(alpha: 0.5)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.cell_tower_rounded, size: 16, color: _getNetworkBrandColor(_selectedNetwork!)),
+                Icon(Icons.cell_tower_rounded, size: 16, color: brandColor),
                 const SizedBox(width: 6),
                 Text(
                   _selectedNetwork!.label,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: _getNetworkBrandColor(_selectedNetwork!),
+                    color: brandColor,
                   ),
                 ),
               ],
@@ -822,34 +861,84 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          '${_selectedNetwork?.label ?? "MoMo"} prompt of GH₵ ${_currentAmount.toStringAsFixed(2)} was sent to ${_phoneController.text}.\nCustomer is entering their PIN on their phone.',
+          '${_selectedNetwork?.label ?? "MoMo"} prompt of GH₵ ${_currentAmount.toStringAsFixed(2)} was sent to ${_phoneController.text}.\nCustomer is entering their PIN or confirming prompt on their phone.',
           textAlign: TextAlign.center,
           style: TextStyle(color: muted, fontSize: 13.5, height: 1.5),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
             color: cardBg,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: borderColor),
           ),
-          child: Text(
-            'Ref: ${_activeReference ?? ''}',
-            style: TextStyle(fontSize: 12, fontFamily: 'Courier', fontWeight: FontWeight.w700, color: heading),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: AppColors.success,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Listening for Gateway Response (1.5s polling)',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: muted),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 32),
-        OutlinedButton(
-          onPressed: _resetFlow,
-          style: OutlinedButton.styleFrom(
-            backgroundColor: cardBg,
-            foregroundColor: muted,
-            side: BorderSide(color: borderColor),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-          ),
-          child: const Text('Cancel Request', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        const SizedBox(height: 8),
+        Text(
+          'Ref: ${_activeReference ?? ''}',
+          style: TextStyle(fontSize: 11.5, fontFamily: 'Courier', fontWeight: FontWeight.w600, color: muted),
+        ),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: _isRechecking ? null : _checkManualStatus,
+                icon: _isRechecking
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.sync_rounded, size: 16),
+                label: Text(_isRechecking ? 'Checking...' : 'Check Status Now'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1570A6),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: _resetFlow,
+                icon: const Icon(Icons.close_rounded, size: 16),
+                label: const Text('Cancel Request'),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: cardBg,
+                  foregroundColor: muted,
+                  side: BorderSide(color: borderColor),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

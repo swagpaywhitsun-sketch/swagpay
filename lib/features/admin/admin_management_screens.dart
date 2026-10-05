@@ -34,50 +34,91 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
     final nameCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
-    final limitCtrl = TextEditingController(text: '10000');
+    final passwordCtrl = TextEditingController(text: 'Swag@1234');
+    final singleLimitCtrl = TextEditingController(text: '10000');
+    final dailyLimitCtrl = TextEditingController(text: '50000');
     final branchCtrl = TextEditingController(text: 'Accra Mall Food Court');
     final repo = ref.read(paymentRepositoryProvider);
     final posDevices = repo.getPosDevices();
-    String selectedPosId = posDevices.isNotEmpty ? posDevices.first.id : 'pos_01';
+    String selectedPosId = 'ANY_POS';
+    bool showPassword = true;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Add New Teller / Cashier'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Full Name *')),
-                const SizedBox(height: 12),
-                TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email Address *')),
-                const SizedBox(height: 12),
-                TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone Number (MoMo)')),
-                const SizedBox(height: 12),
-                TextField(controller: branchCtrl, decoration: const InputDecoration(labelText: 'Branch / Location')),
-                const SizedBox(height: 12),
-                // Dynamic POS Selector
-                DropdownButtonFormField<String>(
-                  initialValue: posDevices.any((p) => p.id == selectedPosId) ? selectedPosId : (posDevices.isNotEmpty ? posDevices.first.id : 'pos_01'),
-                  decoration: const InputDecoration(labelText: 'Assign POS Terminal *'),
-                  items: posDevices.isNotEmpty
-                      ? posDevices.map((p) => DropdownMenuItem(value: p.id, child: Text('${p.name} (${p.serialNumber})'))).toList()
-                      : const [DropdownMenuItem(value: 'pos_01', child: Text('Till 1 (POS-01)'))],
-                  onChanged: (val) {
-                    if (val != null) {
-                      setDialogState(() => selectedPosId = val);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: limitCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Single Txn Limit (GH₵)'),
-                ),
-              ],
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 480, maxWidth: 560),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Full Name *')),
+                  const SizedBox(height: 12),
+                  TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email Address (Used for Login) *')),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordCtrl,
+                    obscureText: !showPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Initial Login Password *',
+                      helperText: 'Default password is Swag@1234. Staff can change this upon login.',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20),
+                        onPressed: () => setDialogState(() => showPassword = !showPassword),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone Number (MoMo)')),
+                  const SizedBox(height: 12),
+                  TextField(controller: branchCtrl, decoration: const InputDecoration(labelText: 'Branch / Location')),
+                  const SizedBox(height: 12),
+                  // POS Selector (Default to Universal Access)
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedPosId,
+                    decoration: const InputDecoration(labelText: 'Assigned POS Terminal *'),
+                    items: [
+                      const DropdownMenuItem(
+                        value: 'ANY_POS',
+                        child: Text(
+                          'Universal Access (Any POS Terminal)',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1570A6)),
+                        ),
+                      ),
+                      ...posDevices.map((p) => DropdownMenuItem(value: p.id, child: Text('${p.name} (${p.serialNumber})'))),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedPosId = val);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: singleLimitCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Single Txn Limit (GH₵)'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: dailyLimitCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Daily Limit (GH₵)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -85,6 +126,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
             ElevatedButton(
               onPressed: () async {
                 if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty) return;
+                final pwd = passwordCtrl.text.trim().isNotEmpty ? passwordCtrl.text.trim() : 'Swag@1234';
                 final newTeller = AppUser(
                   id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
                   fullName: nameCtrl.text.trim(),
@@ -92,32 +134,365 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                   phone: phoneCtrl.text.trim(),
                   role: UserRole.teller,
                   branch: branchCtrl.text.trim(),
-                  assignedPos: [selectedPosId],
-                  singleTxnLimit: double.tryParse(limitCtrl.text) ?? 10000.0,
-                  dailyLimit: 50000.0,
+                  assignedPos: selectedPosId == 'ANY_POS' ? ['ANY_POS'] : [selectedPosId],
+                  singleTxnLimit: double.tryParse(singleLimitCtrl.text) ?? 10000.0,
+                  dailyLimit: double.tryParse(dailyLimitCtrl.text) ?? 50000.0,
                 );
                 String? secret;
                 Object? failure;
                 try {
-                  secret = await repo.addTeller(newTeller);
+                  secret = await repo.addTeller(newTeller, initialPassword: pwd);
                 } catch (e) {
                   failure = e;
                 }
                 if (!ctx.mounted) return;
                 Navigator.pop(ctx);
-                final message = failure != null
-                    ? 'Could not save teller: ${failure is ApiException ? failure.message : '$failure'}'
-                    : secret != null
-                        ? 'Teller created. Sign-in secret (show once, they must change it later): $secret'
-                        : 'Teller created successfully';
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    backgroundColor: failure != null ? AppColors.error : AppColors.success,
-                  ),
-                );
+                if (failure != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Could not save teller: ${failure is ApiException ? failure.message : '$failure'}'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                } else {
+                  _showCredentialsDialog(
+                    context,
+                    name: newTeller.fullName,
+                    email: newTeller.email,
+                    password: secret ?? pwd,
+                    pos: selectedPosId == 'ANY_POS' ? 'Universal Access (Any Terminal)' : selectedPosId,
+                  );
+                }
               },
               child: const Text('Create Teller'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCredentialsDialog(
+    BuildContext context, {
+    required String name,
+    required String email,
+    required String password,
+    required String pos,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Text('Staff Account Created', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          ],
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 460, maxWidth: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Account for "$name" has been provisioned. Share these sign-in credentials with the staff member:',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E1E22) : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Login Email:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        SelectableText(email, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Default Password:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1570A6).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: SelectableText(
+                            password,
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1570A6), fontFamily: 'Courier'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Terminal Access:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        Text(pos, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.success)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.textSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'The staff member can sign in from any POS terminal using this email and password.',
+                      style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          OutlinedButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: 'Email: $email\nPassword: $password\nTerminal: $pos'));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Credentials copied to clipboard!'),
+                  duration: Duration(seconds: 2),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+            },
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('Copy Credentials'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showConfigureLimitsDialog(BuildContext context, AppUser teller) {
+    final singleCtrl = TextEditingController(text: teller.singleTxnLimit.toStringAsFixed(0));
+    final dailyCtrl = TextEditingController(text: teller.dailyLimit.toStringAsFixed(0));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.tune_rounded, color: AppColors.primary, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Configure Staff Limits', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                    Text(
+                      '${teller.fullName} • ${teller.roleDisplay}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 480, maxWidth: 560),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF27272A) : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.primary),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Single limit restricts maximum collection per transaction. Daily limit caps total counter collections per working day.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'SINGLE TRANSACTION LIMIT (GH₵)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: singleCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      prefixText: 'GH₵ ',
+                      hintText: 'e.g. 10000',
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF1E1E22) : Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [1000, 5000, 10000, 50000, 100000, 500000].map((amt) {
+                      return ActionChip(
+                        label: Text('GH₵ ${amt >= 1000 ? "${amt ~/ 1000}k" : amt}', style: const TextStyle(fontSize: 11)),
+                        onPressed: () {
+                          setDialogState(() {
+                            singleCtrl.text = amt.toString();
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'DAILY AGGREGATE LIMIT (GH₵)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: dailyCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      prefixText: 'GH₵ ',
+                      hintText: 'e.g. 50000',
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF1E1E22) : Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [10000, 50000, 200000, 500000, 1000000, 5000000].map((amt) {
+                      return ActionChip(
+                        label: Text('GH₵ ${amt >= 1000000 ? "${amt ~/ 1000000}M" : "${amt ~/ 1000}k"}', style: const TextStyle(fontSize: 11)),
+                        onPressed: () {
+                          setDialogState(() {
+                            dailyCtrl.text = amt.toString();
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              onPressed: () async {
+                final sLimit = double.tryParse(singleCtrl.text.trim());
+                final dLimit = double.tryParse(dailyCtrl.text.trim());
+                if (sLimit == null || dLimit == null || sLimit <= 0 || dLimit <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter valid positive numbers for limits'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx);
+                try {
+                  await ref.read(paymentRepositoryProvider).updateTellerLimits(
+                    teller.id,
+                    singleTxnLimit: sLimit,
+                    dailyLimit: dLimit,
+                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Limits successfully updated for ${teller.fullName}: Single GH₵ ${sLimit.toStringAsFixed(0)}, Daily GH₵ ${dLimit.toStringAsFixed(0)}'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to update limits: ${e is ApiException ? e.message : '$e'}'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save Limit Settings'),
             ),
           ],
         ),
@@ -136,9 +511,12 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
             const Text('Delete Staff / Teller'),
           ],
         ),
-        content: Text(
-          'Are you sure you want to permanently delete "${teller.fullName}" (${teller.email})?\n\nThis will immediately revoke their access and deactivate their POS counter assignment.',
-          style: const TextStyle(fontSize: 14),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 460, maxWidth: 520),
+          child: Text(
+            'Are you sure you want to permanently delete "${teller.fullName}" (${teller.email})?\n\nThis will immediately revoke their access and deactivate their terminal assignment.',
+            style: const TextStyle(fontSize: 14, height: 1.5),
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
@@ -421,13 +799,35 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: AppColors.primary.withValues(alpha: 0.1),
+                                      color: (t.assignedPos.contains('ANY_POS') || t.assignedPos.isEmpty)
+                                          ? const Color(0xFF1570A6).withValues(alpha: 0.12)
+                                          : AppColors.primary.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
-                                    child: Text(t.assignedPos.join(', '), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryLight)),
+                                    child: Text(
+                                      (t.assignedPos.contains('ANY_POS') || t.assignedPos.isEmpty)
+                                          ? 'Universal (Any POS)'
+                                          : t.assignedPos.join(', '),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: (t.assignedPos.contains('ANY_POS') || t.assignedPos.isEmpty)
+                                            ? const Color(0xFF1570A6)
+                                            : AppColors.primaryLight,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                DataCell(Text('GH₵ ${NumberFormat('#,##0').format(t.singleTxnLimit)}', style: const TextStyle(fontWeight: FontWeight.w800))),
+                                DataCell(
+                                  Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('GH₵ ${NumberFormat('#,##0').format(t.singleTxnLimit)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                                      Text('Daily: GH₵ ${NumberFormat('#,##0').format(t.dailyLimit)}', style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                    ],
+                                  ),
+                                ),
                                 DataCell(
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -466,11 +866,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                                       IconButton(
                                         icon: const Icon(Icons.tune_rounded, size: 18),
                                         tooltip: 'Configure Limits',
-                                        onPressed: () {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text('Configuring counter limits for ${t.fullName}')),
-                                          );
-                                        },
+                                        onPressed: () => _showConfigureLimitsDialog(context, t),
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
@@ -545,15 +941,18 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Register New POS Hardware Terminal'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'Terminal Code (e.g. POS-02)')),
-            const SizedBox(height: 12),
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Terminal Name (e.g. Till 2 - Main Hall)')),
-            const SizedBox(height: 12),
-            TextField(controller: locCtrl, decoration: const InputDecoration(labelText: 'Physical Location')),
-          ],
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 480, maxWidth: 560),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'Terminal Code (e.g. POS-02)')),
+              const SizedBox(height: 12),
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Terminal Name (e.g. Till 2 - Main Hall)')),
+              const SizedBox(height: 12),
+              TextField(controller: locCtrl, decoration: const InputDecoration(labelText: 'Physical Location')),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
@@ -604,15 +1003,18 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Edit Terminal (${pos.serialNumber})'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'Terminal Code')),
-            const SizedBox(height: 12),
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Terminal Name')),
-            const SizedBox(height: 12),
-            TextField(controller: locCtrl, decoration: const InputDecoration(labelText: 'Location / Counter')),
-          ],
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 480, maxWidth: 560),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'Terminal Code')),
+              const SizedBox(height: 12),
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Terminal Name')),
+              const SizedBox(height: 12),
+              TextField(controller: locCtrl, decoration: const InputDecoration(labelText: 'Location / Counter')),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
@@ -651,9 +1053,12 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
             const Text('Delete POS Terminal'),
           ],
         ),
-        content: Text(
-          'Are you sure you want to permanently delete POS terminal "${pos.name}" (${pos.serialNumber})?\n\nTellers assigned to this terminal will need to be reassigned.',
-          style: const TextStyle(fontSize: 14),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 460, maxWidth: 520),
+          child: Text(
+            'Are you sure you want to permanently delete POS terminal "${pos.name}" (${pos.serialNumber})?\n\nTellers assigned to this terminal will automatically fallback to universal access.',
+            style: const TextStyle(fontSize: 14, height: 1.5),
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
@@ -714,20 +1119,23 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildDetailTile('Terminal ID', pos.id),
-            const Divider(height: 12),
-            _buildDetailTile('Location', pos.location.isNotEmpty ? pos.location : 'Main Counter'),
-            const Divider(height: 12),
-            _buildDetailTile('Hardware Fingerprint', pos.deviceFingerprint),
-            const Divider(height: 12),
-            _buildDetailTile('Last Heartbeat', dateFormat.format(pos.lastSeen)),
-            const Divider(height: 12),
-            _buildDetailTile('Connection Status', pos.status == PosStatus.online ? 'Online' : 'Offline'),
-          ],
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 480, maxWidth: 560),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailTile('Terminal ID', pos.id),
+              const Divider(height: 12),
+              _buildDetailTile('Location', pos.location.isNotEmpty ? pos.location : 'Main Counter'),
+              const Divider(height: 12),
+              _buildDetailTile('Hardware Fingerprint', pos.deviceFingerprint),
+              const Divider(height: 12),
+              _buildDetailTile('Last Heartbeat', dateFormat.format(pos.lastSeen)),
+              const Divider(height: 12),
+              _buildDetailTile('Connection Status', pos.status == PosStatus.online ? 'Online' : 'Offline'),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),

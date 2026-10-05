@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/pos_device.dart';
-import '../../core/models/refund_request.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
@@ -34,7 +33,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final txns = repo.getTransactions();
     final tellers = repo.getTellers();
     final posDevices = repo.getPosDevices();
-    final refunds = repo.getRefundRequests();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Filter successful transactions
@@ -49,7 +47,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
     final activeTellers = tellers.where((t) => t.isActive).length;
     final activePos = posDevices.where((p) => p.status == PosStatus.online).length;
-    final pendingRefunds = refunds.where((r) => r.status == RefundStatus.pending).length;
     final successRate = txns.isEmpty ? 100 : ((successfulTxns.length / txns.length) * 100).toInt();
 
     // ─── 7-DAY REAL COLLECTIONS VELOCITY ─────────────────────────────────────
@@ -225,12 +222,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       onTap: () => context.go('/admin/pos'),
                     ),
                     StatCard(
-                      title: 'Pending Refunds',
-                      value: '$pendingRefunds',
-                      icon: Icons.undo_rounded,
-                      accentColor: AppColors.error,
-                      subtitle: pendingRefunds > 0 ? 'Requires admin authorization' : 'All claims resolved',
-                      onTap: () => context.go('/admin/refunds'),
+                      title: 'Total Transactions',
+                      value: '${txns.length}',
+                      icon: Icons.receipt_long_rounded,
+                      accentColor: AppColors.primaryLight,
+                      subtitle: '${successfulTxns.length} successful • ${txns.length - successfulTxns.length} other',
+                      onTap: () => context.go('/admin/transactions'),
                     ),
                   ],
                 );
@@ -409,12 +406,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               ),
                               const Divider(height: 20),
                               _buildAlertItem(
-                                icon: pendingRefunds > 0 ? Icons.warning_amber_rounded : Icons.verified_user_rounded,
-                                color: pendingRefunds > 0 ? AppColors.error : AppColors.success,
-                                title: '$pendingRefunds Pending Reversal Request(s)',
-                                subtitle: pendingRefunds > 0
-                                    ? 'Cashier refund claim requires administrator approval.'
-                                    : 'All cashier refund claims have been audited and resolved.',
+                                icon: Icons.people_outline_rounded,
+                                color: AppColors.primary,
+                                title: '${repo.getTellers().length} Registered Staff Accounts',
+                                subtitle: 'Tellers and cashiers configured with universal terminal access.',
                               ),
                               const Divider(height: 20),
                               _buildAlertItem(

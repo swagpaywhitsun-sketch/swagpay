@@ -294,7 +294,21 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
                   Divider(height: 1, indent: 52, color: borderColor),
                   _infoTile(Icons.storefront_outlined, 'Assigned Branch', user?.branch ?? 'Accra Mall Hub', isDark),
                   Divider(height: 1, indent: 52, color: borderColor),
-                  _infoTile(Icons.point_of_sale_outlined, 'Assigned POS Terminal', user?.assignedPos.firstOrNull ?? 'POS-01', isDark),
+                  _infoTile(
+                    Icons.point_of_sale_outlined,
+                    'POS Terminal Access',
+                    (user?.assignedPos.contains('ANY_POS') == true || user?.assignedPos.isEmpty == true)
+                        ? 'Universal Access (Any POS Terminal)'
+                        : (user?.assignedPos.firstOrNull ?? 'Universal Access (Any POS Terminal)'),
+                    isDark,
+                  ),
+                  Divider(height: 1, indent: 52, color: borderColor),
+                  _infoTile(
+                    Icons.speed_rounded,
+                    'Counter Limits',
+                    'Single: GH₵ ${NumberFormat('#,##0').format(user?.singleTxnLimit ?? 500000)} • Daily: GH₵ ${NumberFormat('#,##0').format(user?.dailyLimit ?? 5000000)}',
+                    isDark,
+                  ),
                 ],
               ),
             ),

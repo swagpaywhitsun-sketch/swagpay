@@ -333,7 +333,6 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                         _buildNavItem(Icons.people_alt_rounded, 'Tellers & Staff', '/admin/tellers'),
                         _buildNavItem(Icons.point_of_sale_rounded, 'POS Terminals', '/admin/pos'),
                         _buildNavItem(Icons.receipt_long_rounded, 'Transactions', '/admin/transactions'),
-                        _buildNavItem(Icons.undo_rounded, 'Refund Approvals', '/admin/refunds'),
                         _buildNavItem(Icons.insights_rounded, 'Reports & Analytics', '/admin/reports'),
                         _buildNavItem(Icons.history_edu_rounded, 'Audit Logs', '/admin/audit-logs'),
                         _buildNavItem(Icons.lock_reset_rounded, 'Settings & Password', '/admin/settings'),
