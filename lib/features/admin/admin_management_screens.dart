@@ -747,13 +747,14 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
           LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth > 900;
+              final isNarrow = constraints.maxWidth < 440;
               return GridView.count(
                 crossAxisCount: isWide ? 4 : 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+                crossAxisSpacing: isWide ? 16 : 10,
+                mainAxisSpacing: isWide ? 16 : 10,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: isWide ? 2.3 : 1.6,
+                childAspectRatio: isWide ? 2.3 : (isNarrow ? 1.22 : 1.45),
                 children: [
                   StatCard(
                     title: 'Total Cashiers',
@@ -843,6 +844,41 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                         ),
                       ],
                     ),
+                  );
+                }
+
+                if (constraints.maxWidth < 768) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: tellers.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          return _buildMobileCashierCard(context, tellers[index], isDark);
+                        },
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Showing ${tellers.length} of ${allTellers.length} cashiers',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => repo.refreshFromBackend(),
+                              icon: const Icon(Icons.sync_rounded, size: 14),
+                              label: const Text('Refresh', style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   );
                 }
 
@@ -1047,6 +1083,253 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                 );
               },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileCashierCard(BuildContext context, AppUser t, bool isDark) {
+    final branchText = (t.branch != null && t.branch!.trim().isNotEmpty) ? t.branch! : '—';
+    final isUniversal = t.assignedPos.contains('ANY_POS') || t.assignedPos.isEmpty;
+    final assignedText = isUniversal ? 'Universal (Any POS)' : t.assignedPos.join(', ');
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Row: ID badge + Role + Status
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      t.id,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: t.id));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Copied Cashier ID "${t.id}"'), duration: const Duration(seconds: 1)),
+                        );
+                      },
+                      child: const Icon(Icons.copy_rounded, size: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  t.role == UserRole.teller ? 'CASHIER' : (t.role == UserRole.seniorTeller ? 'SENIOR CASHIER' : t.role.name.toUpperCase()),
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: t.isActive ? AppColors.success.withValues(alpha: 0.15) : AppColors.error.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  t.isActive ? 'ACTIVE' : 'OFFLINE',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: t.isActive ? AppColors.successDark : AppColors.error,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Name and Email
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: AppColors.primaryLight.withValues(alpha: 0.15),
+                child: Text(
+                  t.fullName.isNotEmpty ? t.fullName[0].toUpperCase() : 'C',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryLight),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t.fullName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    Text(
+                      t.email,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Phone & Branch
+          Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.phone_outlined, size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        t.phone.isNotEmpty ? t.phone : '—',
+                        style: const TextStyle(fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (t.phone.isNotEmpty) ...[
+                      const SizedBox(width: 2),
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: t.phone));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Copied phone "${t.phone}"'), duration: const Duration(seconds: 1)),
+                          );
+                        },
+                        child: const Icon(Icons.copy_rounded, size: 12, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.store_outlined, size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        branchText,
+                        style: const TextStyle(fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Details Container
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Single Txn Limit', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                        Text('GH₵ ${NumberFormat('#,##0').format(t.singleTxnLimit)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text('Daily Limit', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                        Text('GH₵ ${NumberFormat('#,##0').format(t.dailyLimit)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Text('POS: ', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    Expanded(
+                      child: Text(
+                        assignedText,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isUniversal ? const Color(0xFF1570A6) : AppColors.primaryLight,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Actions
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => _showConfigureLimitsDialog(context, t),
+                icon: const Icon(Icons.tune_rounded, size: 14),
+                label: const Text('Limits', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => _showResetPasswordDialog(context, t),
+                icon: const Icon(Icons.lock_reset_rounded, size: 14, color: Color(0xFF1570A6)),
+                label: const Text('Reset', style: TextStyle(fontSize: 12, color: Color(0xFF1570A6))),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: AppColors.error,
+                  side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+                ),
+                onPressed: () => _confirmDeleteTeller(context, t),
+                icon: const Icon(Icons.delete_outline_rounded, size: 14),
+                label: const Text('Delete', style: TextStyle(fontSize: 12)),
+              ),
+            ],
           ),
         ],
       ),
@@ -1391,13 +1674,14 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
           LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth > 900;
+              final isNarrow = constraints.maxWidth < 440;
               return GridView.count(
                 crossAxisCount: isWide ? 4 : 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+                crossAxisSpacing: isWide ? 16 : 10,
+                mainAxisSpacing: isWide ? 16 : 10,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: isWide ? 2.3 : 1.6,
+                childAspectRatio: isWide ? 2.3 : (isNarrow ? 1.22 : 1.45),
                 children: [
                   StatCard(
                     title: 'Total Terminals',
@@ -1487,6 +1771,41 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                         ),
                       ],
                     ),
+                  );
+                }
+
+                if (constraints.maxWidth < 768) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: posDevices.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          return _buildMobilePosCard(context, posDevices[index], isDark);
+                        },
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Showing ${posDevices.length} of ${allDevices.length} terminals',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => repo.refreshFromBackend(),
+                              icon: const Icon(Icons.sync_rounded, size: 14),
+                              label: const Text('Refresh', style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   );
                 }
 
@@ -1655,6 +1974,199 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                 );
               },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobilePosCard(BuildContext context, PosDevice p, bool isDark) {
+    final dateFormat = DateFormat('dd MMM yyyy, HH:mm');
+    final isOnline = p.status == PosStatus.online;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Row: Terminal ID badge + Status
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InkWell(
+                      onTap: () => _showPosDetailsDialog(context, p),
+                      child: Text(
+                        p.id,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: AppColors.primary,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: p.id));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Copied POS ID "${p.id}"'), duration: const Duration(seconds: 1)),
+                        );
+                      },
+                      child: const Icon(Icons.copy_rounded, size: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isOnline ? AppColors.success.withValues(alpha: 0.15) : AppColors.error.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  p.status.name.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: isOnline ? AppColors.successDark : AppColors.error,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Device Name & Code
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.point_of_sale_rounded, color: AppColors.primaryLight, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      p.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          p.serialNumber,
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontFamily: 'Courier'),
+                        ),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: p.serialNumber));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Copied code "${p.serialNumber}"'), duration: const Duration(seconds: 1)),
+                            );
+                          },
+                          child: const Icon(Icons.copy_rounded, size: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Location & Heartbeat Info Box
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Counter / Location', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                    Text(
+                      p.location.isNotEmpty ? p.location : 'Main Counter',
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('Last Heartbeat', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                    Text(
+                      dateFormat.format(p.lastSeen),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Actions
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => _showPosDetailsDialog(context, p),
+                icon: const Icon(Icons.info_outline_rounded, size: 14),
+                label: const Text('Details', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => _showEditPosDialog(context, p),
+                icon: const Icon(Icons.edit_outlined, size: 14),
+                label: const Text('Edit', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: AppColors.error,
+                  side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+                ),
+                onPressed: () => _confirmDeletePos(context, p),
+                icon: const Icon(Icons.delete_outline_rounded, size: 14),
+                label: const Text('Delete', style: TextStyle(fontSize: 12)),
+              ),
+            ],
           ),
         ],
       ),
@@ -1892,13 +2404,14 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
           LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth > 900;
+              final isNarrow = constraints.maxWidth < 440;
               return GridView.count(
                 crossAxisCount: isWide ? 4 : 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+                crossAxisSpacing: isWide ? 16 : 10,
+                mainAxisSpacing: isWide ? 16 : 10,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: isWide ? 2.3 : 1.6,
+                childAspectRatio: isWide ? 2.3 : (isNarrow ? 1.22 : 1.45),
                 children: [
                   StatCard(
                     title: 'Total Collections',
@@ -2024,6 +2537,55 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                         ),
                       ],
                     ),
+                  );
+                }
+
+                if (constraints.maxWidth < 768) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: paginatedTxns.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          return _buildMobileTransactionCard(context, paginatedTxns[index], isDark);
+                        },
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '${totalCount == 0 ? 0 : startIndex + 1}–$endIndex of $totalCount',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.chevron_left_rounded, size: 22),
+                                  tooltip: 'Previous Page',
+                                  onPressed: _currentPage > 1 ? () => setState(() => _currentPage--) : null,
+                                ),
+                                Text(
+                                  '$_currentPage / $totalPages',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.chevron_right_rounded, size: 22),
+                                  tooltip: 'Next Page',
+                                  onPressed: _currentPage < totalPages ? () => setState(() => _currentPage++) : null,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   );
                 }
 
@@ -2249,6 +2811,196 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMobileTransactionCard(BuildContext context, PaymentTransaction t, bool isDark) {
+    final dateFormat = DateFormat('dd MMM yyyy, HH:mm');
+
+    Color netColor;
+    switch (t.network) {
+      case MoMoNetwork.mtn:
+        netColor = const Color(0xFFEAB308);
+        break;
+      case MoMoNetwork.vodafone:
+        netColor = const Color(0xFFEF4444);
+        break;
+      case MoMoNetwork.airtel:
+        netColor = const Color(0xFF3B82F6);
+        break;
+    }
+
+    return InkWell(
+      onTap: () => _showTransactionDetails(context, t),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Row: Ref & Copy + Status Badge
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        t.reference,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: t.reference));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Copied reference "${t.reference}"'), duration: const Duration(seconds: 1)),
+                          );
+                        },
+                        child: const Icon(Icons.copy_rounded, size: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                StatusBadge(status: t.status),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Customer info & Amount
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t.customerName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            t.customerNumber,
+                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: t.customerNumber));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Copied phone "${t.customerNumber}"'), duration: const Duration(seconds: 1)),
+                              );
+                            },
+                            child: const Icon(Icons.copy_rounded, size: 12, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'GH₵ ${NumberFormat('#,##0.00').format(t.amount)}',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.primaryLight),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: netColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        t.networkDisplay,
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: netColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Metadata Box: Cashier/POS, Date, Receipt
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.person_outline_rounded, size: 13, color: AppColors.textSecondary),
+                          const SizedBox(width: 4),
+                          Text('${t.tellerName} (${t.posId})', style: const TextStyle(fontSize: 11)),
+                        ],
+                      ),
+                      Text(dateFormat.format(t.timestamp), style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                  if (t.receiptNumber != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.receipt_outlined, size: 13, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Text('Receipt: ${t.receiptNumber}', style: const TextStyle(fontSize: 11, fontFamily: 'Courier')),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: t.receiptNumber!));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Copied receipt "${t.receiptNumber}"'), duration: const Duration(seconds: 1)),
+                            );
+                          },
+                          child: const Icon(Icons.copy_rounded, size: 11, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // View Details button
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => _showTransactionDetails(context, t),
+                icon: const Icon(Icons.visibility_outlined, size: 14),
+                label: const Text('Inspect Details', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

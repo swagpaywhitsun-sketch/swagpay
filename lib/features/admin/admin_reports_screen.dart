@@ -1156,13 +1156,14 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
         LayoutBuilder(
           builder: (context, constraints) {
             final isWide = constraints.maxWidth > 900;
+            final isNarrow = constraints.maxWidth < 440;
             return GridView.count(
               crossAxisCount: isWide ? 4 : 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+              crossAxisSpacing: isWide ? 16 : 10,
+              mainAxisSpacing: isWide ? 16 : 10,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: isWide ? 2.1 : 1.6,
+              childAspectRatio: isWide ? 2.1 : (isNarrow ? 1.25 : 1.45),
               children: [
                 _buildShiftCard(
                   title: 'Morning Shift',

@@ -72,13 +72,14 @@ class _AdminSettlementsScreenState extends ConsumerState<AdminSettlementsScreen>
           LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth > 900;
+              final isNarrow = constraints.maxWidth < 440;
               return GridView.count(
                 crossAxisCount: isWide ? 4 : 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+                crossAxisSpacing: isWide ? 16 : 10,
+                mainAxisSpacing: isWide ? 16 : 10,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: isWide ? 2.3 : 1.6,
+                childAspectRatio: isWide ? 2.3 : (isNarrow ? 1.22 : 1.45),
                 children: [
                   StatCard(
                     title: 'Total Settled',
@@ -343,13 +344,14 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
           LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth > 900;
+              final isNarrow = constraints.maxWidth < 440;
               return GridView.count(
                 crossAxisCount: isWide ? 4 : 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+                crossAxisSpacing: isWide ? 16 : 10,
+                mainAxisSpacing: isWide ? 16 : 10,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: isWide ? 2.3 : 1.6,
+                childAspectRatio: isWide ? 2.3 : (isNarrow ? 1.22 : 1.45),
                 children: [
                   StatCard(
                     title: 'Logged Events',

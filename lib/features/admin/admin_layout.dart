@@ -199,23 +199,25 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1570A6),
-                borderRadius: BorderRadius.circular(5),
-              ),
-              child: const Text(
-                'ENTERPRISE POS',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  letterSpacing: 0.8,
+            if (isWide) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1570A6),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Text(
+                  'ENTERPRISE POS',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.8,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
         actions: [
@@ -231,8 +233,8 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                     ref.read(paymentRepositoryProvider).refreshFromBackend();
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    padding: EdgeInsets.symmetric(horizontal: isWide ? 10 : 8, vertical: isWide ? 6 : 5),
+                    margin: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -261,16 +263,18 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                               shape: BoxShape.circle,
                             ),
                           ),
-                        const SizedBox(width: 6),
-                        Text(
-                          isSyncing ? 'SYNCING' : 'LIVE',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
+                        if (isWide) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            isSyncing ? 'SYNCING' : 'LIVE',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -278,17 +282,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
               );
             },
           ),
-          const SizedBox(width: 4),
-          IconButton(
-            tooltip: 'Toggle Theme',
-            icon: Icon(
-              isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-              color: Colors.white,
-              size: 20,
-            ),
-            onPressed: () => ref.read(themeModeProvider.notifier).toggleTheme(),
-          ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
           // User Avatar with Settings Dropdown
           PopupMenuButton<String>(
             tooltip: 'Account Menu & Settings',

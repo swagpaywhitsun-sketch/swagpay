@@ -191,13 +191,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 final isWide = constraints.maxWidth > 900;
                 final crossAxisCount = isWide ? 4 : 2;
 
+                final isVeryNarrow = constraints.maxWidth < 440;
                 return GridView.count(
                   crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
+                  crossAxisSpacing: isVeryNarrow ? 10 : 16,
+                  mainAxisSpacing: isVeryNarrow ? 10 : 16,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: isWide ? 1.9 : 1.5,
+                  childAspectRatio: isWide ? 2.0 : (isVeryNarrow ? 1.22 : 1.45),
                   children: [
                     StatCard(
                       title: 'Total Collected Today',
