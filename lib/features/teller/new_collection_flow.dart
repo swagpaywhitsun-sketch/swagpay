@@ -4,11 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/models/customer.dart';
-import '../../core/models/pos_device.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_thin_footer.dart';
+import '../../core/widgets/carrier_brand_icon.dart';
 import '../../core/widgets/thermal_receipt_card.dart';
 
 class NewCollectionScreen extends ConsumerStatefulWidget {
@@ -347,104 +347,6 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Active POS Terminal selector (allow any user or teller to operate from any POS)
-        Consumer(
-          builder: (context, ref, _) {
-            final repo = ref.watch(paymentRepositoryProvider);
-            final user = ref.watch(authProvider).currentUser;
-            final devices = repo.getPosDevices();
-            final currentPos = (_selectedPosId != null && _selectedPosId!.isNotEmpty)
-                ? _selectedPosId!
-                : (user?.assignedPos.firstOrNull?.isNotEmpty == true
-                    ? user!.assignedPos.first
-                    : (devices.isNotEmpty ? devices.first.id : 'POS-01'));
-            final currentDeviceName = devices.firstWhere(
-              (p) => p.id == currentPos || p.serialNumber == currentPos,
-              orElse: () => PosDevice(
-                id: currentPos,
-                name: currentPos,
-                serialNumber: currentPos,
-                location: 'Front Counter',
-                branch: 'Main Branch',
-                deviceFingerprint: 'DEV-$currentPos',
-                lastSeen: DateTime.now(),
-              ),
-            ).name;
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E22) : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: borderColor),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1570A6).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.point_of_sale_rounded, color: Color(0xFF1570A6), size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('ACTIVE POS TERMINAL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: muted, letterSpacing: 0.5)),
-                        const SizedBox(height: 1),
-                        Text('$currentDeviceName ($currentPos)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: heading)),
-                      ],
-                    ),
-                  ),
-                  PopupMenuButton<String>(
-                    tooltip: 'Switch POS Terminal',
-                    offset: const Offset(0, 36),
-                    icon: const Icon(Icons.swap_horiz_rounded, size: 20, color: Color(0xFF1570A6)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    color: isDark ? const Color(0xFF27272A) : Colors.white,
-                    onSelected: (val) {
-                      setState(() => _selectedPosId = val);
-                    },
-                    itemBuilder: (ctx) {
-                      final allOptions = devices.isNotEmpty
-                          ? devices
-                          : [
-                              PosDevice(
-                                id: 'POS-01',
-                                name: 'Counter Terminal 01',
-                                serialNumber: 'POS-01',
-                                location: 'Main Desk',
-                                branch: 'Main Branch',
-                                deviceFingerprint: 'DEV-POS-01',
-                                lastSeen: DateTime.now(),
-                              ),
-                            ];
-                      return allOptions.map((p) => PopupMenuItem(
-                        value: p.id,
-                        child: Row(
-                          children: [
-                            Icon(
-                              p.id == currentPos ? Icons.radio_button_checked : Icons.radio_button_off,
-                              size: 16,
-                              color: p.id == currentPos ? const Color(0xFF1570A6) : muted,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text('${p.name} (${p.serialNumber})', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-                          ],
-                        ),
-                      )).toList();
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-
         // 1. CARRIER SELECTION (FIRST STEP)
         _card(
           cardBg: cardBg,
@@ -557,24 +459,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _sectionLabel('2. CUSTOMER PHONE NUMBER', muted),
-                  if (_selectedNetwork != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text(
-                        'Carrier: ${_selectedNetwork!.carrierName}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: _getNetworkBrandColor(_selectedNetwork!),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              _sectionLabel('2. CUSTOMER PHONE NUMBER', muted),
               TextField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
@@ -590,33 +475,16 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   counterText: '',
                   hintStyle: TextStyle(color: muted.withValues(alpha: 0.6), fontSize: 15),
                   prefixIcon: Icon(
-                    Icons.phone_android_rounded,
+                    Icons.phone_outlined,
                     size: 20,
-                    color: _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : muted,
+                    color: muted,
                   ),
                   suffixIcon: _isLookingUp
                       ? const Padding(
                           padding: EdgeInsets.all(12.0),
                           child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                         )
-                      : (_selectedNetwork != null
-                          ? Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
-                                color: _getNetworkBrandColor(_selectedNetwork!).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                _selectedNetwork!.serviceName,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: _getNetworkBrandColor(_selectedNetwork!),
-                                ),
-                              ),
-                            )
-                          : null),
+                      : null,
                   filled: true,
                   fillColor: isDark ? const Color(0xFF27272A) : const Color(0xFFF7F8F9),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -626,8 +494,8 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(
-                      color: _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF1570A6),
                       width: 1.5,
                     ),
                   ),
@@ -898,47 +766,48 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           style: TextStyle(fontSize: 11.5, fontFamily: 'Courier', fontWeight: FontWeight.w600, color: muted),
         ),
         const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              height: 44,
-              child: ElevatedButton.icon(
-                onPressed: _isRechecking ? null : _checkManualStatus,
-                icon: _isRechecking
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.sync_rounded, size: 16),
-                label: Text(_isRechecking ? 'Checking...' : 'Check Status Now'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1570A6),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: 46,
+                child: ElevatedButton.icon(
+                  onPressed: _isRechecking ? null : _checkManualStatus,
+                  icon: _isRechecking
+                      ? const SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.sync_rounded, size: 16),
+                  label: Text(_isRechecking ? 'Checking Status...' : 'Check Status Now'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1570A6),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              height: 44,
-              child: OutlinedButton.icon(
-                onPressed: _resetFlow,
-                icon: const Icon(Icons.close_rounded, size: 16),
-                label: const Text('Cancel Request'),
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: cardBg,
-                  foregroundColor: muted,
-                  side: BorderSide(color: borderColor),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 44,
+                child: OutlinedButton.icon(
+                  onPressed: _resetFlow,
+                  icon: const Icon(Icons.close_rounded, size: 16),
+                  label: const Text('Cancel Request'),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: cardBg,
+                    foregroundColor: muted,
+                    side: BorderSide(color: borderColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -1282,25 +1151,10 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: brandColor,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    network.carrierName,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: network == MoMoNetwork.mtn ? Colors.black : Colors.white,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
+                CarrierBrandIcon(network: network, size: 28),
                 Icon(
                   isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                  size: 16,
+                  size: 18,
                   color: isSelected ? brandColor : muted.withValues(alpha: 0.4),
                 ),
               ],
@@ -1309,8 +1163,8 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             Text(
               network.carrierName,
               style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
                 color: heading,
               ),
             ),
@@ -1320,7 +1174,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 10.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: isSelected ? brandColor : muted,
               ),
@@ -1336,9 +1190,9 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       case MoMoNetwork.mtn:
         return const Color(0xFFE5A900);
       case MoMoNetwork.vodafone:
-        return const Color(0xFFE11D48);
+        return const Color(0xFFE60000);
       case MoMoNetwork.airtel:
-        return const Color(0xFF0284C7);
+        return const Color(0xFF00377B);
     }
   }
 

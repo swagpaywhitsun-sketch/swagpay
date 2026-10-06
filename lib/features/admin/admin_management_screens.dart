@@ -42,6 +42,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
     final posDevices = repo.getPosDevices();
     String selectedPosId = 'ANY_POS';
     bool showPassword = true;
+    bool isSubmitting = false;
 
     showDialog(
       context: context,
@@ -73,7 +74,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone Number (MoMo)')),
+                  TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone Number (Used for Login)')),
                   const SizedBox(height: 12),
                   TextField(controller: branchCtrl, decoration: const InputDecoration(labelText: 'Branch / Location')),
                   const SizedBox(height: 12),
@@ -122,50 +123,62 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
             ElevatedButton(
-              onPressed: () async {
-                if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty) return;
-                final pwd = passwordCtrl.text.trim().isNotEmpty ? passwordCtrl.text.trim() : 'Swag@1234';
-                final newTeller = AppUser(
-                  id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
-                  fullName: nameCtrl.text.trim(),
-                  email: emailCtrl.text.trim(),
-                  phone: phoneCtrl.text.trim(),
-                  role: UserRole.teller,
-                  branch: branchCtrl.text.trim(),
-                  assignedPos: selectedPosId == 'ANY_POS' ? ['ANY_POS'] : [selectedPosId],
-                  singleTxnLimit: double.tryParse(singleLimitCtrl.text) ?? 10000.0,
-                  dailyLimit: double.tryParse(dailyLimitCtrl.text) ?? 50000.0,
-                );
-                String? secret;
-                Object? failure;
-                try {
-                  secret = await repo.addTeller(newTeller, initialPassword: pwd);
-                } catch (e) {
-                  failure = e;
-                }
-                if (!ctx.mounted) return;
-                Navigator.pop(ctx);
-                if (failure != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Could not save teller: ${failure is ApiException ? failure.message : '$failure'}'),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
-                } else {
-                  _showCredentialsDialog(
-                    context,
-                    name: newTeller.fullName,
-                    phone: newTeller.phone,
-                    email: newTeller.email,
-                    password: secret ?? pwd,
-                    pos: selectedPosId == 'ANY_POS' ? 'Universal Access (Any Terminal)' : selectedPosId,
-                  );
-                }
-              },
-              child: const Text('Create Teller'),
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty) return;
+                      setDialogState(() => isSubmitting = true);
+                      final pwd = passwordCtrl.text.trim().isNotEmpty ? passwordCtrl.text.trim() : 'Swag@1234';
+                      final newTeller = AppUser(
+                        id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
+                        fullName: nameCtrl.text.trim(),
+                        email: emailCtrl.text.trim(),
+                        phone: phoneCtrl.text.trim(),
+                        role: UserRole.teller,
+                        branch: branchCtrl.text.trim(),
+                        assignedPos: selectedPosId == 'ANY_POS' ? ['ANY_POS'] : [selectedPosId],
+                        singleTxnLimit: double.tryParse(singleLimitCtrl.text) ?? 10000.0,
+                        dailyLimit: double.tryParse(dailyLimitCtrl.text) ?? 50000.0,
+                      );
+                      String? secret;
+                      Object? failure;
+                      try {
+                        secret = await repo.addTeller(newTeller, initialPassword: pwd);
+                      } catch (e) {
+                        failure = e;
+                      }
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
+                      if (failure != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Could not save teller: ${failure is ApiException ? failure.message : '$failure'}'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      } else {
+                        _showCredentialsDialog(
+                          context,
+                          name: newTeller.fullName,
+                          phone: newTeller.phone,
+                          email: newTeller.email,
+                          password: secret ?? pwd,
+                          pos: selectedPosId == 'ANY_POS' ? 'Universal Access (Any Terminal)' : selectedPosId,
+                        );
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Create Teller'),
             ),
           ],
         ),

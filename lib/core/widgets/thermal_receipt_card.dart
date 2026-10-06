@@ -90,20 +90,29 @@ class ThermalReceiptCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(6),
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: AppColors.success,
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.bolt, color: Colors.white, size: 20),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.asset(
+                          'logo.png',
+                          width: 26,
+                          height: 26,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.receipt_long_rounded, color: Color(0xFF1E293B), size: 22),
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     const Text(
-                      'SWAGPAY MOMO RECEIPT',
+                      'SWAG RECEIPT',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
                         letterSpacing: 1.5,
                       ),
                     ),
@@ -225,36 +234,52 @@ class ThermalReceiptCard extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 16),
-                // Simulated Barcode
+                // Simulated Barcode & Reference Section
                 Center(
                   child: Column(
                     children: [
                       Container(
-                        height: 36,
-                        width: 220,
+                        height: 38,
+                        width: 240,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.black12,
-                          borderRadius: BorderRadius.circular(4),
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(4),
+                            topRight: Radius.circular(4),
+                          ),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: List.generate(
-                            32,
+                            36,
                             (index) => Container(
-                              width: (index % 3 == 0) ? 3 : 1.5,
+                              width: (index % 4 == 0) ? 3 : ((index % 2 == 0) ? 2 : 1),
                               color: Colors.black87,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        transaction.reference,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          letterSpacing: 2,
-                          color: Color(0xFF64748B),
-                          fontFamily: 'Courier',
+                      // Solid crisp black line sitting directly above the reference
+                      Container(
+                        height: 2,
+                        width: 240,
+                        color: Colors.black,
+                      ),
+                      const SizedBox(height: 5),
+                      SizedBox(
+                        width: 240,
+                        child: Text(
+                          transaction.reference,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                            color: Color(0xFF1E293B),
+                            fontFamily: 'Courier',
+                          ),
                         ),
                       ),
                     ],

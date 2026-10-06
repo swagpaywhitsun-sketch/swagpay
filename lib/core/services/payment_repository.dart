@@ -497,7 +497,8 @@ class PaymentRepository {
           'initialPassword': initialPassword ?? 'Swag@1234',
         },
       );
-      await refreshFromBackend(force: true);
+      // Refresh repository in the background so credentials dialog displays instantly
+      unawaited(refreshFromBackend(force: true));
       return (res.data?['initialPassword'] ?? res.data?['tempSecret']) as String? ?? initialPassword ?? 'Swag@1234';
     } catch (e) {
       _tellers.removeWhere((t) => t.id == teller.id);

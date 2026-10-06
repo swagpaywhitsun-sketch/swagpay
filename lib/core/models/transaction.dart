@@ -17,9 +17,9 @@ extension MoMoNetworkHelper on MoMoNetwork {
       case MoMoNetwork.mtn:
         return 'MTN';
       case MoMoNetwork.vodafone:
-        return 'Vodafone';
+        return 'Telecel';
       case MoMoNetwork.airtel:
-        return 'Airtel';
+        return 'AT';
     }
   }
 
@@ -37,11 +37,11 @@ extension MoMoNetworkHelper on MoMoNetwork {
   String get label {
     switch (this) {
       case MoMoNetwork.mtn:
-        return 'MTN MoMo';
+        return 'MTN';
       case MoMoNetwork.vodafone:
-        return 'Vodafone / Telecel';
+        return 'Telecel';
       case MoMoNetwork.airtel:
-        return 'Airtel / AT Money';
+        return 'AT';
     }
   }
 }
