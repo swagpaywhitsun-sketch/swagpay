@@ -98,12 +98,20 @@ class PaymentTransaction {
     }
   }
 
+  String get displayPhone {
+    final num = customerNumber.trim();
+    if (num.isNotEmpty && num != 'null') return num;
+    final phone = customerPhone.trim();
+    if (phone.isNotEmpty && phone != 'null') return phone;
+    return '—';
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'reference': reference,
-        'customerNumber': customerNumber,
+        'customerNumber': displayPhone,
         'customerName': customerName,
-        'customerPhone': customerPhone,
+        'customerPhone': displayPhone,
         'amount': amount,
         'currency': currency,
         'status': status.name,
@@ -140,14 +148,24 @@ class PaymentTransaction {
       net = MoMoNetwork.airtel;
     }
 
+    final rawPhone = (json['momoNumber'] as String? ??
+            json['customerPhone'] as String? ??
+            json['customerNumber'] as String? ??
+            json['phone'] as String? ??
+            '')
+        .trim();
+
+    final rawName = (json['customerName'] as String?)?.trim();
+    final resolvedName = (rawName != null && rawName.isNotEmpty && rawName != rawPhone)
+        ? rawName
+        : (rawPhone.isNotEmpty ? rawPhone : 'Counter Customer');
+
     return PaymentTransaction(
       id: json['id'] as String? ?? 'tx_${DateTime.now().millisecondsSinceEpoch}',
       reference: json['reference'] as String? ?? '',
-      customerNumber: json['momoNumber'] as String? ?? json['customerNumber'] as String? ?? '',
-      customerName: json['customerName'] as String? ??
-          (json['momoNumber'] as String? ?? json['customerNumber'] as String?) ??
-          'Counter Customer',
-      customerPhone: json['momoNumber'] as String? ?? json['customerPhone'] as String? ?? '',
+      customerNumber: rawPhone,
+      customerName: resolvedName,
+      customerPhone: rawPhone,
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       currency: 'GH₵',
       status: s,

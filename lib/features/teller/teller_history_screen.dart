@@ -322,7 +322,7 @@ class _TellerHistoryScreenState extends ConsumerState<TellerHistoryScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${txn.customerNumber} · ${txn.networkDisplay}',
+                      '${txn.displayPhone} · ${txn.networkDisplay}',
                       style: TextStyle(
                         fontSize: 11,
                         color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),

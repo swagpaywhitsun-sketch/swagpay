@@ -584,7 +584,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                         ],
                                       ),
                                     ),
-                                    DataCell(Text('${t.customerName} (${t.customerNumber})')),
+                                    DataCell(Text(t.customerName == t.displayPhone ? t.displayPhone : '${t.customerName} (${t.displayPhone})')),
                                     DataCell(Text('GH₵ ${NumberFormat('#,##0.00').format(t.amount)}', style: const TextStyle(fontWeight: FontWeight.bold))),
                                     DataCell(Text(t.networkDisplay)),
                                     DataCell(Text('${t.tellerName} • ${t.posId}')),
@@ -742,7 +742,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${t.customerNumber} · ${t.tellerName} · ${t.posId}',
+                      '${t.displayPhone} · ${t.tellerName} · ${t.posId}',
                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                       overflow: TextOverflow.ellipsis,
                     ),

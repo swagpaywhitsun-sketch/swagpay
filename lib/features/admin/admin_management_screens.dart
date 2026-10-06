@@ -2266,7 +2266,7 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                 const Divider(height: 16),
                 _buildTxnDetailRow('Customer Name', txn.customerName.isNotEmpty ? txn.customerName : 'Walk-in Customer'),
                 const Divider(height: 16),
-                _buildTxnDetailRow('Customer Phone', txn.customerNumber, isCopyable: true, context: context),
+                _buildTxnDetailRow('Customer Phone', txn.displayPhone, isCopyable: true, context: context),
                 const Divider(height: 16),
                 _buildTxnDetailRow('Network Provider', txn.networkDisplay),
                 const Divider(height: 16),
@@ -2703,21 +2703,25 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Text(t.customerNumber, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                                          const SizedBox(width: 4),
-                                          IconButton(
-                                            icon: const Icon(Icons.copy_rounded, size: 12),
-                                            tooltip: 'Copy Phone',
-                                            splashRadius: 12,
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(),
-                                            onPressed: () {
-                                              Clipboard.setData(ClipboardData(text: t.customerNumber));
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(content: Text('Copied phone "${t.customerNumber}"'), duration: const Duration(seconds: 1)),
-                                              );
-                                            },
-                                          ),
+                                          const Icon(Icons.phone_iphone_rounded, size: 12, color: AppColors.textSecondary),
+                                          const SizedBox(width: 3),
+                                          Text(t.displayPhone, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                                          if (t.displayPhone != '—') ...[
+                                            const SizedBox(width: 4),
+                                            IconButton(
+                                              icon: const Icon(Icons.copy_rounded, size: 12),
+                                              tooltip: 'Copy Phone',
+                                              splashRadius: 12,
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
+                                              onPressed: () {
+                                                Clipboard.setData(ClipboardData(text: t.displayPhone));
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(content: Text('Copied phone "${t.displayPhone}"'), duration: const Duration(seconds: 1)),
+                                                );
+                                              },
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ],
@@ -2937,22 +2941,27 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                         overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 2),
                       Row(
                         children: [
+                          const Icon(Icons.phone_iphone_rounded, size: 12, color: AppColors.textSecondary),
+                          const SizedBox(width: 3),
                           Text(
-                            t.customerNumber,
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            t.displayPhone,
+                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
                           ),
-                          const SizedBox(width: 4),
-                          InkWell(
-                            onTap: () {
-                              Clipboard.setData(ClipboardData(text: t.customerNumber));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Copied phone "${t.customerNumber}"'), duration: const Duration(seconds: 1)),
-                              );
-                            },
-                            child: const Icon(Icons.copy_rounded, size: 12, color: AppColors.textSecondary),
-                          ),
+                          if (t.displayPhone != '—') ...[
+                            const SizedBox(width: 4),
+                            InkWell(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: t.displayPhone));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Copied phone "${t.displayPhone}"'), duration: const Duration(seconds: 1)),
+                                );
+                              },
+                              child: const Icon(Icons.copy_rounded, size: 12, color: AppColors.textSecondary),
+                            ),
+                          ],
                         ],
                       ),
                     ],

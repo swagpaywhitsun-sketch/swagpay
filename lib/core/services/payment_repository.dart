@@ -374,12 +374,41 @@ class PaymentRepository {
 
       if (statusFilter != null && t.status != statusFilter) return false;
       if (networkFilter != null && t.network != networkFilter) return false;
-      if (searchQuery != null && searchQuery.isNotEmpty) {
-        final q = searchQuery.toLowerCase();
-        final match = t.reference.toLowerCase().contains(q) ||
-            t.customerNumber.toLowerCase().contains(q) ||
-            t.customerName.toLowerCase().contains(q);
-        if (!match) return false;
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final rawQ = searchQuery.trim().toLowerCase();
+        final digitsQ = rawQ.replaceAll(RegExp(r'\D'), '');
+        final digitsPhone = t.displayPhone.replaceAll(RegExp(r'\D'), '');
+
+        // Direct text match across fields
+        final textMatch = t.reference.toLowerCase().contains(rawQ) ||
+            t.customerNumber.toLowerCase().contains(rawQ) ||
+            t.customerPhone.toLowerCase().contains(rawQ) ||
+            t.displayPhone.toLowerCase().contains(rawQ) ||
+            t.customerName.toLowerCase().contains(rawQ) ||
+            t.tellerName.toLowerCase().contains(rawQ) ||
+            t.posId.toLowerCase().contains(rawQ) ||
+            (t.receiptNumber?.toLowerCase().contains(rawQ) ?? false);
+
+        // Smart phone digit matching (handles 024 vs 23324 vs +233 24...)
+        bool phoneMatch = false;
+        if (digitsQ.isNotEmpty && digitsPhone.isNotEmpty) {
+          if (digitsPhone.contains(digitsQ) || digitsQ.contains(digitsPhone)) {
+            phoneMatch = true;
+          } else {
+            final phoneSuffix = digitsPhone.length >= 8
+                ? digitsPhone.substring(digitsPhone.length - 8)
+                : digitsPhone;
+            final qSuffix = digitsQ.length >= 8
+                ? digitsQ.substring(digitsQ.length - 8)
+                : digitsQ;
+            if (phoneSuffix.isNotEmpty &&
+                (digitsPhone.endsWith(qSuffix) || digitsQ.endsWith(phoneSuffix))) {
+              phoneMatch = true;
+            }
+          }
+        }
+
+        if (!textMatch && !phoneMatch) return false;
       }
       return true;
     }).toList();
