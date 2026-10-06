@@ -33,6 +33,7 @@ function shapeUser(row, role) {
     dbRole: role,
     posId: row.posId || null,
     active: row.active === 1 || row.active === true,
+    avatar: row.avatar || null,
   };
 }
 
@@ -89,6 +90,13 @@ module.exports = function registerAuthRoutes(app, pool) {
         safeEqual(identifier, bootstrapEmail) &&
         safeEqual(password, bootstrapPassword)
       ) {
+        let adminAvatar = null;
+        try {
+          const admRow = await pool.query('SELECT avatar FROM users WHERE id = $1', ['usr_admin']);
+          if (admRow.rows.length > 0) {
+            adminAvatar = admRow.rows[0].avatar;
+          }
+        } catch (_) {}
         const user = {
           id: 'usr_admin',
           name: 'Administrator',
@@ -96,6 +104,7 @@ module.exports = function registerAuthRoutes(app, pool) {
           phone: '',
           posId: null,
           active: 1,
+          avatar: adminAvatar,
         };
         const shaped = shapeUser(user, 'ADMIN');
         recordAudit(pool, user.id, 'USER_LOGIN', 'USER', user.id, { deviceId, deviceName, role: 'ADMIN' }, req);
@@ -108,7 +117,7 @@ module.exports = function registerAuthRoutes(app, pool) {
       if (cleanDigits.length >= 9) {
         const last9 = cleanDigits.slice(-9);
         userRes = await pool.query(
-          `SELECT id, name, email, phone, role, "posId", active, pin, "pinHash", "deviceId"
+          `SELECT id, name, email, phone, role, "posId", active, pin, "pinHash", "deviceId", avatar
            FROM users
            WHERE email = $1 
               OR phone = $1 
@@ -119,7 +128,7 @@ module.exports = function registerAuthRoutes(app, pool) {
         );
       } else {
         userRes = await pool.query(
-          `SELECT id, name, email, phone, role, "posId", active, pin, "pinHash", "deviceId"
+          `SELECT id, name, email, phone, role, "posId", active, pin, "pinHash", "deviceId", avatar
            FROM users WHERE email = $1 OR phone = $1 OR id = $1 LIMIT 1`,
           [identifier]
         );
@@ -173,7 +182,7 @@ module.exports = function registerAuthRoutes(app, pool) {
       if (check.rows.length > 0 && check.rows[0].revokedAt) {
         return res.status(401).json({ success: false, message: 'Session revoked' });
       }
-      const userRes = await pool.query('SELECT id, name, email, phone, role, "posId", active FROM users WHERE id = $1', [
+      const userRes = await pool.query('SELECT id, name, email, phone, role, "posId", active, avatar FROM users WHERE id = $1', [
         payload.uid,
       ]);
       if (userRes.rows.length === 0) return res.status(401).json({ success: false, message: 'User no longer exists' });
@@ -202,6 +211,37 @@ module.exports = function registerAuthRoutes(app, pool) {
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Self-service avatar update: saves base64 data URL or null to users.avatar
+  app.post('/api/users/me/avatar', requireAuth, async (req, res) => {
+    try {
+      const { avatar } = req.body;
+      const cleanAvatar = avatar && typeof avatar === 'string' && avatar.trim().length > 0 ? avatar.trim() : null;
+
+      if (cleanAvatar && cleanAvatar.length > 5 * 1024 * 1024) {
+        return res.status(400).json({ success: false, message: 'Avatar image too large (max 5MB)' });
+      }
+
+      if (req.auth.userId === 'usr_admin') {
+        await pool.query(
+          `INSERT INTO users (id, name, email, phone, pin, "pinHash", role, active, avatar, "createdAt", "updatedAt")
+           VALUES ('usr_admin', 'Administrator', $1, '', '', '', 'ADMIN', 1, $2, NOW(), NOW())
+           ON CONFLICT (id) DO UPDATE SET avatar = $2, "updatedAt" = NOW()`,
+          [process.env.ADMIN_BOOTSTRAP_EMAIL || 'admin@swagpay.internal', cleanAvatar]
+        );
+      } else {
+        await pool.query('UPDATE users SET avatar = $1, "updatedAt" = NOW() WHERE id = $2', [
+          cleanAvatar,
+          req.auth.userId,
+        ]);
+      }
+
+      recordAudit(pool, req.auth.userId, 'USER_AVATAR_UPDATED', 'USER', req.auth.userId, null, req);
+      res.json({ success: true, avatar: cleanAvatar });
+    } catch (err) {
+      res.status(500).json({ success: false, message: 'Failed to update profile picture', error: err.message });
     }
   });
 

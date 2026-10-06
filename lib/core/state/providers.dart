@@ -149,22 +149,61 @@ class AuthState {
   }
 }
 
-// User Avatar Provider for custom profile picture
+// User Avatar Provider for custom profile picture, synced across devices and local cache
 class UserAvatarNotifier extends Notifier<String?> {
   @override
   String? build() {
     final prefs = ref.watch(sharedPreferencesProvider);
+    final user = ref.watch(authProvider).currentUser;
+
+    if (user != null) {
+      if (user.avatar != null && user.avatar!.isNotEmpty) {
+        prefs.setString('user_profile_avatar', user.avatar!);
+        return user.avatar;
+      }
+      return null;
+    }
     return prefs.getString('user_profile_avatar');
   }
 
-  void setAvatar(String avatarUrlOrAsset) {
+  Future<void> setAvatar(String avatarUrlOrAsset) async {
     state = avatarUrlOrAsset;
-    ref.read(sharedPreferencesProvider).setString('user_profile_avatar', avatarUrlOrAsset);
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setString('user_profile_avatar', avatarUrlOrAsset);
+
+    // Update currentUser in AuthNotifier memory & session vault
+    ref.read(authProvider.notifier).updateAvatar(avatarUrlOrAsset);
+
+    // Persist to backend so it shows on any other device
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.post(
+        ApiConfig.updateAvatar,
+        data: {'avatar': avatarUrlOrAsset},
+      );
+    } catch (e) {
+      debugPrint('Failed to sync avatar to backend: $e');
+    }
   }
 
-  void clearAvatar() {
+  Future<void> clearAvatar() async {
     state = null;
-    ref.read(sharedPreferencesProvider).remove('user_profile_avatar');
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.remove('user_profile_avatar');
+
+    // Clear in AuthNotifier memory & session vault
+    ref.read(authProvider.notifier).updateAvatar(null);
+
+    // Persist removal to backend
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.post(
+        ApiConfig.updateAvatar,
+        data: {'avatar': null},
+      );
+    } catch (e) {
+      debugPrint('Failed to clear avatar on backend: $e');
+    }
   }
 }
 
@@ -266,11 +305,31 @@ class AuthNotifier extends Notifier<AuthState> {
   /// so the client never guesses or asserts one.
   Future<bool> signIn(String identifier, String password) => _authenticate(identifier, password, '');
 
+  void updateAvatar(String? avatar) {
+    if (state.currentUser != null) {
+      final updated = state.currentUser!.copyWith(avatar: avatar);
+      state = state.copyWith(currentUser: updated);
+      final rawUser = tokenVault.readUserSnapshot();
+      if (rawUser != null) {
+        final updatedJson = Map<String, dynamic>.from(rawUser);
+        updatedJson['avatar'] = avatar;
+        tokenVault.saveSession(
+          accessToken: tokenVault.readAccessToken() ?? '',
+          refreshToken: tokenVault.readRefreshToken(),
+          user: updatedJson,
+        );
+      }
+    }
+  }
+
   void logout() {
     final refresh = tokenVault.readRefreshToken();
     final access = tokenVault.readAccessToken();
     tokenVault.clearSession();
     _client.updateToken(null);
+    try {
+      ref.read(sharedPreferencesProvider).remove('user_profile_avatar');
+    } catch (_) {}
     state = const AuthState(currentUser: null);
     // Best-effort server-side revocation; the local session is already gone.
     if (refresh != null && refresh.isNotEmpty && access != null && access.isNotEmpty) {

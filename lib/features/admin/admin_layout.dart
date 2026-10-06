@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/user_avatar_widget.dart';
@@ -21,6 +23,112 @@ class AdminLayout extends ConsumerStatefulWidget {
 
 class _AdminLayoutState extends ConsumerState<AdminLayout> {
   bool _isSidebarCollapsed = false;
+
+  void _showAvatarPicker(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
+
+    Future<void> pickAndSave(ImageSource source) async {
+      try {
+        final picker = ImagePicker();
+        final XFile? image = await picker.pickImage(source: source, maxWidth: 512, maxHeight: 512, imageQuality: 85);
+        if (image != null) {
+          final bytes = await image.readAsBytes();
+          final b64 = base64Encode(bytes);
+          ref.read(userAvatarProvider.notifier).setAvatar('data:image/jpeg;base64,$b64');
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Profile picture updated!'), backgroundColor: Color(0xFF229ED9)),
+            );
+          }
+        }
+      } catch (_) {
+        if (context.mounted) Navigator.pop(context);
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: cardBg,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        final avatar = ref.watch(userAvatarProvider);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Profile Picture',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF303030),
+                      ),
+                    ),
+                    IconButton(icon: const Icon(Icons.close_rounded, size: 20), onPressed: () => Navigator.pop(ctx)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF229ED9).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.photo_library_outlined, color: Color(0xFF229ED9), size: 18),
+                  ),
+                  title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+                  onTap: () => pickAndSave(ImageSource.gallery),
+                ),
+                Divider(height: 1, color: borderColor),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF229ED9).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.camera_alt_outlined, color: Color(0xFF229ED9), size: 18),
+                  ),
+                  title: const Text('Take a Photo', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+                  onTap: () => pickAndSave(ImageSource.camera),
+                ),
+                if (avatar != null && avatar.isNotEmpty) ...[
+                  Divider(height: 1, color: borderColor),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 18),
+                    ),
+                    title: const Text('Remove Photo', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFFDC2626))),
+                    onTap: () {
+                      ref.read(userAvatarProvider.notifier).clearAvatar();
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +296,9 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             color: isDark ? AppColors.darkSurfaceElevated : Colors.white,
             onSelected: (val) {
-              if (val == 'settings') {
+              if (val == 'avatar') {
+                _showAvatarPicker(context);
+              } else if (val == 'settings') {
                 context.go('/admin/settings');
               } else if (val == 'reports') {
                 context.go('/admin/reports');
@@ -230,6 +340,16 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                       ),
                     ),
                     const Divider(height: 16),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'avatar',
+                child: Row(
+                  children: [
+                    Icon(Icons.add_a_photo_outlined, size: 18, color: AppColors.primary),
+                    SizedBox(width: 10),
+                    Text('Change Profile Picture', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),

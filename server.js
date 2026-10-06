@@ -9,8 +9,8 @@ const fs = require('fs');
 
 const app = express();
 app.set('trust proxy', true);
-app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 const PORT = process.env.PORT || 8080;
 
@@ -72,6 +72,7 @@ async function initDbMigrations() {
     'ALTER TABLE users DROP CONSTRAINT IF EXISTS users_posid_fkey',
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "singleTxnLimit" DOUBLE PRECISION DEFAULT 500000',
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "dailyLimit" DOUBLE PRECISION DEFAULT 5000000',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT',
     "INSERT INTO pos_terminals (id, code, name, location, active) VALUES ('POS-01', 'POS-01', 'Counter Terminal 01', 'Main Branch', 1) ON CONFLICT (id) DO NOTHING",
     "INSERT INTO pos_terminals (id, code, name, location, active) VALUES ('pos_01', 'POS-01', 'Counter Terminal 01', 'Main Branch', 1) ON CONFLICT (id) DO NOTHING",
   ];
@@ -518,7 +519,7 @@ app.get('/api/transactions', async (req, res) => {
 app.get('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, email, phone, role, "posId", "singleTxnLimit", "dailyLimit", active, "createdAt"
+      `SELECT id, name, email, phone, role, "posId", "singleTxnLimit", "dailyLimit", active, avatar, "createdAt"
        FROM users
        WHERE id != 'usr_archived'
        ORDER BY "createdAt" ASC`

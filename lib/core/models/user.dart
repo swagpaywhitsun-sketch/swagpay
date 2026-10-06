@@ -19,6 +19,7 @@ class AppUser {
   final DateTime? lastLogin;
   final String? token;
   final String? refreshToken;
+  final String? avatar;
 
   const AppUser({
     required this.id,
@@ -34,6 +35,7 @@ class AppUser {
     this.lastLogin,
     this.token,
     this.refreshToken,
+    this.avatar,
   });
 
   bool get isAdmin => role == UserRole.admin || role == UserRole.superAdmin;
@@ -66,6 +68,7 @@ class AppUser {
         'lastLogin': lastLogin?.toIso8601String(),
         'token': token,
         'refreshToken': refreshToken,
+        'avatar': avatar,
       };
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
@@ -97,6 +100,7 @@ class AppUser {
       lastLogin: json['lastLogin'] != null ? DateTime.tryParse(json['lastLogin'] as String) : null,
       token: json['token'] as String?,
       refreshToken: json['refreshToken'] as String?,
+      avatar: json['avatar'] as String?,
     );
   }
 
@@ -114,6 +118,7 @@ class AppUser {
     DateTime? lastLogin,
     String? token,
     String? refreshToken,
+    String? avatar,
   }) {
     return AppUser(
       id: id ?? this.id,
@@ -129,6 +134,7 @@ class AppUser {
       lastLogin: lastLogin ?? this.lastLogin,
       token: token ?? this.token,
       refreshToken: refreshToken ?? this.refreshToken,
+      avatar: avatar ?? this.avatar,
     );
   }
 }

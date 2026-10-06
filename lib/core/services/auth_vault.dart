@@ -210,13 +210,5 @@ AppUser? userFromSession(Map<String, dynamic>? json) {
   final id = json['id'] as String?;
   final email = json['email'] as String?;
   if (id == null || email == null) return null;
-  return AppUser(
-    id: id,
-    fullName: json['fullName'] as String? ?? 'SwagPay User',
-    email: email,
-    phone: json['phone'] as String? ?? '',
-    role: (json['role'] as String? ?? 'teller') == 'admin' ? UserRole.admin : UserRole.teller,
-    branch: json['branch'] as String?,
-    assignedPos: [if (json['posId'] != null) json['posId'] as String],
-  );
+  return AppUser.fromJson(json);
 }

@@ -39,6 +39,12 @@ function fakePool(users) {
         writes.push({ kind: 'upgrade', pinHash: params[0], userId: params[1] });
         return { rows: [] };
       }
+      if (/UPDATE users SET avatar/i.test(sql)) {
+        writes.push({ kind: 'avatar', avatar: params[0], userId: params[1] });
+        const u = users.find((x) => x.id === params[1]);
+        if (u) u.avatar = params[0];
+        return { rows: [] };
+      }
       if (/INSERT INTO sessions/i.test(sql)) return { rows: [] };
       if (/SELECT revokedAt FROM sessions/i.test(sql)) return { rows: [] };
       if (/password_resets/i.test(sql)) return { rows: [] };
@@ -246,6 +252,61 @@ test('tellers can log in using their phone number', async () => {
   const resPrefix = await login(pool, { identifier: '233241234567', password: 'Swag@1234' });
   assert.equal(resPrefix.status, 200);
   assert.equal(resPrefix.body.user.id, 'usr_teller_phone');
+});
+
+test('user profile picture is persisted and synced across devices on login', async () => {
+  const secret = auth.hashPassword('Swag@1234');
+  const pool = fakePool([
+    {
+      id: 'usr_teller_avatar',
+      email: 'teller_avatar@swagpay.test',
+      role: 'TELLER',
+      pinHash: secret,
+      avatar: 'data:image/jpeg;base64,initial_avatar_data',
+    },
+  ]);
+
+  // 1. First device logs in and receives the avatar
+  const dev1 = await login(pool, {
+    identifier: 'teller_avatar@swagpay.test',
+    password: 'Swag@1234',
+    deviceId: 'device-1',
+  });
+  assert.equal(dev1.status, 200);
+  assert.equal(dev1.body.user.avatar, 'data:image/jpeg;base64,initial_avatar_data');
+
+  // 2. User updates their avatar
+  const app = express();
+  app.use(express.json());
+  registerAuthRoutes(app, pool);
+  const server = await new Promise((r) => {
+    const s = app.listen(0, () => r(s));
+  });
+  try {
+    const updateRes = await fetch(`http://127.0.0.1:${server.address().port}/api/users/me/avatar`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        Authorization: `Bearer ${dev1.body.token}`,
+      },
+      body: JSON.stringify({ avatar: 'data:image/jpeg;base64,new_synced_avatar_data' }),
+    });
+    assert.equal(updateRes.status, 200);
+    const updateBody = await updateRes.json();
+    assert.equal(updateBody.success, true);
+    assert.equal(updateBody.avatar, 'data:image/jpeg;base64,new_synced_avatar_data');
+
+    // 3. User logs in from a completely DIFFERENT device (device-2)
+    const dev2 = await login(pool, {
+      identifier: 'teller_avatar@swagpay.test',
+      password: 'Swag@1234',
+      deviceId: 'device-2',
+    });
+    assert.equal(dev2.status, 200);
+    assert.equal(dev2.body.user.avatar, 'data:image/jpeg;base64,new_synced_avatar_data');
+  } finally {
+    server.close();
+  }
 });
 
 
