@@ -49,21 +49,34 @@ class TokenVault {
   Future<void> _hydrate() async {
     try {
       if (!kIsWeb) {
-        final secAccess = await _secureStorage.read(key: _accessKey);
+        // If already cached from SharedPreferences, skip Keychain read on startup
+        if (_cachedAccessToken != null && _cachedAccessToken!.isNotEmpty) return;
+
+        final secAccess = await _secureStorage
+            .read(key: _accessKey)
+            .timeout(const Duration(milliseconds: 800), onTimeout: () => null);
         if (secAccess != null && secAccess.isNotEmpty) _cachedAccessToken = secAccess;
 
-        final secRefresh = await _secureStorage.read(key: _refreshKey);
+        final secRefresh = await _secureStorage
+            .read(key: _refreshKey)
+            .timeout(const Duration(milliseconds: 800), onTimeout: () => null);
         if (secRefresh != null && secRefresh.isNotEmpty) _cachedRefreshToken = secRefresh;
 
-        final secDevice = await _secureStorage.read(key: _deviceIdKey);
+        final secDevice = await _secureStorage
+            .read(key: _deviceIdKey)
+            .timeout(const Duration(milliseconds: 800), onTimeout: () => null);
         if (secDevice != null && secDevice.isNotEmpty) _cachedDeviceId = secDevice;
 
-        final rawUser = await _secureStorage.read(key: _userKey);
+        final rawUser = await _secureStorage
+            .read(key: _userKey)
+            .timeout(const Duration(milliseconds: 800), onTimeout: () => null);
         if (rawUser != null && rawUser.isNotEmpty) {
           _cachedUser = jsonDecode(rawUser) as Map<String, dynamic>?;
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('TokenVault hydrate fallback to prefs: $e');
+    }
   }
 
   String? readAccessToken() => _cachedAccessToken ?? _prefs?.getString(_accessKey);

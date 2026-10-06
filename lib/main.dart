@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,6 +20,17 @@ import 'features/teller/teller_reports_and_shift.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Protect against uncaught async errors on mobile so they don't terminate the process
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('SwagPay caught FlutterError: ${details.exception}');
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('SwagPay caught PlatformDispatcher error: $error\n$stack');
+    return true; // Return true to prevent app crash/termination
+  };
+
   final sharedPreferences = await SharedPreferences.getInstance();
   tokenVault.attach(sharedPreferences);
 
@@ -32,12 +44,28 @@ void main() async {
   );
 }
 
+class RouterNotifier extends ChangeNotifier {
+  final Ref _ref;
+
+  RouterNotifier(this._ref) {
+    _ref.listen<AuthState>(authProvider, (previous, next) {
+      notifyListeners();
+    });
+  }
+}
+
+final routerNotifierProvider = Provider<RouterNotifier>((ref) {
+  return RouterNotifier(ref);
+});
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authProvider);
+  final notifier = ref.watch(routerNotifierProvider);
 
   return GoRouter(
     initialLocation: '/splash',
+    refreshListenable: notifier,
     redirect: (context, state) {
+      final auth = ref.read(authProvider);
       final isAuthRoute = state.matchedLocation == '/teller/login' ||
           state.matchedLocation == '/splash' ||
           state.matchedLocation == '/device-unauthorized' ||
@@ -181,8 +209,10 @@ class _SwagPayAppState extends ConsumerState<SwagPayApp> {
   @override
   void initState() {
     super.initState();
-    // Restore session on app boot so browser refresh maintains login state
-    ref.read(authProvider.notifier).resumeSession();
+    // Restore session on app boot safely after the initial frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(authProvider.notifier).resumeSession();
+    });
   }
 
   @override

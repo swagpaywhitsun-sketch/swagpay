@@ -21,21 +21,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _checkInit() async {
-    final restored = ref.read(authProvider.notifier).resumeSession();
-    await Future.delayed(const Duration(milliseconds: 1400));
-    await restored;
-    if (!mounted) return;
-    final auth = ref.read(authProvider);
-    if (!auth.isDeviceAuthorized) {
-      context.go('/device-unauthorized');
-    } else if (auth.isAuthenticated) {
-      if (auth.isAdmin) {
-        context.go('/admin/dashboard');
+    try {
+      final restored = ref.read(authProvider.notifier).resumeSession();
+      await Future.delayed(const Duration(milliseconds: 1200));
+      await restored;
+      if (!mounted) return;
+      final auth = ref.read(authProvider);
+      if (!auth.isDeviceAuthorized) {
+        context.go('/device-unauthorized');
+      } else if (auth.isAuthenticated) {
+        context.go(auth.isAdmin ? '/admin/dashboard' : '/teller/dashboard');
       } else {
-        context.go('/teller/dashboard');
+        context.go('/teller/login');
       }
-    } else {
-      context.go('/teller/login');
+    } catch (e) {
+      debugPrint('SplashScreen _checkInit caught: $e');
+      if (mounted) {
+        context.go('/teller/login');
+      }
     }
   }
 

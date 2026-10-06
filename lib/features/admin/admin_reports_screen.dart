@@ -861,144 +861,152 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
             ),
             const SizedBox(height: 18),
 
-            // Row: Status Distribution & Ticket Size Tier Breakdown
-            Flex(
-              direction: isWide ? Axis.horizontal : Axis.vertical,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Collection Status Distribution (Pie / Donut)
-                Expanded(
-                  flex: isWide ? 1 : 0,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Collection Outcome & Authorization', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 4),
-                          const Text('Successful vs customer-declined / timed-out prompts', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                          const SizedBox(height: 20),
-                          Builder(
-                            builder: (context) {
-                              final total = successTxns.length + failedTxns.length;
-                              final successPct = total > 0 ? (successTxns.length / total) * 100 : 100.0;
-                              final failedPct = total > 0 ? (failedTxns.length / total) * 100 : 0.0;
+            // Row / Column: Status Distribution & Ticket Size Tier Breakdown
+            Builder(
+              builder: (context) {
+                final outcomeCard = Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Collection Outcome & Authorization', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        const Text('Successful vs customer-declined / timed-out prompts', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        const SizedBox(height: 20),
+                        Builder(
+                          builder: (context) {
+                            final total = successTxns.length + failedTxns.length;
+                            final successPct = total > 0 ? (successTxns.length / total) * 100 : 100.0;
+                            final failedPct = total > 0 ? (failedTxns.length / total) * 100 : 0.0;
 
-                              return SizedBox(
-                                height: 170,
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Stack(
-                                        alignment: Alignment.center,
-                                        children: [
-                                          PieChart(
-                                            PieChartData(
-                                              sectionsSpace: 3,
-                                              centerSpaceRadius: 46,
-                                              sections: [
-                                                PieChartSectionData(
-                                                  color: AppColors.success,
-                                                  value: successTxns.isNotEmpty ? successTxns.length.toDouble() : 1.0,
-                                                  title: '${successPct.toStringAsFixed(0)}%',
-                                                  radius: 40,
-                                                  titleStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
-                                                ),
-                                                PieChartSectionData(
-                                                  color: AppColors.error,
-                                                  value: failedTxns.isNotEmpty ? failedTxns.length.toDouble() : 0.001,
-                                                  title: failedTxns.isNotEmpty ? '${failedPct.toStringAsFixed(0)}%' : '',
-                                                  radius: 40,
-                                                  titleStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text('$total', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                                              const Text('Prompts', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                            return SizedBox(
+                              height: 170,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        PieChart(
+                                          PieChartData(
+                                            sectionsSpace: 3,
+                                            centerSpaceRadius: 46,
+                                            sections: [
+                                              PieChartSectionData(
+                                                color: AppColors.success,
+                                                value: successTxns.isNotEmpty ? successTxns.length.toDouble() : 1.0,
+                                                title: '${successPct.toStringAsFixed(0)}%',
+                                                radius: 40,
+                                                titleStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
+                                              ),
+                                              PieChartSectionData(
+                                                color: AppColors.error,
+                                                value: failedTxns.isNotEmpty ? failedTxns.length.toDouble() : 0.001,
+                                                title: failedTxns.isNotEmpty ? '${failedPct.toStringAsFixed(0)}%' : '',
+                                                radius: 40,
+                                                titleStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
+                                              ),
                                             ],
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        _buildLegendItem(AppColors.success, 'Paid / Approved', '${successTxns.length} txns (${successPct.toStringAsFixed(1)}%)'),
-                                        const SizedBox(height: 12),
-                                        _buildLegendItem(AppColors.error, 'Declined / Expired', '${failedTxns.length} txns (${failedPct.toStringAsFixed(1)}%)'),
+                                        ),
+                                        Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text('$total', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                                            const Text('Prompts', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                          ],
+                                        ),
                                       ],
                                     ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _buildLegendItem(AppColors.success, 'Paid / Approved', '${successTxns.length} txns (${successPct.toStringAsFixed(1)}%)'),
+                                      const SizedBox(height: 12),
+                                      _buildLegendItem(AppColors.error, 'Declined / Expired', '${failedTxns.length} txns (${failedPct.toStringAsFixed(1)}%)'),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                if (isWide) const SizedBox(width: 18),
-                if (!isWide) const SizedBox(height: 18),
+                );
 
-                // Ticket Size Tier Breakdown
-                Expanded(
-                  flex: isWide ? 1 : 0,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Ticket Size Tier Distribution', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 4),
-                          const Text('Consumer spending concentration across transaction value buckets', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                          const SizedBox(height: 20),
-                          _buildTierProgress(
-                            title: 'Micro (< GH₵50)',
-                            count: microCount,
-                            amount: microAmount,
-                            totalAmount: totalAmount,
-                            color: const Color(0xFF06B6D4),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildTierProgress(
-                            title: 'Standard (GH₵50 – GH₵200)',
-                            count: standardCount,
-                            amount: standardAmount,
-                            totalAmount: totalAmount,
-                            color: const Color(0xFF10B981),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildTierProgress(
-                            title: 'Commercial (GH₵200 – GH₵1,000)',
-                            count: mediumCount,
-                            amount: mediumAmount,
-                            totalAmount: totalAmount,
-                            color: const Color(0xFFF59E0B),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildTierProgress(
-                            title: 'Enterprise / High Value (> GH₵1,000)',
-                            count: bulkCount,
-                            amount: bulkAmount,
-                            totalAmount: totalAmount,
-                            color: const Color(0xFF8B5CF6),
-                          ),
-                        ],
-                      ),
+                final tierCard = Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Ticket Size Tier Distribution', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        const Text('Consumer spending concentration across transaction value buckets', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        const SizedBox(height: 20),
+                        _buildTierProgress(
+                          title: 'Micro (< GH₵50)',
+                          count: microCount,
+                          amount: microAmount,
+                          totalAmount: totalAmount,
+                          color: const Color(0xFF06B6D4),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildTierProgress(
+                          title: 'Standard (GH₵50 – GH₵200)',
+                          count: standardCount,
+                          amount: standardAmount,
+                          totalAmount: totalAmount,
+                          color: AppColors.primaryLight,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildTierProgress(
+                          title: 'Commercial (GH₵200 – GH₵1,000)',
+                          count: mediumCount,
+                          amount: mediumAmount,
+                          totalAmount: totalAmount,
+                          color: const Color(0xFFF59E0B),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildTierProgress(
+                          title: 'Enterprise / High Value (> GH₵1,000)',
+                          count: bulkCount,
+                          amount: bulkAmount,
+                          totalAmount: totalAmount,
+                          color: const Color(0xFF8B5CF6),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
-            ),
+                );
+
+                if (isWide) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: outcomeCard),
+                      const SizedBox(width: 18),
+                      Expanded(child: tierCard),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      outcomeCard,
+                      const SizedBox(height: 18),
+                      tierCard,
+                    ],
+                  );
+                }
+              },
+            )
           ],
         );
       },
