@@ -380,188 +380,221 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 900;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        final titleWidget = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 10,
+              runSpacing: 6,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text(
-                          'Reports & Data Analytics',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5),
-                        ),
-                        const SizedBox(width: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.success.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 6,
-                                height: 6,
-                                child: DecoratedBox(decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
-                              ),
-                              SizedBox(width: 5),
-                              Text('LIVE LEDGER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.success)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Deep financial analytics, MoMo operator share, peak rush insights, and cashier audit logs',
-                      style: TextStyle(color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary, fontSize: 13),
-                    ),
-                  ],
+                const Text(
+                  'Reports & Data Analytics',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                 ),
-                if (isWide)
-                  Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Refresh Ledger',
-                        icon: const Icon(Icons.sync_rounded, size: 20),
-                        onPressed: () {
-                          ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Ledger refreshed with latest real-time transactions!'), duration: Duration(seconds: 2)),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        ),
-                        onPressed: () => _exportCsv(txns, totalAmount),
-                        icon: const Icon(Icons.download_rounded, size: 16),
-                        label: const Text('Export CSV Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      ),
-                    ],
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                   ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Controls & Filters Strip
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E22) : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? const Color(0xFF2E2E32) : const Color(0xFFE2E8F0)),
-              ),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 10,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                alignment: WrapAlignment.spaceBetween,
-                children: [
-                  // Timeframe Segmented Switcher
-                  SegmentedButton<int>(
-                    style: ButtonStyle(
-                      textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    segments: const [
-                      ButtonSegment(value: 1, label: Text('Today')),
-                      ButtonSegment(value: 7, label: Text('7D')),
-                      ButtonSegment(value: 30, label: Text('30D')),
-                      ButtonSegment(value: 90, label: Text('90D')),
-                      ButtonSegment(value: 365, label: Text('All Time')),
-                    ],
-                    selected: {_selectedDays},
-                    onSelectionChanged: (set) => setState(() => _selectedDays = set.first),
-                  ),
-
-                  // Network Filter Dropdown
-                  Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF2A2A30) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: isDark ? const Color(0xFF3E3E46) : const Color(0xFFCBD5E1)),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<MoMoNetwork?>(
-                            value: _selectedNetwork,
-                            hint: const Text('All Networks', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                            icon: const Icon(Icons.arrow_drop_down_rounded, size: 20),
-                            isDense: true,
-                            dropdownColor: isDark ? const Color(0xFF1E1E22) : Colors.white,
-                            items: const [
-                              DropdownMenuItem(value: null, child: Text('All Telcos (MTN, Telecel, AT)', style: TextStyle(fontSize: 12))),
-                              DropdownMenuItem(value: MoMoNetwork.mtn, child: Text('MTN Mobile Money', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                              DropdownMenuItem(value: MoMoNetwork.vodafone, child: Text('Telecel Cash', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                              DropdownMenuItem(value: MoMoNetwork.airtel, child: Text('AT Money', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                            ],
-                            onChanged: (val) => setState(() => _selectedNetwork = val),
-                          ),
-                        ),
+                      SizedBox(
+                        width: 6,
+                        height: 6,
+                        child: DecoratedBox(decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
                       ),
-                      const SizedBox(width: 8),
-
-                      // POS Filter Dropdown
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF2A2A30) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: isDark ? const Color(0xFF3E3E46) : const Color(0xFFCBD5E1)),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String?>(
-                            value: _selectedPos,
-                            hint: const Text('All Terminals', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                            icon: const Icon(Icons.arrow_drop_down_rounded, size: 20),
-                            isDense: true,
-                            dropdownColor: isDark ? const Color(0xFF1E1E22) : Colors.white,
-                            items: [
-                              const DropdownMenuItem(value: null, child: Text('All POS Terminals', style: TextStyle(fontSize: 12))),
-                              ...posDevices.map((p) => DropdownMenuItem<String?>(
-                                value: p.id,
-                                child: Text(
-                                  p.serialNumber.isNotEmpty ? '${p.name} (${p.serialNumber})' : p.name,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              )),
-                            ],
-                            onChanged: (val) => setState(() => _selectedPos = val),
-                          ),
-                        ),
-                      ),
-                      if (!isWide) ...[
-                        const SizedBox(width: 8),
-                        IconButton(
-                          tooltip: 'Export CSV',
-                          icon: const Icon(Icons.download_rounded),
-                          onPressed: () => _exportCsv(txns, totalAmount),
-                        ),
-                      ],
+                      SizedBox(width: 5),
+                      Text('LIVE LEDGER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.success)),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Deep financial analytics, MoMo operator share, peak rush insights, and cashier audit logs',
+              style: TextStyle(color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary, fontSize: 13),
             ),
           ],
         );
+
+        final actionButtons = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Refresh Ledger',
+              icon: const Icon(Icons.sync_rounded, size: 20),
+              onPressed: () {
+                ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Ledger refreshed with latest real-time transactions!'), duration: Duration(seconds: 2)),
+                );
+              },
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              onPressed: () => _exportCsv(txns, totalAmount),
+              icon: const Icon(Icons.download_rounded, size: 16),
+              label: const Text('Export CSV Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+          ],
+        );
+
+        if (isWide) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: titleWidget),
+                  const SizedBox(width: 16),
+                  actionButtons,
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildFilterContainer(isDark, isWide, posDevices, txns, totalAmount),
+            ],
+          );
+        } else {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              titleWidget,
+              const SizedBox(height: 12),
+              actionButtons,
+              const SizedBox(height: 16),
+              _buildFilterContainer(isDark, isWide, posDevices, txns, totalAmount),
+            ],
+          );
+        }
       },
+    );
+  }
+
+  Widget _buildFilterContainer(
+    bool isDark,
+    bool isWide,
+    List<PosDevice> posDevices,
+    List<PaymentTransaction> txns,
+    double totalAmount,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E22) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF2E2E32) : const Color(0xFFE2E8F0)),
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.spaceBetween,
+        children: [
+          // Timeframe Segmented Switcher with showSelectedIcon: false and horizontal scroll
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<int>(
+              showSelectedIcon: false,
+              style: ButtonStyle(
+                textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                visualDensity: VisualDensity.compact,
+              ),
+              segments: const [
+                ButtonSegment(value: 1, label: Text('Today')),
+                ButtonSegment(value: 7, label: Text('7D')),
+                ButtonSegment(value: 30, label: Text('30D')),
+                ButtonSegment(value: 90, label: Text('90D')),
+                ButtonSegment(value: 365, label: Text('All Time')),
+              ],
+              selected: {_selectedDays},
+              onSelectionChanged: (set) => setState(() => _selectedDays = set.first),
+            ),
+          ),
+
+          // Filters Wrap for individual dropdowns
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              // Network Filter Dropdown
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2A2A30) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isDark ? const Color(0xFF3E3E46) : const Color(0xFFCBD5E1)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<MoMoNetwork?>(
+                    value: _selectedNetwork,
+                    hint: const Text('All Networks', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    icon: const Icon(Icons.arrow_drop_down_rounded, size: 20),
+                    isDense: true,
+                    dropdownColor: isDark ? const Color(0xFF1E1E22) : Colors.white,
+                    items: const [
+                      DropdownMenuItem(value: null, child: Text('All Telcos (MTN, Telecel, AT)', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: MoMoNetwork.mtn, child: Text('MTN Mobile Money', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                      DropdownMenuItem(value: MoMoNetwork.vodafone, child: Text('Telecel Cash', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                      DropdownMenuItem(value: MoMoNetwork.airtel, child: Text('AT Money', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                    ],
+                    onChanged: (val) => setState(() => _selectedNetwork = val),
+                  ),
+                ),
+              ),
+
+              // POS Filter Dropdown
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2A2A30) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isDark ? const Color(0xFF3E3E46) : const Color(0xFFCBD5E1)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String?>(
+                    value: _selectedPos,
+                    hint: const Text('All Terminals', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    icon: const Icon(Icons.arrow_drop_down_rounded, size: 20),
+                    isDense: true,
+                    dropdownColor: isDark ? const Color(0xFF1E1E22) : Colors.white,
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All POS Terminals', style: TextStyle(fontSize: 12))),
+                      ...posDevices.map((p) => DropdownMenuItem<String?>(
+                        value: p.id,
+                        child: Text(
+                          p.serialNumber.isNotEmpty ? '${p.name} (${p.serialNumber})' : p.name,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      )),
+                    ],
+                    onChanged: (val) => setState(() => _selectedPos = val),
+                  ),
+                ),
+              ),
+
+              if (!isWide)
+                IconButton(
+                  tooltip: 'Export CSV',
+                  icon: const Icon(Icons.download_rounded),
+                  onPressed: () => _exportCsv(txns, totalAmount),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -741,35 +774,70 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth < 650) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Collection Revenue Velocity (Inflow Trajectory)',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _selectedDays == 1 ? 'Hourly MoMo collection progression today' : 'Daily inflow volume over the selected time horizon',
+                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)} Inflow',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.primary),
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'Collection Revenue Velocity (Inflow Trajectory)',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Collection Revenue Velocity (Inflow Trajectory)',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _selectedDays == 1 ? 'Hourly MoMo collection progression today' : 'Daily inflow volume over the selected time horizon',
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _selectedDays == 1 ? 'Hourly MoMo collection progression today' : 'Daily inflow volume over the selected time horizon',
-                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            const SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)} Inflow',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.primary),
+                              ),
                             ),
                           ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)} Inflow',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.primary),
-                          ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 28),
 
@@ -1046,29 +1114,58 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth < 650) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('24-Hour Collection Density & Rush Hour Heatmap', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          const Text('Volume collected by hour of day (identifies busiest cashier counter hours)', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Peak Rush: ${peakHourIndex.toString().padLeft(2, '0')}:00',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFD97706)),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('24-Hour Collection Density & Rush Hour Heatmap', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                        SizedBox(height: 4),
-                        Text('Volume collected by hour of day (identifies busiest cashier counter hours)', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('24-Hour Collection Density & Rush Hour Heatmap', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                              SizedBox(height: 4),
+                              Text('Volume collected by hour of day (identifies busiest cashier counter hours)', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Peak Rush: ${peakHourIndex.toString().padLeft(2, '0')}:00',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFD97706)),
+                          ),
+                        ),
                       ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'Peak Rush: ${peakHourIndex.toString().padLeft(2, '0')}:00',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFD97706)),
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 28),
                 SizedBox(
@@ -1351,34 +1448,166 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
             children: [
               Padding(
                 padding: const EdgeInsets.all(20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    if (c.maxWidth < 650) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Cashier / Counter Productivity Leaderboard', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 2),
+                          Text('Ranked by total collections and customer throughput across ${sortedTellers.length} active staff', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryLight.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text('${sortedTellers.length} Staff on Duty', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryLight)),
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Cashier / Counter Productivity Leaderboard', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                        const SizedBox(height: 2),
-                        Text('Ranked by total collections and customer throughput across ${sortedTellers.length} active staff', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Cashier / Counter Productivity Leaderboard', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                              const SizedBox(height: 2),
+                              Text('Ranked by total collections and customer throughput across ${sortedTellers.length} active staff', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryLight.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text('${sortedTellers.length} Staff on Duty', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryLight)),
+                        ),
                       ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryLight.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text('${sortedTellers.length} Staff on Duty', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryLight)),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
               const Divider(height: 1),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                  child: DataTable(
+              if (constraints.maxWidth < 768)
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: sortedTellers.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final rank = index + 1;
+                    final entry = sortedTellers[index];
+                    final count = entry.value['count'] as int;
+                    final amount = entry.value['amount'] as double;
+                    final maxSingle = entry.value['max'] as double;
+                    final avg = count > 0 ? amount / count : 0.0;
+                    final share = totalAmount > 0 ? (amount / totalAmount) * 100 : 0.0;
+                    final rankIcon = rank == 1 ? '🥇' : (rank == 2 ? '🥈' : (rank == 3 ? '🥉' : '#$rank'));
+
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(rankIcon, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                  const SizedBox(width: 8),
+                                  Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                                ],
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  entry.value['pos']?.toString() ?? 'pos_01',
+                                  style: const TextStyle(fontSize: 11, fontFamily: 'Courier', fontWeight: FontWeight.bold, color: AppColors.primary),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Total Collected', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text('GH₵ ${NumberFormat('#,##0.00').format(amount)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.success)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Successful Txns', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text('$count txns', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Average Ticket', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text('GH₵ ${NumberFormat('#,##0.00').format(avg)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Max Single Txn', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text('GH₵ ${NumberFormat('#,##0.00').format(maxSingle)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(3),
+                                  child: LinearProgressIndicator(
+                                    value: (share / 100).clamp(0.0, 1.0),
+                                    backgroundColor: isDark ? const Color(0xFF2E2E32) : const Color(0xFFE2E8F0),
+                                    color: AppColors.primary,
+                                    minHeight: 6,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text('${share.toStringAsFixed(1)}% volume', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                )
+              else
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: DataTable(
                     columnSpacing: 24,
                     headingRowHeight: 44,
                     headingRowColor: WidgetStateProperty.all(isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF8FAFC)),
@@ -1469,98 +1698,212 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
             children: [
               Padding(
                 padding: const EdgeInsets.all(20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Daily Financial Reconciliation & Settlement Ledger', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                        const SizedBox(height: 2),
-                        Text('Day-by-day aggregated collections audit with bank payout status', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                      ],
-                    ),
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      ),
-                      onPressed: () => _exportCsv(txns, totalAmount),
-                      icon: const Icon(Icons.download_rounded, size: 14),
-                      label: const Text('Download CSV', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                  child: DataTable(
-                    columnSpacing: 24,
-                    headingRowHeight: 44,
-                    headingRowColor: WidgetStateProperty.all(isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF8FAFC)),
-                    columns: const [
-                      DataColumn(label: Text('DATE', style: TextStyle(fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('SUCCESSFUL TXNS', style: TextStyle(fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('FAILED / TIMEOUT', style: TextStyle(fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('GROSS INFLOW', style: TextStyle(fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('AVG. TRANSACTION', style: TextStyle(fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('COMPLETION RATE', style: TextStyle(fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('SETTLEMENT STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
-                    ],
-                    rows: sortedDates.map((dStr) {
-                      final dayTxns = daysMap[dStr]!;
-                      final daySuccess = dayTxns.where((t) => t.status == TransactionStatus.success).toList();
-                      final dayFailed = dayTxns.where((t) => t.status == TransactionStatus.failed).toList();
-                      final dayAmount = daySuccess.fold<double>(0.0, (acc, t) => acc + t.amount);
-                      final dayAvg = daySuccess.isNotEmpty ? dayAmount / daySuccess.length : 0.0;
-                      final dayRate = dayTxns.isNotEmpty ? (daySuccess.length / dayTxns.length) * 100 : 100.0;
-
-                      final formattedDate = DateFormat('EEE, dd MMM yyyy').format(DateTime.parse(dStr));
-
-                      return DataRow(
-                        cells: [
-                          DataCell(Text(formattedDate, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
-                          DataCell(Text('${daySuccess.length}', style: const TextStyle(fontWeight: FontWeight.w700))),
-                          DataCell(Text('${dayFailed.length}', style: TextStyle(color: dayFailed.isNotEmpty ? AppColors.error : AppColors.textSecondary))),
-                          DataCell(Text('GH₵ ${NumberFormat('#,##0.00').format(dayAmount)}', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.success))),
-                          DataCell(Text('GH₵ ${NumberFormat('#,##0.00').format(dayAvg)}', style: const TextStyle(fontWeight: FontWeight.w600))),
-                          DataCell(
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: (dayRate >= 90 ? AppColors.success : AppColors.warning).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                '${dayRate.toStringAsFixed(1)}%',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: dayRate >= 90 ? AppColors.success : AppColors.warning,
-                                ),
-                              ),
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    if (c.maxWidth < 650) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Daily Financial Reconciliation & Settlement Ledger', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 2),
+                          const Text('Day-by-day aggregated collections audit with bank payout status', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                          const SizedBox(height: 10),
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             ),
-                          ),
-                          DataCell(
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
-                                const SizedBox(width: 4),
-                                const Text('Reconciled & Settled', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success)),
-                              ],
-                            ),
+                            onPressed: () => _exportCsv(txns, totalAmount),
+                            icon: const Icon(Icons.download_rounded, size: 14),
+                            label: const Text('Download CSV', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                           ),
                         ],
                       );
-                    }).toList(),
-                  ),
+                    }
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Daily Financial Reconciliation & Settlement Ledger', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                              SizedBox(height: 2),
+                              Text('Day-by-day aggregated collections audit with bank payout status', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.success,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          ),
+                          onPressed: () => _exportCsv(txns, totalAmount),
+                          icon: const Icon(Icons.download_rounded, size: 14),
+                          label: const Text('Download CSV', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
+              const Divider(height: 1),
+              if (constraints.maxWidth < 768)
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: sortedDates.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final dStr = sortedDates[index];
+                    final dayTxns = daysMap[dStr]!;
+                    final daySuccess = dayTxns.where((t) => t.status == TransactionStatus.success).toList();
+                    final dayFailed = dayTxns.where((t) => t.status == TransactionStatus.failed).toList();
+                    final dayAmount = daySuccess.fold<double>(0.0, (acc, t) => acc + t.amount);
+                    final dayAvg = daySuccess.isNotEmpty ? dayAmount / daySuccess.length : 0.0;
+                    final dayRate = dayTxns.isNotEmpty ? (daySuccess.length / dayTxns.length) * 100 : 100.0;
+                    final formattedDate = DateFormat('EEE, dd MMM yyyy').format(DateTime.parse(dStr));
+
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(formattedDate, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: (dayRate >= 90 ? AppColors.success : AppColors.warning).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '${dayRate.toStringAsFixed(1)}% Success',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: dayRate >= 90 ? AppColors.success : AppColors.warning,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Gross Inflow', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text('GH₵ ${NumberFormat('#,##0.00').format(dayAmount)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.success)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Completed / Failed', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text('${daySuccess.length} success / ${dayFailed.length} failed', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: dayFailed.isNotEmpty ? AppColors.error : AppColors.textPrimary)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Avg. Transaction', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text('GH₵ ${NumberFormat('#,##0.00').format(dayAvg)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: const [
+                              Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
+                              SizedBox(width: 4),
+                              Text('Reconciled & Settled', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                )
+              else
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: DataTable(
+                      columnSpacing: 24,
+                      headingRowHeight: 44,
+                      headingRowColor: WidgetStateProperty.all(isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF8FAFC)),
+                      columns: const [
+                        DataColumn(label: Text('DATE', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('SUCCESSFUL TXNS', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('FAILED / TIMEOUT', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('GROSS INFLOW', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('AVG. TRANSACTION', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('COMPLETION RATE', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('SETTLEMENT STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
+                      ],
+                      rows: sortedDates.map((dStr) {
+                        final dayTxns = daysMap[dStr]!;
+                        final daySuccess = dayTxns.where((t) => t.status == TransactionStatus.success).toList();
+                        final dayFailed = dayTxns.where((t) => t.status == TransactionStatus.failed).toList();
+                        final dayAmount = daySuccess.fold<double>(0.0, (acc, t) => acc + t.amount);
+                        final dayAvg = daySuccess.isNotEmpty ? dayAmount / daySuccess.length : 0.0;
+                        final dayRate = dayTxns.isNotEmpty ? (daySuccess.length / dayTxns.length) * 100 : 100.0;
+
+                        final formattedDate = DateFormat('EEE, dd MMM yyyy').format(DateTime.parse(dStr));
+
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(formattedDate, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+                            DataCell(Text('${daySuccess.length}', style: const TextStyle(fontWeight: FontWeight.w700))),
+                            DataCell(Text('${dayFailed.length}', style: TextStyle(color: dayFailed.isNotEmpty ? AppColors.error : AppColors.textSecondary))),
+                            DataCell(Text('GH₵ ${NumberFormat('#,##0.00').format(dayAmount)}', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.success))),
+                            DataCell(Text('GH₵ ${NumberFormat('#,##0.00').format(dayAvg)}', style: const TextStyle(fontWeight: FontWeight.w600))),
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: (dayRate >= 90 ? AppColors.success : AppColors.warning).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '${dayRate.toStringAsFixed(1)}%',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: dayRate >= 90 ? AppColors.success : AppColors.warning,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
+                                  const SizedBox(width: 4),
+                                  const Text('Reconciled & Settled', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
             ],
           );
         },
@@ -1719,15 +2062,44 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('$title ($count collections)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            Text(
-              'GH₵ ${NumberFormat('#,##0.00').format(amount)} (${(share * 100).toStringAsFixed(1)}%)',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 450) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$title ($count txns)',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'GH₵ ${NumberFormat('#,##0.00').format(amount)} (${(share * 100).toStringAsFixed(1)}%)',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color),
+                  ),
+                ],
+              );
+            }
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    '$title ($count collections)',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'GH₵ ${NumberFormat('#,##0.00').format(amount)} (${(share * 100).toStringAsFixed(1)}%)',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 6),
         LinearProgressIndicator(

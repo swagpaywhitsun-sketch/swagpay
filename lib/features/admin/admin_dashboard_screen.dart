@@ -89,11 +89,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Column(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth > 768;
+                final titleWidget = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
@@ -101,34 +100,32 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          'Live counter collections, hardware terminals & staff management',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                          ),
-                        ),
-                        if (repo.clientRemoteIp.isNotEmpty && repo.clientRemoteIp != '127.0.0.1') ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'IP: ${repo.clientRemoteIp}',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'Courier', color: AppColors.primaryLight),
-                            ),
-                          ),
-                        ],
-                      ],
+                    Text(
+                      'Live counter collections, hardware terminals & staff management',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                      ),
                     ),
+                    if (repo.clientRemoteIp.isNotEmpty && repo.clientRemoteIp != '127.0.0.1') ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Client IP: ${repo.clientRemoteIp}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'Courier', color: AppColors.primaryLight),
+                        ),
+                      ),
+                    ],
                   ],
-                ),
-                Row(
+                );
+
+                final actionButtons = Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
                       tooltip: 'Refresh live data from PostgreSQL',
@@ -152,8 +149,29 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       label: const Text('Export Data'),
                     ),
                   ],
-                ),
-              ],
+                );
+
+                if (isWide) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(child: titleWidget),
+                      const SizedBox(width: 16),
+                      actionButtons,
+                    ],
+                  );
+                } else {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleWidget,
+                      const SizedBox(height: 12),
+                      actionButtons,
+                    ],
+                  );
+                }
+              },
             ),
             const SizedBox(height: 16),
 
@@ -511,6 +529,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                             child: const Text('No transactions recorded yet.'),
                           );
                         }
+                        if (constraints.maxWidth < 768) {
+                          return ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: txns.take(6).length,
+                            separatorBuilder: (context, index) => const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final t = txns[index];
+                              return _buildMobileRecentTxnCard(context, t, isDark);
+                            },
+                          );
+                        }
+
                         return SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: ConstrainedBox(
@@ -635,6 +666,115 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMobileRecentTxnCard(BuildContext context, PaymentTransaction t, bool isDark) {
+    Color netColor;
+    switch (t.network) {
+      case MoMoNetwork.mtn:
+        netColor = const Color(0xFFEAB308);
+        break;
+      case MoMoNetwork.vodafone:
+        netColor = const Color(0xFFEF4444);
+        break;
+      case MoMoNetwork.airtel:
+        netColor = const Color(0xFF3B82F6);
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      t.reference,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: t.reference));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Copied reference "${t.reference}"'), duration: const Duration(seconds: 1)),
+                        );
+                      },
+                      child: const Icon(Icons.copy_rounded, size: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              StatusBadge(status: t.status),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t.customerName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${t.customerNumber} · ${t.tellerName} · ${t.posId}',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'GH₵ ${NumberFormat('#,##0.00').format(t.amount)}',
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.primaryLight),
+                  ),
+                  const SizedBox(height: 3),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: netColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      t.networkDisplay,
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: netColor),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

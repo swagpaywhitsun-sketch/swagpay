@@ -1636,11 +1636,10 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Column(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 768;
+              final titleWidget = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('POS Hardware & Terminals', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
@@ -1650,8 +1649,10 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                     style: TextStyle(color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
-              ),
-              Row(
+              );
+
+              final actionButtons = Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton.filledTonal(
                     onPressed: () => repo.refreshFromBackend(),
@@ -1665,8 +1666,29 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                     label: const Text('Add POS Terminal'),
                   ),
                 ],
-              ),
-            ],
+              );
+
+              if (isWide) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: titleWidget),
+                    const SizedBox(width: 16),
+                    actionButtons,
+                  ],
+                );
+              } else {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleWidget,
+                    const SizedBox(height: 12),
+                    actionButtons,
+                  ],
+                );
+              }
+            },
           ),
           const SizedBox(height: 20),
 
@@ -2362,11 +2384,10 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Column(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 768;
+              final titleWidget = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('All Collections & Transactions', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
@@ -2376,8 +2397,10 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                     style: TextStyle(color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
-              ),
-              Row(
+              );
+
+              final actionButtons = Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton.filledTonal(
                     onPressed: () => repo.refreshFromBackend(),
@@ -2395,8 +2418,29 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                     label: const Text('Export CSV'),
                   ),
                 ],
-              ),
-            ],
+              );
+
+              if (isWide) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: titleWidget),
+                    const SizedBox(width: 16),
+                    actionButtons,
+                  ],
+                );
+              } else {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleWidget,
+                    const SizedBox(height: 12),
+                    actionButtons,
+                  ],
+                );
+              }
+            },
           ),
           const SizedBox(height: 20),
 
