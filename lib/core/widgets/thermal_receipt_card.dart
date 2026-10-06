@@ -76,7 +76,7 @@ class ThermalReceiptCard extends StatelessWidget {
         children: [
           // Receipt Header
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
             decoration: const BoxDecoration(
               color: Color(0xFF1E293B),
               borderRadius: BorderRadius.only(
@@ -172,7 +172,7 @@ class ThermalReceiptCard extends StatelessWidget {
 
           // Body Details
           Padding(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -371,7 +371,7 @@ class ThermalReceiptCard extends StatelessWidget {
 
   Widget _buildReceiptRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [

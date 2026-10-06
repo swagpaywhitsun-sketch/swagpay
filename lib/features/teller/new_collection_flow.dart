@@ -813,54 +813,55 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     );
   }
 
-  // --- STEP 3: PAYMENT SUCCESS ---
+  // --- STEP 3: PAYMENT SUCCESS (RECEIPT AS HERO) ---
   Widget _buildStep3Success() {
     if (_completedTransaction == null) return const SizedBox();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
     final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
-    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: isDark ? 0.15 : 0.08),
-              shape: BoxShape.circle,
+        // Sleek compact confirmation banner
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.success.withValues(alpha: isDark ? 0.2 : 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: AppColors.success.withValues(alpha: isDark ? 0.4 : 0.25),
             ),
-            child: const Icon(Icons.check_circle_rounded, size: 56, color: AppColors.success),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Payment Received · GH₵ ${_completedTransaction!.amount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14.5,
+                  color: AppColors.success,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 14),
-        Text(
-          'Payment Successful',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: isDark ? Colors.white : const Color(0xFF303030),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Ref: ${_completedTransaction!.reference}',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: muted, fontFamily: 'Courier'),
-        ),
-        const SizedBox(height: 20),
 
+        // Thermal Receipt Hero Card
         ThermalReceiptCard(transaction: _completedTransaction!),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
 
+        // Primary Action: New Collection
         SizedBox(
           height: 48,
           child: ElevatedButton.icon(
             onPressed: _resetFlow,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('New Collection', style: TextStyle(fontWeight: FontWeight.w800)),
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text('Start New Collection', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF1570A6),
               foregroundColor: Colors.white,
@@ -869,18 +870,12 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 48,
-          child: OutlinedButton(
+        const SizedBox(height: 6),
+        Center(
+          child: TextButton.icon(
             onPressed: () => context.go('/teller/dashboard'),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: cardBg,
-              foregroundColor: isDark ? Colors.white : const Color(0xFF303030),
-              side: BorderSide(color: borderColor),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Back to Dashboard', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+            icon: Icon(Icons.dashboard_outlined, size: 16, color: muted),
+            label: Text('Back to Dashboard', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: muted)),
           ),
         ),
       ],
