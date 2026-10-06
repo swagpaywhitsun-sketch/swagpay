@@ -43,16 +43,43 @@ class CarrierBrandIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String rawSvg;
+    Widget iconContent;
     switch (network) {
       case MoMoNetwork.mtn:
-        rawSvg = _mtnSvg;
+        iconContent = SvgPicture.string(
+          _mtnSvg,
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+        );
         break;
       case MoMoNetwork.vodafone:
-        rawSvg = _telecelSvg;
+        iconContent = Image.asset(
+          'telecel.png',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => SvgPicture.string(
+            _telecelSvg,
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
+          ),
+        );
         break;
       case MoMoNetwork.airtel:
-        rawSvg = _atSvg;
+        iconContent = Image.asset(
+          'at-logo-sm.png',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => SvgPicture.string(
+            _atSvg,
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
+          ),
+        );
         break;
     }
 
@@ -61,12 +88,7 @@ class CarrierBrandIcon extends StatelessWidget {
       child: SizedBox(
         width: size,
         height: size,
-        child: SvgPicture.string(
-          rawSvg,
-          width: size,
-          height: size,
-          fit: BoxFit.contain,
-        ),
+        child: iconContent,
       ),
     );
   }

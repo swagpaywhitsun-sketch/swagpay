@@ -71,6 +71,8 @@ flutter:
 
   assets:
     - logo.png
+    - telecel.png
+    - at-logo-sm.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
