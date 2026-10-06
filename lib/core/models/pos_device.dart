@@ -18,6 +18,7 @@ class PosDevice {
   final String? ipAddress;
 
   bool get isActive => status != PosStatus.disabled;
+  String get code => serialNumber;
 
   const PosDevice({
     required this.id,

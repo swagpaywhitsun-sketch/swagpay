@@ -92,6 +92,12 @@ module.exports = function registerAuthRoutes(app, pool) {
       ) {
         let adminAvatar = null;
         try {
+          await pool.query(
+            `INSERT INTO users (id, name, email, phone, pin, "pinHash", role, active, "createdAt", "updatedAt")
+             VALUES ('usr_admin', 'Administrator', $1, '', '', '', 'ADMIN', 1, NOW(), NOW())
+             ON CONFLICT (id) DO NOTHING`,
+            [bootstrapEmail]
+          );
           const admRow = await pool.query('SELECT avatar FROM users WHERE id = $1', ['usr_admin']);
           if (admRow.rows.length > 0) {
             adminAvatar = admRow.rows[0].avatar;
@@ -178,18 +184,44 @@ module.exports = function registerAuthRoutes(app, pool) {
     if (!payload) return res.status(401).json({ success: false, message: 'Session expired, sign in again' });
 
     try {
-      const check = await pool.query('SELECT revokedAt FROM sessions WHERE "jti" = $1', [payload.jti]);
-      if (check.rows.length > 0 && check.rows[0].revokedAt) {
-        return res.status(401).json({ success: false, message: 'Session revoked' });
-      }
-      const userRes = await pool.query('SELECT id, name, email, phone, role, "posId", active, avatar FROM users WHERE id = $1', [
-        payload.uid,
-      ]);
-      if (userRes.rows.length === 0) return res.status(401).json({ success: false, message: 'User no longer exists' });
-      const row = userRes.rows[0];
-      if (Number(row.active) !== 1) return res.status(403).json({ success: false, message: 'Account is deactivated' });
+      try {
+        const check = await pool.query('SELECT "revokedAt" FROM sessions WHERE "jti" = $1', [payload.jti]);
+        if (check.rows.length > 0 && check.rows[0].revokedAt) {
+          return res.status(401).json({ success: false, message: 'Session revoked' });
+        }
+      } catch (_) {}
 
-      const role = normaliseRole(row.role);
+      let row;
+      let role;
+      if (payload.uid === 'usr_admin') {
+        const bootstrapEmail = (process.env.ADMIN_BOOTSTRAP_EMAIL || 'admin@swagpay.internal').toLowerCase();
+        let adminAvatar = null;
+        try {
+          const admRow = await pool.query('SELECT avatar FROM users WHERE id = $1', ['usr_admin']);
+          if (admRow.rows.length > 0) adminAvatar = admRow.rows[0].avatar;
+        } catch (_) {}
+        row = {
+          id: 'usr_admin',
+          name: 'Administrator',
+          email: bootstrapEmail,
+          phone: '',
+          role: 'ADMIN',
+          posId: null,
+          active: 1,
+          avatar: adminAvatar,
+        };
+        role = 'ADMIN';
+      } else {
+        const userRes = await pool.query(
+          'SELECT id, name, email, phone, role, "posId", active, avatar FROM users WHERE id = $1',
+          [payload.uid]
+        );
+        if (userRes.rows.length === 0) return res.status(401).json({ success: false, message: 'User no longer exists' });
+        row = userRes.rows[0];
+        if (Number(row.active) !== 1) return res.status(403).json({ success: false, message: 'Account is deactivated' });
+        role = normaliseRole(row.role);
+      }
+
       const accessToken = createAccessToken({ id: row.id, dbRole: role, posId: row.posId }, payload.did);
       return res.json({
         success: true,
@@ -198,7 +230,7 @@ module.exports = function registerAuthRoutes(app, pool) {
         expiresIn: ACCESS_TTL_SECONDS,
       });
     } catch (err) {
-      return res.status(500).json({ success: false, message: 'Refresh failed', error: err.message });
+      return res.status(401).json({ success: false, message: 'Refresh failed', error: err.message });
     }
   });
 

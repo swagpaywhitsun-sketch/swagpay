@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/models/pos_device.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
@@ -372,7 +373,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
   Widget _buildHeaderBar(
     BuildContext context,
     bool isDark,
-    List<dynamic> posDevices,
+    List<PosDevice> posDevices,
     double totalAmount,
     List<PaymentTransaction> txns,
   ) {
@@ -533,7 +534,13 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
                             dropdownColor: isDark ? const Color(0xFF1E1E22) : Colors.white,
                             items: [
                               const DropdownMenuItem(value: null, child: Text('All POS Terminals', style: TextStyle(fontSize: 12))),
-                              ...posDevices.map((p) => DropdownMenuItem(value: p.id.toString(), child: Text('${p.name} (${p.code})', style: const TextStyle(fontSize: 12)))),
+                              ...posDevices.map((p) => DropdownMenuItem<String?>(
+                                value: p.id,
+                                child: Text(
+                                  p.serialNumber.isNotEmpty ? '${p.name} (${p.serialNumber})' : p.name,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              )),
                             ],
                             onChanged: (val) => setState(() => _selectedPos = val),
                           ),
