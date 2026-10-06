@@ -37,7 +37,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
     final passwordCtrl = TextEditingController(text: 'Swag@1234');
     final singleLimitCtrl = TextEditingController(text: '10000');
     final dailyLimitCtrl = TextEditingController(text: '50000');
-    final branchCtrl = TextEditingController(text: 'Accra Mall Food Court');
+    final branchCtrl = TextEditingController();
     final repo = ref.read(paymentRepositoryProvider);
     final posDevices = repo.getPosDevices();
     String selectedPosId = 'ANY_POS';
@@ -48,7 +48,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Add New Teller / Cashier'),
+          title: const Text('Add New Cashier'),
           content: ConstrainedBox(
             constraints: const BoxConstraints(minWidth: 480, maxWidth: 560),
             child: SingleChildScrollView(
@@ -76,7 +76,13 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                   const SizedBox(height: 12),
                   TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone Number (Used for Login)')),
                   const SizedBox(height: 12),
-                  TextField(controller: branchCtrl, decoration: const InputDecoration(labelText: 'Branch / Location')),
+                  TextField(
+                    controller: branchCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Branch / Location',
+                      hintText: 'Enter branch or location',
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   // POS Selector (Default to Universal Access)
                   DropdownButtonFormField<String>(
@@ -157,7 +163,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                       if (failure != null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Could not save teller: ${failure is ApiException ? failure.message : '$failure'}'),
+                            content: Text('Could not save cashier: ${failure is ApiException ? failure.message : '$failure'}'),
                             backgroundColor: AppColors.error,
                           ),
                         );
@@ -178,7 +184,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Create Teller'),
+                  : const Text('Create Cashier'),
             ),
           ],
         ),
@@ -312,7 +318,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
             onPressed: () {
               final phoneLine = phone.trim().isNotEmpty ? 'Login Phone: $phone\n' : '';
               Clipboard.setData(ClipboardData(
-                text: 'SwagPay Teller Login Credentials:\n${phoneLine}Login Email: $email\nPassword: $password\nTerminal Access: $pos',
+                text: 'SwagPay Cashier Login Credentials:\n${phoneLine}Login Email: $email\nPassword: $password\nTerminal Access: $pos',
               ));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -545,7 +551,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
           children: [
             const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 24),
             const SizedBox(width: 8),
-            const Text('Delete Staff / Teller'),
+            const Text('Delete Cashier'),
           ],
         ),
         content: ConstrainedBox(
@@ -566,7 +572,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Staff "${teller.fullName}" was deleted successfully.'),
+                    content: Text('Cashier "${teller.fullName}" was deleted successfully.'),
                     backgroundColor: AppColors.success,
                   ),
                 );
@@ -574,13 +580,13 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Failed to delete teller: ${e is ApiException ? e.message : '$e'}'),
+                    content: Text('Failed to delete cashier: ${e is ApiException ? e.message : '$e'}'),
                     backgroundColor: AppColors.error,
                   ),
                 );
               }
             },
-            child: const Text('Delete Teller'),
+            child: const Text('Delete Cashier'),
           ),
         ],
       ),
@@ -710,7 +716,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Teller & Staff Management', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                  const Text('Cashier & Staff Management', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
                   Text(
                     'Manage cashier accounts, counter POS assignments, and authorization limits',
@@ -729,7 +735,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                   ElevatedButton.icon(
                     onPressed: () => _showAddTellerDialog(context),
                     icon: const Icon(Icons.person_add_rounded, size: 18),
-                    label: const Text('Add Teller'),
+                    label: const Text('Add Cashier'),
                   ),
                 ],
               ),
@@ -750,7 +756,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                 childAspectRatio: isWide ? 2.3 : 1.6,
                 children: [
                   StatCard(
-                    title: 'Total Tellers',
+                    title: 'Total Cashiers',
                     value: '${allTellers.length}',
                     icon: Icons.people_alt_rounded,
                     accentColor: AppColors.primaryLight,
@@ -794,7 +800,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                       controller: _searchCtrl,
                       onChanged: (_) => setState(() {}),
                       decoration: const InputDecoration(
-                        hintText: 'Search teller by name, email, phone, or branch...',
+                        hintText: 'Search cashier by name, email, phone, or branch...',
                         prefixIcon: Icon(Icons.search_rounded),
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.symmetric(vertical: 12),
@@ -826,14 +832,14 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                       children: [
                         Icon(Icons.person_off_rounded, size: 48, color: AppColors.textSecondary.withValues(alpha: 0.5)),
                         const SizedBox(height: 16),
-                        const Text('No tellers found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        const Text('No cashiers found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 6),
-                        const Text('Try adjusting your search query or add a new teller.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                        const Text('Try adjusting your search query or add a new cashier.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
                           onPressed: () => _showAddTellerDialog(context),
                           icon: const Icon(Icons.person_add_rounded, size: 16),
-                          label: const Text('Add Teller Now'),
+                          label: const Text('Add Cashier Now'),
                         ),
                       ],
                     ),
@@ -854,8 +860,8 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                           dataRowMaxHeight: 64,
                           headingRowColor: WidgetStateProperty.all(isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF8FAFC)),
                           columns: const [
-                            DataColumn(label: Text('TELLER ID', style: TextStyle(fontWeight: FontWeight.bold))),
-                            DataColumn(label: Text('STAFF NAME & EMAIL', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('CASHIER ID', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('CASHIER NAME & EMAIL', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('PHONE NUMBER', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('BRANCH / HUB', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('ASSIGNED POS', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -874,14 +880,14 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                                       const SizedBox(width: 4),
                                       IconButton(
                                         icon: const Icon(Icons.copy_rounded, size: 14),
-                                        tooltip: 'Copy Teller ID',
+                                        tooltip: 'Copy Cashier ID',
                                         splashRadius: 14,
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
                                         onPressed: () {
                                           Clipboard.setData(ClipboardData(text: t.id));
                                           ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text('Copied Teller ID "${t.id}"'), duration: const Duration(seconds: 1)),
+                                            SnackBar(content: Text('Copied Cashier ID "${t.id}"'), duration: const Duration(seconds: 1)),
                                           );
                                         },
                                       ),
@@ -922,7 +928,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                                     ],
                                   ),
                                 ),
-                                DataCell(Text(t.branch ?? 'Accra Central Hub', style: const TextStyle(fontSize: 12))),
+                                DataCell(Text((t.branch != null && t.branch!.trim().isNotEmpty) ? t.branch! : '—', style: const TextStyle(fontSize: 12))),
                                 DataCell(
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -966,7 +972,10 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                                           color: Colors.blue.withValues(alpha: 0.12),
                                           borderRadius: BorderRadius.circular(4),
                                         ),
-                                        child: Text(t.role.name.toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue)),
+                                        child: Text(
+                                          t.role == UserRole.teller ? 'CASHIER' : (t.role == UserRole.seniorTeller ? 'SENIOR CASHIER' : t.role.name.toUpperCase()),
+                                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                                        ),
                                       ),
                                       const SizedBox(width: 6),
                                       Container(
@@ -1003,7 +1012,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
-                                        tooltip: 'Delete Staff Member',
+                                        tooltip: 'Delete Cashier',
                                         onPressed: () => _confirmDeleteTeller(context, t),
                                       ),
                                     ],
@@ -1023,7 +1032,7 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Showing ${tellers.length} of ${allTellers.length} staff records • Live synced with Supabase PostgreSQL',
+                            'Showing ${tellers.length} of ${allTellers.length} cashier records • Live synced with Supabase PostgreSQL',
                             style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                           ),
                           TextButton.icon(
@@ -1067,8 +1076,8 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
 
   void _showAddPosDialog(BuildContext context) {
     final codeCtrl = TextEditingController(text: 'POS-0${DateTime.now().millisecond}');
-    final nameCtrl = TextEditingController(text: 'Till Counter');
-    final locCtrl = TextEditingController(text: 'Accra Mall Food Court');
+    final nameCtrl = TextEditingController();
+    final locCtrl = TextEditingController();
 
     showDialog(
       context: context,
@@ -1079,11 +1088,26 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'Terminal Code (e.g. POS-02)')),
+              TextField(
+                controller: codeCtrl,
+                decoration: const InputDecoration(labelText: 'Terminal Code (e.g. POS-02)'),
+              ),
               const SizedBox(height: 12),
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Terminal Name (e.g. Till 2 - Main Hall)')),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Terminal Name *',
+                  hintText: 'e.g. Counter 1, Till 2',
+                ),
+              ),
               const SizedBox(height: 12),
-              TextField(controller: locCtrl, decoration: const InputDecoration(labelText: 'Physical Location')),
+              TextField(
+                controller: locCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Physical Location / Branch',
+                  hintText: 'Enter branch or physical location',
+                ),
+              ),
             ],
           ),
         ),
@@ -1189,7 +1213,7 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
         content: ConstrainedBox(
           constraints: const BoxConstraints(minWidth: 460, maxWidth: 520),
           child: Text(
-            'Are you sure you want to permanently delete POS terminal "${pos.name}" (${pos.serialNumber})?\n\nTellers assigned to this terminal will automatically fallback to universal access.',
+            'Are you sure you want to permanently delete POS terminal "${pos.name}" (${pos.serialNumber})?\n\nCashiers assigned to this terminal will automatically fallback to universal access.',
             style: const TextStyle(fontSize: 14, height: 1.5),
           ),
         ),
@@ -1260,7 +1284,7 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
             children: [
               _buildDetailTile('Terminal ID', pos.id),
               const Divider(height: 12),
-              _buildDetailTile('Location', pos.location.isNotEmpty ? pos.location : 'Main Counter'),
+              _buildDetailTile('Location', pos.location.isNotEmpty ? pos.location : '—'),
               const Divider(height: 12),
               _buildDetailTile('Hardware Fingerprint', pos.deviceFingerprint),
               const Divider(height: 12),

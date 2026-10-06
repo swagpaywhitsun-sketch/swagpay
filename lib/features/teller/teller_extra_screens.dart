@@ -222,7 +222,7 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
                     onTap: () => _showAvatarPicker(context),
                     child: Stack(
                       children: [
-                        UserAvatarWidget(avatarData: avatar, name: user?.fullName ?? 'Teller', radius: 40),
+                        UserAvatarWidget(avatarData: avatar, name: user?.fullName ?? 'Cashier', radius: 40),
                         Positioned(
                           bottom: 0,
                           right: 0,
@@ -240,7 +240,7 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    user?.fullName ?? 'Teller Cashier',
+                    user?.fullName ?? 'Cashier',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -249,7 +249,7 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    user?.email ?? 'teller@swagpay.com',
+                    user?.email ?? 'cashier@swagpay.com',
                     style: TextStyle(
                       fontSize: 12,
                       color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
@@ -263,7 +263,7 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      user?.roleDisplay ?? 'Teller Cashier',
+                      user?.roleDisplay ?? 'Cashier',
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -286,13 +286,13 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
               ),
               child: Column(
                 children: [
-                  _infoTile(Icons.badge_outlined, 'Teller ID', user?.id ?? 'TEL-001', isDark),
+                  _infoTile(Icons.badge_outlined, 'Cashier ID', user?.id ?? 'CSH-001', isDark),
                   Divider(height: 1, indent: 52, color: borderColor),
-                  _infoTile(Icons.email_outlined, 'Email Address', user?.email ?? 'teller@swagpay.com', isDark),
+                  _infoTile(Icons.email_outlined, 'Email Address', user?.email ?? 'cashier@swagpay.com', isDark),
                   Divider(height: 1, indent: 52, color: borderColor),
                   _infoTile(Icons.phone_outlined, 'Phone Number', user?.phone.isNotEmpty == true ? user!.phone : 'Not set', isDark),
                   Divider(height: 1, indent: 52, color: borderColor),
-                  _infoTile(Icons.storefront_outlined, 'Assigned Branch', user?.branch ?? 'Accra Mall Hub', isDark),
+                  _infoTile(Icons.storefront_outlined, 'Assigned Branch', (user?.branch != null && user!.branch!.trim().isNotEmpty) ? user.branch! : 'Not Assigned', isDark),
                   Divider(height: 1, indent: 52, color: borderColor),
                   _infoTile(
                     Icons.point_of_sale_outlined,

@@ -450,7 +450,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       children: [
                         _buildNavItem(Icons.dashboard_rounded, 'Dashboard', '/admin/dashboard'),
-                        _buildNavItem(Icons.people_alt_rounded, 'Tellers & Staff', '/admin/tellers'),
+                        _buildNavItem(Icons.people_alt_rounded, 'Cashiers & Staff', '/admin/tellers'),
                         _buildNavItem(Icons.point_of_sale_rounded, 'POS Terminals', '/admin/pos'),
                         _buildNavItem(Icons.receipt_long_rounded, 'Transactions', '/admin/transactions'),
                         _buildNavItem(Icons.insights_rounded, 'Reports & Analytics', '/admin/reports'),
@@ -515,7 +515,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 },
                 items: const [
                   BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
-                  BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded), label: 'Tellers'),
+                  BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded), label: 'Cashiers'),
                   BottomNavigationBarItem(icon: Icon(Icons.point_of_sale_rounded), label: 'POS'),
                   BottomNavigationBarItem(icon: Icon(Icons.receipt_long_rounded), label: 'Txns'),
                   BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: 'Settings'),
@@ -527,7 +527,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
   }
 
   int _getMobileNavIndex(String route) {
-    if (route.contains('/admin/tellers')) return 1;
+    if (route.contains('/admin/tellers') || route.contains('/admin/cashiers')) return 1;
     if (route.contains('/admin/pos')) return 2;
     if (route.contains('/admin/transactions')) return 3;
     if (route.contains('/admin/settings')) return 4;
@@ -535,7 +535,8 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
   }
 
   Widget _buildNavItem(IconData icon, String label, String route) {
-    final isSelected = widget.currentRoute == route;
+    final isSelected = widget.currentRoute == route ||
+        (route == '/admin/tellers' && widget.currentRoute == '/admin/cashiers');
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
       decoration: BoxDecoration(

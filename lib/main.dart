@@ -163,6 +163,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: '/admin/cashiers',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AdminTellersScreen(),
+            ),
+          ),
+          GoRoute(
             path: '/admin/pos',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: AdminPosScreen(),

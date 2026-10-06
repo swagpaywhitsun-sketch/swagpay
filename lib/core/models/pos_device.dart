@@ -53,7 +53,7 @@ class PosDevice {
         name: json['name'] as String? ?? 'Terminal',
         serialNumber: json['code'] as String? ?? json['serialNumber'] as String? ?? '',
         deviceFingerprint: json['deviceFingerprint'] as String? ?? json['code'] as String? ?? json['serialNumber'] as String? ?? '',
-        branch: json['branch'] as String? ?? json['location'] as String? ?? 'Main Branch',
+        branch: json['branch'] as String? ?? json['location'] as String? ?? '',
         location: json['location'] as String? ?? '',
         assignedTellerIds: (json['assignedTellerIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
         status: PosStatus.values.firstWhere(

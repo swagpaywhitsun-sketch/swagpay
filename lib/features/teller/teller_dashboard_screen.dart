@@ -135,7 +135,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                         ),
                         child: UserAvatarWidget(
                           avatarData: avatar,
-                          name: user?.fullName ?? 'Teller',
+                          name: user?.fullName ?? 'Cashier',
                           radius: 20,
                         ),
                       ),
@@ -146,7 +146,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              user?.fullName ?? 'Teller Cashier',
+                              user?.fullName ?? 'Cashier',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14,
@@ -156,7 +156,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              user?.email ?? 'teller@swagpay.com',
+                              user?.email ?? 'cashier@swagpay.com',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: Colors.white.withValues(alpha: 0.85),
@@ -171,7 +171,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                user?.roleDisplay ?? 'Teller Cashier',
+                                user?.roleDisplay ?? 'Cashier',
                                 style: const TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
@@ -219,7 +219,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14.0),
               child: UserAvatarWidget(
                 avatarData: avatar,
-                name: user?.fullName ?? 'Teller',
+                name: user?.fullName ?? 'Cashier',
                 radius: 16,
               ),
             ),

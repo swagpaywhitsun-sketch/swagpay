@@ -40,6 +40,7 @@ class AppUser {
 
   bool get isAdmin => role == UserRole.admin || role == UserRole.superAdmin;
   bool get isTeller => role == UserRole.teller || role == UserRole.seniorTeller;
+  bool get isCashier => isTeller;
 
   String get roleDisplay {
     switch (role) {
@@ -48,9 +49,9 @@ class AppUser {
       case UserRole.admin:
         return 'Admin';
       case UserRole.seniorTeller:
-        return 'Senior Teller';
+        return 'Senior Cashier';
       case UserRole.teller:
-        return 'Teller / Cashier';
+        return 'Cashier';
     }
   }
 

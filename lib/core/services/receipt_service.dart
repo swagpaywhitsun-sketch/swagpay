@@ -35,8 +35,8 @@ Date:       $formattedDate
 Ref:        ${txn.reference}
 Txn ID:     ${txn.id}
 Terminal:   ${txn.posId}
-Teller:     ${txn.tellerName}
-Branch:     ${txn.branch ?? 'Main Counter'}
+Cashier:    ${txn.tellerName}
+Branch:     ${(txn.branch != null && txn.branch!.trim().isNotEmpty) ? txn.branch! : 'Main Counter'}
 --------------------------------
 Customer:   ${txn.customerName}
 Number:     ${txn.customerNumber}

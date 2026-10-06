@@ -49,7 +49,7 @@ class TellerReportsScreen extends ConsumerWidget {
           onPressed: () => Navigator.maybePop(context),
         ),
         title: const Text(
-          'Teller Performance',
+          'Cashier Performance',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17),
         ),
       ),

@@ -134,5 +134,5 @@ CREATE TABLE IF NOT EXISTS reconciliation_reports (
 -- Seed Default POS Terminal if not exist
 INSERT INTO pos_terminals (id, code, name, location, active)
 VALUES
-  ('pos_01', 'POS-01', 'Till 1 - Accra Mall', 'Accra Mall Food Court', 1)
+  ('pos_01', 'POS-01', 'Counter 1', '', 1)
 ON CONFLICT (id) DO NOTHING;

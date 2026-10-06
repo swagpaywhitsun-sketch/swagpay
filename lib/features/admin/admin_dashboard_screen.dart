@@ -214,7 +214,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       subtitle: '${successfulTxns.length} success of ${txns.length} total txns',
                     ),
                     StatCard(
-                      title: 'Active Tellers & POS',
+                      title: 'Active Cashiers & POS',
                       value: '$activeTellers / $activePos',
                       icon: Icons.point_of_sale_rounded,
                       accentColor: AppColors.gold,
@@ -408,8 +408,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               _buildAlertItem(
                                 icon: Icons.people_outline_rounded,
                                 color: AppColors.primary,
-                                title: '${repo.getTellers().length} Registered Staff Accounts',
-                                subtitle: 'Tellers and cashiers configured with universal terminal access.',
+                                title: '${repo.getTellers().length} Registered Cashier Accounts',
+                                subtitle: 'Cashiers configured with universal terminal access.',
                               ),
                               const Divider(height: 20),
                               _buildAlertItem(

@@ -450,7 +450,7 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
                         ),
                         const SizedBox(width: 8),
                         FilterChip(
-                          label: const Text('Tellers & Hardware', style: TextStyle(fontSize: 12)),
+                          label: const Text('Cashiers & Hardware', style: TextStyle(fontSize: 12)),
                           selected: _selectedCategory == 'TELLER',
                           onSelected: (_) => setState(() {
                             _selectedCategory = 'TELLER';
