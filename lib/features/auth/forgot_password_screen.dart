@@ -23,6 +23,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   String? _localError;
   String? _maskedContact;
   String? _resetToken;
+  String? _detectedOtp;
 
   @override
   void dispose() {
@@ -48,9 +49,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     if (!mounted) return;
 
     if (res != null && res['success'] == true) {
+      final code = res['otp']?.toString();
       setState(() {
         _currentStep = 2;
         _maskedContact = res['maskedContact'] as String? ?? identifier;
+        if (code != null && code.isNotEmpty) {
+          _detectedOtp = code;
+          _otpController.text = code;
+        }
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -272,7 +278,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           onSubmitted: (_) => _handleRequestOtp(),
           decoration: InputDecoration(
             labelText: 'Email or Phone Number',
-            hintText: 'e.g. teller@swagpay.test or 024xxxxxxx',
+            hintText: 'e.g. 0550402859 or teller@swagpay.com',
             prefixIcon: const Icon(Icons.person_outline_rounded),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -303,6 +309,57 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_detectedOtp != null && _detectedOtp!.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1570A6).withValues(alpha: isDark ? 0.2 : 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF1570A6).withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.vpn_key_rounded, color: Color(0xFF1570A6), size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Your Verification Code',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF1570A6)),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _detectedOtp!,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 3, color: Color(0xFF1570A6)),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _otpController.text = _detectedOtp!;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Verification code filled!'), duration: Duration(seconds: 1)),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1570A6),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    elevation: 0,
+                  ),
+                  child: const Text('Auto-Fill', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(

@@ -587,6 +587,97 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
     );
   }
 
+  void _showResetPasswordDialog(BuildContext context, AppUser teller) {
+    final passwordCtrl = TextEditingController(text: 'Swag@1234');
+    bool obscure = false;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.lock_reset_rounded, color: Color(0xFF1570A6), size: 24),
+              SizedBox(width: 8),
+              Text('Reset Staff Password'),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 420, maxWidth: 500),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Set a new password for "${teller.fullName}" (${teller.email}). They will use this password to sign in immediately.',
+                  style: const TextStyle(fontSize: 13.5, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passwordCtrl,
+                  obscureText: obscure,
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    hintText: 'Minimum 6 characters',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setDialogState(() => obscure = !obscure),
+                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Default suggested: Swag@1234',
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1570A6),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                final newPass = passwordCtrl.text.trim();
+                if (newPass.length < 6) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Password must be at least 6 characters')),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx);
+                try {
+                  await ref.read(paymentRepositoryProvider).adminResetTellerPassword(teller.id, newPass);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Password for "${teller.fullName}" was successfully reset to "$newPass".'),
+                      backgroundColor: AppColors.success,
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to reset password: ${e is ApiException ? e.message : '$e'}'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Save New Password'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(paymentRepositoryProvider);
@@ -904,6 +995,11 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                                         icon: const Icon(Icons.tune_rounded, size: 18),
                                         tooltip: 'Configure Limits',
                                         onPressed: () => _showConfigureLimitsDialog(context, t),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.lock_reset_rounded, size: 18, color: Color(0xFF1570A6)),
+                                        tooltip: 'Reset Password',
+                                        onPressed: () => _showResetPasswordDialog(context, t),
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),

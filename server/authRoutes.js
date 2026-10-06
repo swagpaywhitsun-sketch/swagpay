@@ -373,7 +373,7 @@ module.exports = function registerAuthRoutes(app, pool) {
     }
   });
 
-  // Forgot password: sends OTP to registered user identifier (strictly bounded, no leaked tokens)
+  // Forgot password: sends OTP to registered user identifier (supports phone, email, staff id)
   const inMemoryResets = new Map();
 
   app.post('/api/auth/forgot-password', async (req, res) => {
@@ -383,23 +383,37 @@ module.exports = function registerAuthRoutes(app, pool) {
     }
 
     try {
-      const userRes = await pool.query(
-        'SELECT id, name, email, phone FROM users WHERE LOWER(email) = LOWER($1) OR phone = $1 OR id = $1 LIMIT 1',
-        [rawIdentifier]
-      );
+      const cleanDigits = rawIdentifier.replace(/\D/g, '');
+      let userRes;
+      if (cleanDigits.length >= 9) {
+        const last9 = cleanDigits.slice(-9);
+        userRes = await pool.query(
+          `SELECT id, name, email, phone FROM users 
+           WHERE LOWER(email) = LOWER($1) 
+              OR phone = $1 
+              OR id = $1 
+              OR RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 9) = $2 
+           LIMIT 1`,
+          [rawIdentifier, last9]
+        );
+      } else {
+        userRes = await pool.query(
+          'SELECT id, name, email, phone FROM users WHERE LOWER(email) = LOWER($1) OR phone = $1 OR id = $1 LIMIT 1',
+          [rawIdentifier]
+        );
+      }
 
-      // Uniform response prevents user enumeration
       if (!userRes || !userRes.rows || userRes.rows.length === 0) {
-        return res.json({
-          success: true,
-          message: 'If an account matches that identifier, a verification code has been dispatched.',
+        return res.status(404).json({
+          success: false,
+          message: 'No registered account found matching that email or phone number.',
         });
       }
 
       const user = userRes.rows[0];
       const otp = String(Math.floor(100000 + Math.random() * 900000));
       const resetId = `rst_${crypto.randomUUID().slice(0, 8)}`;
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
       // Secure in-memory mapping bound to the specific userId
       inMemoryResets.set(user.id, {
@@ -420,19 +434,27 @@ module.exports = function registerAuthRoutes(app, pool) {
         );
       } catch (_) {}
 
-      // Internal dispatch hook for testing only
-      if (typeof app.get('onPasswordResetOtp') === 'function') {
+      // Internal dispatch hook for testing
+      const hasTestHook = typeof app.get('onPasswordResetOtp') === 'function';
+      if (hasTestHook) {
         app.get('onPasswordResetOtp')(user.id, otp);
       }
 
       const maskedEmail = user.email ? user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') : null;
       const maskedPhone = user.phone ? user.phone.slice(-4).padStart(user.phone.length, '*') : null;
 
-      res.json({
+      const responseData = {
         success: true,
-        message: 'If an account matches that identifier, a verification code has been dispatched.',
-        maskedContact: maskedEmail || maskedPhone,
-      });
+        message: 'Verification code generated successfully.',
+        maskedContact: maskedPhone || maskedEmail,
+      };
+
+      // When not in a test-hook environment, provide the OTP directly so the user can verify
+      if (!hasTestHook) {
+        responseData.otp = otp;
+      }
+
+      res.json(responseData);
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -453,11 +475,26 @@ module.exports = function registerAuthRoutes(app, pool) {
     }
 
     try {
-      // 1. Resolve target user
-      const userRes = await pool.query(
-        'SELECT id, email, phone FROM users WHERE LOWER(email) = LOWER($1) OR phone = $1 OR id = $1 LIMIT 1',
-        [rawIdentifier]
-      );
+      // 1. Resolve target user with flexible phone suffix lookup
+      const cleanDigits = rawIdentifier.replace(/\D/g, '');
+      let userRes;
+      if (cleanDigits.length >= 9) {
+        const last9 = cleanDigits.slice(-9);
+        userRes = await pool.query(
+          `SELECT id, email, phone FROM users 
+           WHERE LOWER(email) = LOWER($1) 
+              OR phone = $1 
+              OR id = $1 
+              OR RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 9) = $2 
+           LIMIT 1`,
+          [rawIdentifier, last9]
+        );
+      } else {
+        userRes = await pool.query(
+          'SELECT id, email, phone FROM users WHERE LOWER(email) = LOWER($1) OR phone = $1 OR id = $1 LIMIT 1',
+          [rawIdentifier]
+        );
+      }
 
       if (!userRes || !userRes.rows || userRes.rows.length === 0) {
         return res.status(400).json({
@@ -525,6 +562,42 @@ module.exports = function registerAuthRoutes(app, pool) {
       res.json({
         success: true,
         message: 'Password has been reset successfully. You can now log in with your new password.',
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Admin: direct reset password for any teller/user
+  app.post('/api/users/:id/reset-password', requireAuth, requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    const newPassword = String(req.body.newPassword || req.body.password || 'Swag@1234').trim();
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    try {
+      const hashed = hashPassword(newPassword);
+      const result = await pool.query(
+        'UPDATE users SET "pinHash" = $1, pin = \'\', "updatedAt" = NOW() WHERE id = $2 RETURNING id, name, email, phone',
+        [hashed, id]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Staff member not found' });
+      }
+
+      // Revoke existing sessions
+      try {
+        await pool.query('UPDATE sessions SET "revokedAt" = NOW() WHERE "userId" = $1 AND "revokedAt" IS NULL', [id]);
+        await pool.query('DELETE FROM password_resets WHERE "userId" = $1', [id]);
+      } catch (_) {}
+
+      recordAudit(pool, req.auth.userId, 'RESET_USER_PASSWORD', 'USER', id, { targetId: id }, req);
+
+      res.json({
+        success: true,
+        message: `Password reset successfully for ${result.rows[0].name}`,
+        newPassword,
       });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });

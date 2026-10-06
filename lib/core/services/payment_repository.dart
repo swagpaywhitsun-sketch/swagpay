@@ -551,6 +551,13 @@ class PaymentRepository {
     }
   }
 
+  Future<void> adminResetTellerPassword(String tellerId, String newPassword) async {
+    await apiClient.post(
+      '${ApiConfig.tellers}/$tellerId/reset-password',
+      data: {'newPassword': newPassword},
+    );
+  }
+
   Future<void> addPosDevice(PosDevice pos) async {
     _posDevices.add(pos);
     notifyListeners();

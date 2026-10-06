@@ -3,7 +3,11 @@ node_modules
 .gitignore
 .env
 .env.*
-!build/web
+build/app
+build/ios
+build/macos
+build/windows
+build/linux
 android
 ios
 macos
@@ -13,6 +17,7 @@ test
 *.apk
 *.ipa
 *.aab
+*.xcarchive
 .dart_tool
 .pub-cache
 .pub

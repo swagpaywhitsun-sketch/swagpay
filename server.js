@@ -670,6 +670,41 @@ app.delete('/api/tellers/:id', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, 
   }
 });
 
+// Admin: direct reset password for a teller
+app.post('/api/tellers/:id/reset-password', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  const newPassword = String(req.body.newPassword || req.body.password || 'Swag@1234').trim();
+  if (newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+  }
+
+  try {
+    const hashed = hashPassword(newPassword);
+    const result = await pool.query(
+      'UPDATE users SET "pinHash" = $1, pin = \'\', "updatedAt" = NOW() WHERE id = $2 RETURNING id, name, email, phone',
+      [hashed, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Teller not found' });
+    }
+
+    try {
+      await pool.query('UPDATE sessions SET "revokedAt" = NOW() WHERE "userId" = $1 AND "revokedAt" IS NULL', [id]);
+      await pool.query('DELETE FROM password_resets WHERE "userId" = $1', [id]);
+    } catch (_) {}
+
+    recordAudit(pool, req.auth.userId, 'RESET_TELLER_PASSWORD', 'USER', id, { targetId: id }, req);
+
+    res.json({
+      success: true,
+      message: `Password reset successfully for ${result.rows[0].name}`,
+      newPassword,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/pos', async (req, res) => {
   try {
     const result = await pool.query('SELECT id, code, name, location, active, "createdAt" FROM pos_terminals ORDER BY "createdAt" ASC');
