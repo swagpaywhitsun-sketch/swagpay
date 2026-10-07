@@ -155,10 +155,17 @@ class PaymentTransaction {
             '')
         .trim();
 
-    final rawName = (json['customerName'] as String?)?.trim();
+    final rawName = (json['customerName'] as String? ??
+            json['name'] as String? ??
+            json['accountName'] as String? ??
+            json['customer_name'] as String? ??
+            json['payerName'] as String? ??
+            json['debitPartyName'] as String? ??
+            (json['data'] is Map ? (json['data']['customerName'] ?? json['data']['name'] ?? json['data']['accountName']) as String? : null))
+        ?.trim();
     final resolvedName = (rawName != null && rawName.isNotEmpty && rawName != rawPhone)
         ? rawName
-        : (rawPhone.isNotEmpty ? rawPhone : 'Counter Customer');
+        : (rawPhone.isNotEmpty ? rawPhone : 'Walk-in Customer');
 
     return PaymentTransaction(
       id: json['id'] as String? ?? 'tx_${DateTime.now().millisecondsSinceEpoch}',

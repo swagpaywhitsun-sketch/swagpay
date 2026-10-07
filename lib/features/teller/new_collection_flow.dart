@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/models/customer.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
@@ -19,26 +18,24 @@ class NewCollectionScreen extends ConsumerStatefulWidget {
 }
 
 class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
-  // Screen States:
-  // 1 = Enter Number & Amount
-  // 2 = Awaiting Customer PIN
-  // 3 = Payment Success
-  // 4 = Payment Failed (Authoritatively Declined)
-  // 5 = Gateway Verification In-Flight / Timeout (Reconciliation Guard)
+  // Screen Steps:
+  // 1 = Enter Amount (Screen 1)
+  // 2 = Enter MoMo Number, Select Network & Pay Button (Screen 2)
+  // 3 = Awaiting Customer MoMo PIN (60s countdown & polling)
+  // 4 = Payment Success (Authentic Thermal POS Receipt)
+  // 5 = Payment Failed / Declined
   int _currentStep = 1;
 
-  final _phoneController = TextEditingController();
   final _amountController = TextEditingController();
+  final _phoneController = TextEditingController();
   MoMoNetwork? _selectedNetwork;
-  Customer? _lookupCustomer;
-  bool _isLookingUp = false;
-  Future<Customer?>? _lookupFuture;
   String? _selectedPosId;
 
   String? _activeReference;
   PaymentTransaction? _completedTransaction;
   String? _errorMessage;
   bool _isRechecking = false;
+  bool _isInitiating = false;
 
   Timer? _pollingTimer;
   Timer? _countdownTimer;
@@ -48,60 +45,85 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   void dispose() {
     _pollingTimer?.cancel();
     _countdownTimer?.cancel();
-    _phoneController.dispose();
     _amountController.dispose();
+    _phoneController.dispose();
     super.dispose();
-  }
-
-  void _selectNetwork(MoMoNetwork network) {
-    if (_selectedNetwork == network) return;
-    setState(() => _selectedNetwork = network);
-    final clean = _phoneController.text.replaceAll(RegExp(r'\D'), '');
-    if (clean.length >= 10) {
-      _performCustomerLookup(clean, network: network);
-    }
-  }
-
-  void _onPhoneChanged(String val) {
-    final clean = val.replaceAll(RegExp(r'\D'), '');
-    // Strictly require teller to select carrier first. No auto-detection based on prefix!
-    if (clean.length >= 10 && _selectedNetwork != null) {
-      _performCustomerLookup(clean, network: _selectedNetwork);
-    } else {
-      if (_lookupCustomer != null || _isLookingUp) {
-        setState(() {
-          _isLookingUp = false;
-          _lookupCustomer = null;
-        });
-      }
-      _lookupFuture = null;
-    }
-  }
-
-  void _performCustomerLookup(String cleanPhone, {MoMoNetwork? network}) async {
-    setState(() {
-      _isLookingUp = true;
-      _lookupCustomer = null;
-    });
-    final net = network ?? _selectedNetwork;
-    final future = ref.read(paymentRepositoryProvider).lookupCustomer(cleanPhone, network: net);
-    _lookupFuture = future;
-    final cust = await future;
-    if (mounted && _lookupFuture == future) {
-      setState(() {
-        _isLookingUp = false;
-        _lookupCustomer = cust;
-      });
-    }
   }
 
   double get _currentAmount => double.tryParse(_amountController.text.trim()) ?? 0.0;
 
+  void _onNumpadTap(String val) {
+    String current = _amountController.text;
+    if (val == 'C') {
+      _amountController.clear();
+    } else if (val == '⌫') {
+      if (current.isNotEmpty) {
+        _amountController.text = current.substring(0, current.length - 1);
+      }
+    } else if (val == '.') {
+      if (!current.contains('.')) {
+        if (current.isEmpty) {
+          _amountController.text = '0.';
+        } else {
+          _amountController.text = '$current.';
+        }
+      }
+    } else {
+      // If there are already two decimal places, don't allow more
+      if (current.contains('.')) {
+        final parts = current.split('.');
+        if (parts.length > 1 && parts[1].length >= 2) return;
+      }
+      if (current == '0') {
+        _amountController.text = val;
+      } else {
+        _amountController.text = '$current$val';
+      }
+    }
+    setState(() {});
+  }
+
+  void _setPresetAmount(double val) {
+    setState(() {
+      _amountController.text = val.toStringAsFixed(val == val.roundToDouble() ? 0 : 2);
+    });
+  }
+
+  void _proceedToStep2() {
+    if (_currentAmount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid amount greater than GH₵ 0.00'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _currentStep = 2;
+    });
+  }
+
+  void _selectNetwork(MoMoNetwork network) {
+    setState(() => _selectedNetwork = network);
+  }
+
   void _startMoMoCollection() async {
+    final cleanPhone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+    if (cleanPhone.length < 9) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid 10-digit Ghana mobile money number.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     if (_selectedNetwork == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a carrier network (MTN, Vodafone, or Airtel) first.'),
+          content: Text('Please select a carrier network (MTN, Vodafone, or Airtel).'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -111,21 +133,16 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     final user = ref.read(authProvider).currentUser;
     final repo = ref.read(paymentRepositoryProvider);
     if (user == null) {
-      setState(() => _errorMessage = 'This terminal has no active session. Sign in before collecting money.');
+      setState(() => _errorMessage = 'This terminal has no active session. Sign in before collecting payment.');
       return;
     }
 
     setState(() {
-      _currentStep = 2; // Awaiting Customer PIN
-      _remainingSeconds = 60; // 60s active countdown
+      _isInitiating = true;
       _errorMessage = null;
     });
 
     try {
-      // Never fire the MoMo prompt with an unverified name — wait for a pending lookup
-      if (_lookupCustomer == null && _lookupFuture != null) {
-        _lookupCustomer = await _lookupFuture;
-      }
       final posDevices = repo.getPosDevices();
       final effectivePos = (_selectedPosId != null && _selectedPosId!.isNotEmpty)
           ? _selectedPosId!
@@ -133,10 +150,11 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               ? user.assignedPos.first
               : (posDevices.isNotEmpty ? posDevices.first.id : 'POS-01'));
 
+      // Fire prompt immediately without waiting for customer name lookup!
       final initRes = await repo.initiateMoMoPayment(
-        momoNumber: _phoneController.text.trim(),
+        momoNumber: cleanPhone,
         amount: _currentAmount,
-        customerName: _lookupCustomer?.name,
+        customerName: null, // Name is resolved from the API response JSON
         tellerId: user.id,
         posId: effectivePos,
         network: _selectedNetwork,
@@ -144,10 +162,16 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
       _activeReference = initRes['reference'] as String;
 
-      // Active 1-second countdown timer for visible countdown
+      setState(() {
+        _isInitiating = false;
+        _currentStep = 3; // Awaiting Customer PIN
+        _remainingSeconds = 60;
+      });
+
+      // 60s active countdown
       _countdownTimer?.cancel();
       _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (!mounted || _currentStep != 2) {
+        if (!mounted || _currentStep != 3) {
           timer.cancel();
           return;
         }
@@ -157,8 +181,8 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           } else {
             timer.cancel();
             _pollingTimer?.cancel();
-            _errorMessage = 'Customer MoMo prompt timed out (60s). Customer did not enter PIN on handset.';
-            _currentStep = 4; // Failed
+            _errorMessage = 'Customer prompt timed out (60s). Customer did not authorize prompt on their phone.';
+            _currentStep = 5; // Failed
           }
         });
       });
@@ -166,7 +190,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       // Rapid status polling every 1.5 seconds for instant decline/approval response
       _pollingTimer?.cancel();
       _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) async {
-        if (!mounted || _currentStep != 2) {
+        if (!mounted || _currentStep != 3) {
           timer.cancel();
           return;
         }
@@ -181,7 +205,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             _countdownTimer?.cancel();
             setState(() {
               _completedTransaction = txn;
-              _currentStep = 3; // Success
+              _currentStep = 4; // Success
             });
           } else if (txn.status == TransactionStatus.failed) {
             timer.cancel();
@@ -189,19 +213,20 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             setState(() {
               _completedTransaction = txn;
               _errorMessage = txn.failureReason ?? 'Payment declined by customer on handset';
-              _currentStep = 4; // Immediately show Failed / Declined!
+              _currentStep = 5; // Failed
             });
           }
         } catch (_) {
-          // Network fluctuation during polling — do not treat as failure
+          // Ignore network glitch during polling
         }
       });
     } catch (e) {
       _countdownTimer?.cancel();
       _pollingTimer?.cancel();
       setState(() {
+        _isInitiating = false;
         _errorMessage = e.toString().replaceAll('ApiException: ', '');
-        _currentStep = 4;
+        _currentStep = 5;
       });
     }
   }
@@ -223,18 +248,18 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       if (txn.status == TransactionStatus.success) {
         _pollingTimer?.cancel();
         _countdownTimer?.cancel();
-        setState(() => _currentStep = 3);
+        setState(() => _currentStep = 4);
       } else if (txn.status == TransactionStatus.failed) {
         _pollingTimer?.cancel();
         _countdownTimer?.cancel();
         setState(() {
           _errorMessage = txn.failureReason ?? 'Payment declined by customer on handset';
-          _currentStep = 4;
+          _currentStep = 5;
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Prompt is still pending on customer handset. Awaiting PIN entry...'),
+            content: Text('Prompt is still pending on customer handset. Awaiting PIN authorization...'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -248,10 +273,6 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     }
   }
 
-  Future<void> _recheckStatus() async {
-    return _checkManualStatus();
-  }
-
   void _resetFlow() {
     _pollingTimer?.cancel();
     _countdownTimer?.cancel();
@@ -259,47 +280,68 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       _currentStep = 1;
       _remainingSeconds = 60;
       _selectedNetwork = null;
-      _phoneController.clear();
       _amountController.clear();
-      _lookupCustomer = null;
-      _lookupFuture = null;
+      _phoneController.clear();
       _activeReference = null;
       _completedTransaction = null;
       _errorMessage = null;
       _isRechecking = false;
+      _isInitiating = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF121214) : const Color(0xFFF6F6F8);
+    final bgColor = isDark ? const Color(0xFF121214) : const Color(0xFFF4F5F7);
+
+    String appTitle;
+    switch (_currentStep) {
+      case 1:
+        appTitle = 'Enter Amount';
+        break;
+      case 2:
+        appTitle = 'Payment Details';
+        break;
+      case 3:
+        appTitle = 'Awaiting Authorization';
+        break;
+      case 4:
+        appTitle = 'Payment Complete';
+        break;
+      case 5:
+        appTitle = 'Payment Declined';
+        break;
+      default:
+        appTitle = 'Collect Payment';
+    }
 
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF303030),
+        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF1E293B),
+        leading: _currentStep == 2
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                tooltip: 'Back to Amount',
+                onPressed: () => setState(() => _currentStep = 1),
+              )
+            : null,
         automaticallyImplyLeading: false,
         title: Text(
-          _currentStep == 1
-              ? 'Collect Payment'
-              : _currentStep == 2
-                  ? 'Awaiting Authorization'
-                  : _currentStep == 3
-                      ? 'Collection Complete'
-                      : _currentStep == 4
-                          ? 'Collection Failed'
-                          : 'Verification In-Flight',
+          appTitle,
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
             fontSize: 17,
+            letterSpacing: 0.3,
           ),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.close_rounded, color: Colors.white),
+            tooltip: 'Dashboard',
             onPressed: () => context.go('/teller/dashboard'),
           ),
         ],
@@ -307,7 +349,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
+            constraints: const BoxConstraints(maxWidth: 580),
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: _buildCurrentContent(context),
@@ -322,272 +364,119 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   Widget _buildCurrentContent(BuildContext context) {
     switch (_currentStep) {
       case 1:
-        return _buildStep1Entry();
+        return _buildStep1EnterAmount();
       case 2:
-        return _buildStep2AwaitingPin();
+        return _buildStep2PaymentDetails();
       case 3:
-        return _buildStep3Success();
+        return _buildStep3AwaitingPin();
       case 4:
-        return _buildStep4Failed();
+        return _buildStep4Success();
       case 5:
-        return _buildStep5InFlight();
+        return _buildStep5Failed();
       default:
         return const SizedBox();
     }
   }
 
-  // --- STEP 1: PHONE NUMBER & AMOUNT ENTRY ---
-  Widget _buildStep1Entry() {
+  // ─────────────────────────────────────────────────────────────
+  // SCREEN 1: ENTER AMOUNT
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildStep1EnterAmount() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
-    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
-    final heading = isDark ? Colors.white : const Color(0xFF303030);
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE2E8F0);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF64748B);
+    final heading = isDark ? Colors.white : const Color(0xFF1E293B);
+
+    final hasValidAmount = _currentAmount > 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 1. CARRIER SELECTION (FIRST STEP)
-        _card(
-          cardBg: cardBg,
-          borderColor: borderColor,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _sectionLabel('1. SELECT CARRIER NETWORK', muted),
-                  if (_selectedNetwork != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      margin: const EdgeInsets.only(bottom: 6),
-                      decoration: BoxDecoration(
-                        color: _getNetworkBrandColor(_selectedNetwork!).withValues(alpha: isDark ? 0.2 : 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        _selectedNetwork!.label,
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          color: _getNetworkBrandColor(_selectedNetwork!),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildCarrierCard(
-                      network: MoMoNetwork.mtn,
-                      isDark: isDark,
-                      defaultBorderColor: borderColor,
-                      muted: muted,
-                      heading: heading,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildCarrierCard(
-                      network: MoMoNetwork.vodafone,
-                      isDark: isDark,
-                      defaultBorderColor: borderColor,
-                      muted: muted,
-                      heading: heading,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildCarrierCard(
-                      network: MoMoNetwork.airtel,
-                      isDark: isDark,
-                      defaultBorderColor: borderColor,
-                      muted: muted,
-                      heading: heading,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: BoxDecoration(
-                  color: _selectedNetwork == null
-                      ? const Color(0xFF1570A6).withValues(alpha: isDark ? 0.15 : 0.08)
-                      : _getNetworkBrandColor(_selectedNetwork!).withValues(alpha: isDark ? 0.16 : 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _selectedNetwork == null ? Icons.touch_app_rounded : Icons.check_circle_rounded,
-                      size: 15,
-                      color: _selectedNetwork == null
-                          ? const Color(0xFF1570A6)
-                          : _getNetworkBrandColor(_selectedNetwork!),
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        _selectedNetwork == null
-                            ? 'Please select carrier first (MTN, Vodafone, or Airtel)'
-                            : 'Selected: ${_selectedNetwork!.carrierName} (${_selectedNetwork!.serviceName}) — ready for number',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: _selectedNetwork == null
-                              ? (isDark ? Colors.white70 : const Color(0xFF1570A6))
-                              : _getNetworkBrandColor(_selectedNetwork!),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+        // Main Amount Display Card
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 12),
-
-        // 2. CUSTOMER PHONE NUMBER (SECOND STEP)
-        _card(
-          cardBg: cardBg,
-          borderColor: borderColor,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _sectionLabel('2. CUSTOMER PHONE NUMBER', muted),
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                maxLength: 10,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(10),
-                ],
-                onChanged: _onPhoneChanged,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: heading),
-                decoration: InputDecoration(
-                  hintText: 'e.g. 0550402859',
-                  counterText: '',
-                  hintStyle: TextStyle(color: muted.withValues(alpha: 0.6), fontSize: 15),
-                  prefixIcon: Icon(
-                    Icons.phone_outlined,
-                    size: 20,
-                    color: muted,
-                  ),
-                  suffixIcon: _isLookingUp
-                      ? const Padding(
-                          padding: EdgeInsets.all(12.0),
-                          child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: isDark ? const Color(0xFF27272A) : const Color(0xFFF7F8F9),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: borderColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
+              Text(
+                'ENTER AMOUNT TO CHARGE',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                  color: muted,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  const Text(
+                    'GH₵ ',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
                       color: Color(0xFF1570A6),
-                      width: 1.5,
                     ),
                   ),
-                ),
-              ),
-              if (_lookupCustomer != null) ...[
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: isDark ? 0.15 : 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.verified_rounded, color: AppColors.success, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _lookupCustomer!.name,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12.5,
-                            color: isDark ? AppColors.success : AppColors.successDark,
-                          ),
-                        ),
+                  Flexible(
+                    child: Text(
+                      _amountController.text.isEmpty ? '0.00' : _amountController.text,
+                      style: TextStyle(
+                        fontSize: 42,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1.0,
+                        color: _amountController.text.isEmpty
+                            ? muted.withValues(alpha: 0.4)
+                            : const Color(0xFF1570A6),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // 3. AMOUNT TO COLLECT (THIRD STEP)
-        _card(
-          cardBg: cardBg,
-          borderColor: borderColor,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _sectionLabel('3. AMOUNT TO COLLECT (GHS)', muted),
-              TextField(
-                controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                onChanged: (_) => setState(() {}),
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFF1570A6)),
-                decoration: InputDecoration(
-                  hintText: '0.00',
-                  hintStyle: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: muted.withValues(alpha: 0.4)),
-                  prefixText: 'GH₵ ',
-                  prefixStyle: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFF1570A6)),
-                  filled: true,
-                  fillColor: isDark ? const Color(0xFF27272A) : const Color(0xFFF7F8F9),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: borderColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF1570A6), width: 1.5),
-                  ),
-                ),
+                ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 16),
+              // Preset Amount Quick Chips
               Wrap(
+                alignment: WrapAlignment.center,
                 spacing: 8,
                 runSpacing: 8,
-                children: [10, 20, 50, 100, 200, 500].map((val) {
+                children: [10.0, 20.0, 50.0, 100.0, 200.0, 500.0].map((val) {
+                  final isSelected = _currentAmount == val;
                   return InkWell(
-                    onTap: () {
-                      setState(() {
-                        _amountController.text = val.toStringAsFixed(2);
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    onTap: () => _setPresetAmount(val),
+                    borderRadius: BorderRadius.circular(20),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: borderColor),
+                        color: isSelected
+                            ? const Color(0xFF1570A6)
+                            : (isDark ? const Color(0xFF27272A) : const Color(0xFFF1F5F9)),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF1570A6) : borderColor,
+                        ),
                       ),
                       child: Text(
-                        'GH₵ $val',
+                        'GH₵ ${val.toStringAsFixed(0)}',
                         style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: heading,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: isSelected ? Colors.white : heading,
                         ),
                       ),
                     ),
@@ -597,60 +486,420 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             ],
           ),
         ),
+
         const SizedBox(height: 16),
 
-        // Primary action
-        Builder(
-          builder: (context) {
-            final cleanPhone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
-            final hasCarrier = _selectedNetwork != null;
-            final hasValidPhone = cleanPhone.length >= 9;
-            final hasValidAmount = _currentAmount > 0;
-            final canSubmit = hasCarrier && hasValidPhone && hasValidAmount;
+        // POS Virtual Touch Numpad
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            children: [
+              _buildNumpadRow(['1', '2', '3'], isDark, heading, cardBg, borderColor),
+              const SizedBox(height: 8),
+              _buildNumpadRow(['4', '5', '6'], isDark, heading, cardBg, borderColor),
+              const SizedBox(height: 8),
+              _buildNumpadRow(['7', '8', '9'], isDark, heading, cardBg, borderColor),
+              const SizedBox(height: 8),
+              _buildNumpadRow(['.', '0', '⌫'], isDark, heading, cardBg, borderColor),
+            ],
+          ),
+        ),
 
-            String buttonText;
-            if (!hasCarrier) {
-              buttonText = 'Step 1: Select Carrier Network Above';
-            } else if (!hasValidPhone) {
-              buttonText = 'Step 2: Enter Customer Phone Number';
-            } else if (!hasValidAmount) {
-              buttonText = 'Step 3: Enter Amount to Collect';
-            } else {
-              buttonText = 'Send ${_selectedNetwork!.carrierName} MoMo Prompt (GH₵ ${_currentAmount.toStringAsFixed(2)})';
-            }
+        const SizedBox(height: 18),
 
-            return SizedBox(
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: canSubmit ? _startMoMoCollection : null,
-                icon: const Icon(Icons.send_rounded, size: 18),
-                label: Text(
-                  buttonText,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: hasCarrier ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6),
-                  foregroundColor: _selectedNetwork == MoMoNetwork.mtn ? Colors.black : Colors.white,
-                  disabledBackgroundColor: isDark ? const Color(0xFF27272A) : const Color(0xFFE1E3E5),
-                  disabledForegroundColor: muted,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            );
-          },
+        // Screen 1 Action Button: Continue to Screen 2
+        SizedBox(
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: hasValidAmount ? _proceedToStep2 : null,
+            icon: const Icon(Icons.arrow_forward_rounded, size: 20),
+            label: Text(
+              hasValidAmount
+                  ? 'Continue to Payment (GH₵ ${_currentAmount.toStringAsFixed(2)})'
+                  : 'Enter Amount to Continue',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1570A6),
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: isDark ? const Color(0xFF27272A) : const Color(0xFFE2E8F0),
+              disabledForegroundColor: muted,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
         ),
       ],
     );
   }
 
-  // --- STEP 2: AWAITING CUSTOMER PIN ---
-  Widget _buildStep2AwaitingPin() {
+  Widget _buildNumpadRow(List<String> keys, bool isDark, Color heading, Color cardBg, Color borderColor) {
+    return Row(
+      children: keys.map((key) {
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Material(
+              color: isDark ? const Color(0xFF27272A) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                onTap: () => _onNumpadTap(key),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  height: 50,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: key == '⌫'
+                      ? Icon(Icons.backspace_outlined, size: 20, color: heading)
+                      : Text(
+                          key,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: heading,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SCREEN 2: PAYMENT DETAILS (AMOUNT DUE, PHONE, NETWORK, PAY BUTTON)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildStep2PaymentDetails() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
-    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
-    final heading = isDark ? Colors.white : const Color(0xFF303030);
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE2E8F0);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF64748B);
+    final heading = isDark ? Colors.white : const Color(0xFF1E293B);
+
+    final cleanPhone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+    final hasValidPhone = cleanPhone.length >= 9;
+    final hasCarrier = _selectedNetwork != null;
+    final canPay = hasValidPhone && hasCarrier && !_isInitiating;
+
+    final payButtonColor = _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6);
+    final payButtonTextColor = _selectedNetwork == MoMoNetwork.mtn ? Colors.black : Colors.white;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Top Bold Amount Due Card
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A2634) : const Color(0xFFF0F9FF),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF1570A6).withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AMOUNT DUE TO PAY',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                      color: const Color(0xFF1570A6),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'GH₵ ${_currentAmount.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1570A6),
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+              TextButton.icon(
+                onPressed: () => setState(() => _currentStep = 1),
+                icon: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFF1570A6)),
+                label: const Text(
+                  'Edit',
+                  style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1570A6)),
+                ),
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFF1570A6).withValues(alpha: 0.1),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // 1. Enter Mobile Money Number
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '1. MOBILE MONEY NUMBER',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                      color: muted,
+                    ),
+                  ),
+                  if (cleanPhone.length == 10)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle_rounded, color: AppColors.success, size: 12),
+                          SizedBox(width: 4),
+                          Text(
+                            '10 Digits',
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.success),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                maxLength: 10,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                onChanged: (_) => setState(() {}),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: heading, letterSpacing: 1.0),
+                decoration: InputDecoration(
+                  hintText: 'e.g. 0244123456',
+                  counterText: '',
+                  hintStyle: TextStyle(color: muted.withValues(alpha: 0.5), fontSize: 16, letterSpacing: 0),
+                  prefixIcon: const Icon(Icons.phone_iphone_rounded, size: 22, color: Color(0xFF1570A6)),
+                  filled: true,
+                  fillColor: isDark ? const Color(0xFF27272A) : const Color(0xFFF8FAFC),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF1570A6), width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // 2. Select Carrier Network Provider
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '2. SELECT NETWORK PROVIDER',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                  color: muted,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildNetworkCard(
+                      network: MoMoNetwork.mtn,
+                      isDark: isDark,
+                      defaultBorderColor: borderColor,
+                      muted: muted,
+                      heading: heading,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildNetworkCard(
+                      network: MoMoNetwork.vodafone,
+                      isDark: isDark,
+                      defaultBorderColor: borderColor,
+                      muted: muted,
+                      heading: heading,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildNetworkCard(
+                      network: MoMoNetwork.airtel,
+                      isDark: isDark,
+                      defaultBorderColor: borderColor,
+                      muted: muted,
+                      heading: heading,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Pay Button carrying the amount dynamically
+        SizedBox(
+          height: 56,
+          child: ElevatedButton.icon(
+            onPressed: canPay ? _startMoMoCollection : null,
+            icon: _isInitiating
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                  )
+                : const Icon(Icons.payment_rounded, size: 22),
+            label: Text(
+              _isInitiating
+                  ? 'Sending Prompt...'
+                  : !hasValidPhone
+                      ? 'Enter Customer MoMo Number'
+                      : !hasCarrier
+                          ? 'Select Carrier Network Above'
+                          : 'Pay GH₵ ${_currentAmount.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.3),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: hasCarrier ? payButtonColor : const Color(0xFF1570A6),
+              foregroundColor: payButtonTextColor,
+              disabledBackgroundColor: isDark ? const Color(0xFF27272A) : const Color(0xFFE2E8F0),
+              disabledForegroundColor: muted,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNetworkCard({
+    required MoMoNetwork network,
+    required bool isDark,
+    required Color defaultBorderColor,
+    required Color muted,
+    required Color heading,
+  }) {
+    final isSelected = _selectedNetwork == network;
+    final brandColor = _getNetworkBrandColor(network);
+    final selectedBg = _getNetworkSelectedBg(network, isDark);
+
+    return InkWell(
+      onTap: () => _selectNetwork(network),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? selectedBg
+              : (isDark ? const Color(0xFF27272A) : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? brandColor : defaultBorderColor,
+            width: isSelected ? 2.0 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: brandColor.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            CarrierBrandIcon(network: network, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              network.carrierName,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w900,
+                color: heading,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              network.serviceName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? brandColor : muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SCREEN 3: AWAITING CUSTOMER AUTHORIZATION (60s COUNTDOWN & POLLING)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildStep3AwaitingPin() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE2E8F0);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF64748B);
+    final heading = isDark ? Colors.white : const Color(0xFF1E293B);
     final brandColor = _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6);
     final isUrgent = _remainingSeconds <= 15;
     final countdownColor = isUrgent ? const Color(0xFFE65100) : brandColor;
@@ -658,17 +907,18 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
+        // Countdown Timer Ring
         Stack(
           alignment: Alignment.center,
           children: [
             SizedBox(
-              width: 150,
-              height: 150,
+              width: 140,
+              height: 140,
               child: CircularProgressIndicator(
                 value: (_remainingSeconds.clamp(0, 60)) / 60.0,
                 strokeWidth: 8,
-                backgroundColor: isDark ? const Color(0xFF2A2A2E) : const Color(0xFFE5E7EB),
+                backgroundColor: isDark ? const Color(0xFF2A2A2E) : const Color(0xFFE2E8F0),
                 valueColor: AlwaysStoppedAnimation<Color>(countdownColor),
               ),
             ),
@@ -678,7 +928,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                 Text(
                   '$_remainingSeconds',
                   style: TextStyle(
-                    fontSize: 42,
+                    fontSize: 40,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -1.5,
                     color: countdownColor,
@@ -687,7 +937,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                 Text(
                   'SEC REMAINING',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9.5,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.2,
                     color: muted,
@@ -697,7 +947,9 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 24),
+
+        const SizedBox(height: 20),
+
         if (_selectedNetwork != null)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -705,15 +957,15 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             decoration: BoxDecoration(
               color: brandColor.withValues(alpha: isDark ? 0.2 : 0.12),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: brandColor.withValues(alpha: 0.5)),
+              border: Border.all(color: brandColor.withValues(alpha: 0.4)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.cell_tower_rounded, size: 16, color: brandColor),
+                CarrierBrandIcon(network: _selectedNetwork!, size: 16),
                 const SizedBox(width: 6),
                 Text(
-                  _selectedNetwork!.label,
+                  '${_selectedNetwork!.carrierName} (${_selectedNetwork!.serviceName})',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
@@ -723,17 +975,20 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               ],
             ),
           ),
+
         Text(
           'Awaiting Customer MoMo PIN',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: heading),
         ),
         const SizedBox(height: 8),
         Text(
-          '${_selectedNetwork?.label ?? "MoMo"} prompt of GH₵ ${_currentAmount.toStringAsFixed(2)} was sent to ${_phoneController.text}.\nCustomer is entering their PIN or confirming prompt on their phone.',
+          'MoMo prompt of GH₵ ${_currentAmount.toStringAsFixed(2)} was dispatched to ${_phoneController.text}.\nCustomer is approving the prompt on their phone.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: muted, fontSize: 13.5, height: 1.5),
+          style: TextStyle(color: muted, fontSize: 13.5, height: 1.4),
         ),
+
         const SizedBox(height: 16),
+
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
@@ -754,18 +1009,21 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Listening for Gateway Response (1.5s polling)',
+                'Live Gateway Listening (1.5s interval)',
                 style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: muted),
               ),
             ],
           ),
         ),
+
         const SizedBox(height: 8),
         Text(
           'Ref: ${_activeReference ?? ''}',
           style: TextStyle(fontSize: 11.5, fontFamily: 'Courier', fontWeight: FontWeight.w600, color: muted),
         ),
+
         const SizedBox(height: 24),
+
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
           child: Column(
@@ -813,22 +1071,24 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     );
   }
 
-  // --- STEP 3: PAYMENT SUCCESS (RECEIPT AS HERO) ---
-  Widget _buildStep3Success() {
+  // ─────────────────────────────────────────────────────────────
+  // SCREEN 4: PAYMENT SUCCESS & POS THERMAL RECEIPT
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildStep4Success() {
     if (_completedTransaction == null) return const SizedBox();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF64748B);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Sleek compact confirmation banner
+        // Sleek Success Confirmation Banner
         Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: AppColors.success.withValues(alpha: isDark ? 0.2 : 0.08),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: AppColors.success.withValues(alpha: isDark ? 0.4 : 0.25),
             ),
@@ -836,13 +1096,13 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
+              const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 22),
               const SizedBox(width: 8),
               Text(
                 'Payment Received · GH₵ ${_completedTransaction!.amount.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontWeight: FontWeight.w800,
-                  fontSize: 14.5,
+                  fontSize: 15,
                   color: AppColors.success,
                   letterSpacing: 0.2,
                 ),
@@ -851,17 +1111,18 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           ),
         ),
 
-        // Thermal Receipt Hero Card
+        // Authentic POS Thermal Receipt Hero Card
         ThermalReceiptCard(transaction: _completedTransaction!),
-        const SizedBox(height: 14),
 
-        // Primary Action: New Collection
+        const SizedBox(height: 16),
+
+        // Primary Action: Start New Collection
         SizedBox(
-          height: 48,
+          height: 50,
           child: ElevatedButton.icon(
             onPressed: _resetFlow,
             icon: const Icon(Icons.add_rounded, size: 20),
-            label: const Text('Start New Collection', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
+            label: const Text('Start New Collection', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF1570A6),
               foregroundColor: Colors.white,
@@ -870,7 +1131,9 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 6),
+
+        const SizedBox(height: 8),
+
         Center(
           child: TextButton.icon(
             onPressed: () => context.go('/teller/dashboard'),
@@ -882,18 +1145,20 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     );
   }
 
-  // --- STEP 4: PAYMENT FAILED ---
-  Widget _buildStep4Failed() {
+  // ─────────────────────────────────────────────────────────────
+  // SCREEN 5: PAYMENT FAILED / DECLINED
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildStep5Failed() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
-    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
-    final heading = isDark ? Colors.white : const Color(0xFF303030);
+    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE2E8F0);
+    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF64748B);
+    final heading = isDark ? Colors.white : const Color(0xFF1E293B);
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         Center(
           child: Container(
             padding: const EdgeInsets.all(16),
@@ -901,33 +1166,49 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               color: AppColors.error.withValues(alpha: isDark ? 0.15 : 0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.close_rounded, size: 52, color: AppColors.error),
+            child: const Icon(Icons.close_rounded, size: 48, color: AppColors.error),
           ),
         ),
         const SizedBox(height: 16),
-        Text(
+        const Text(
           'Payment Declined',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.error),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.error),
         ),
         const SizedBox(height: 8),
         Text(
-          _errorMessage ?? 'Customer cancelled prompt or insufficient MoMo wallet balance.',
+          _errorMessage ?? 'Customer declined prompt or insufficient MoMo wallet balance.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 14, color: muted),
+          style: TextStyle(fontSize: 14, color: muted, height: 1.4),
         ),
         const SizedBox(height: 24),
 
+        // Action Buttons
         SizedBox(
-          height: 48,
+          height: 50,
           child: ElevatedButton.icon(
-            onPressed: () => setState(() => _currentStep = 1),
+            onPressed: () => setState(() => _currentStep = 2),
             icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w800)),
+            label: const Text('Try Again (Same Amount)', style: TextStyle(fontWeight: FontWeight.w800)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF303030),
+              backgroundColor: const Color(0xFF1570A6),
               foregroundColor: Colors.white,
               elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: () => setState(() => _currentStep = 1),
+            icon: const Icon(Icons.edit_rounded, size: 16),
+            label: const Text('Change Amount', style: TextStyle(fontWeight: FontWeight.w700)),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: cardBg,
+              foregroundColor: heading,
+              side: BorderSide(color: borderColor),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
@@ -952,7 +1233,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               final txn = repo.recordOfflineTransaction(
                 momoNumber: _phoneController.text.trim(),
                 amount: _currentAmount,
-                customerName: _lookupCustomer?.name,
+                customerName: null,
                 tellerId: user.id,
                 tellerName: user.fullName,
                 posId: effectivePos,
@@ -961,7 +1242,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               _pollingTimer?.cancel();
               setState(() {
                 _completedTransaction = txn;
-                _currentStep = 3; // Success (Receipt)
+                _currentStep = 4; // Success
               });
             },
             icon: const Icon(Icons.cloud_off_rounded, size: 18),
@@ -978,205 +1259,6 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  // --- STEP 5: GATEWAY VERIFICATION IN-FLIGHT ---
-  Widget _buildStep5InFlight() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
-    final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
-    final heading = isDark ? Colors.white : const Color(0xFF303030);
-    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 24),
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.pending.withValues(alpha: isDark ? 0.2 : 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.hourglass_top_rounded, size: 52, color: AppColors.pending),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Verification In-Progress',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: heading),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'The prompt was sent to the customer, but the telco gateway has not returned final confirmation yet. '
-          'Do NOT recharge the customer or declare declined until authoritative status is verified.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13.5, color: muted, height: 1.4),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            children: [
-              Text('TRANSACTION REFERENCE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: muted)),
-              const SizedBox(height: 4),
-              SelectableText(
-                _activeReference ?? 'N/A',
-                style: TextStyle(fontSize: 14, fontFamily: 'Courier', fontWeight: FontWeight.w800, color: heading),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        SizedBox(
-          height: 50,
-          child: ElevatedButton.icon(
-            onPressed: _isRechecking ? null : _recheckStatus,
-            icon: _isRechecking
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Icon(Icons.sync_rounded, size: 18),
-            label: const Text('Re-check Gateway Status Now', style: TextStyle(fontWeight: FontWeight.w800)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1570A6),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 48,
-          child: OutlinedButton.icon(
-            onPressed: () => context.go('/teller/history'),
-            icon: const Icon(Icons.receipt_long_rounded, size: 18),
-            label: const Text('Check in Shift History', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: cardBg,
-              foregroundColor: heading,
-              side: BorderSide(color: borderColor),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 48,
-          child: TextButton(
-            onPressed: _resetFlow,
-            child: Text('Start New Collection', style: TextStyle(fontWeight: FontWeight.w700, color: muted)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _card({
-    required Color cardBg,
-    required Color borderColor,
-    required Widget child,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor, width: 1),
-      ),
-      child: child,
-    );
-  }
-
-  Widget _sectionLabel(String label, Color color) => Padding(
-    padding: const EdgeInsets.only(left: 2, bottom: 8),
-    child: Text(
-      label,
-      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: color),
-    ),
-  );
-
-  Widget _buildCarrierCard({
-    required MoMoNetwork network,
-    required bool isDark,
-    required Color defaultBorderColor,
-    required Color muted,
-    required Color heading,
-  }) {
-    final isSelected = _selectedNetwork == network;
-    final brandColor = _getNetworkBrandColor(network);
-    final selectedBg = _getNetworkSelectedBg(network, isDark);
-
-    return InkWell(
-      onTap: () => _selectNetwork(network),
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? selectedBg
-              : (isDark ? const Color(0xFF27272A) : const Color(0xFFF8F9FA)),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? brandColor : defaultBorderColor,
-            width: isSelected ? 2.0 : 1.0,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: brandColor.withValues(alpha: 0.18),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                CarrierBrandIcon(network: network, size: 28),
-                Icon(
-                  isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                  size: 18,
-                  color: isSelected ? brandColor : muted.withValues(alpha: 0.4),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              network.carrierName,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-                color: heading,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              network.serviceName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: isSelected ? brandColor : muted,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

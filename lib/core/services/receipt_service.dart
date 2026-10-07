@@ -7,48 +7,58 @@ import '../theme/app_colors.dart';
 
 class ReceiptService {
   static String generateTextReceipt(PaymentTransaction txn) {
-    final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
+    final dateFormat = DateFormat('dd-MMM-yyyy hh:mm a');
     final formattedDate = dateFormat.format(txn.timestamp);
 
-    String amountLabel;
+    String statusStr = 'APPROVED';
+    String amountLabel = 'TOTAL PAID';
     switch (txn.status) {
       case TransactionStatus.success:
+        statusStr = 'APPROVED / PAID';
         amountLabel = 'TOTAL PAID';
         break;
       case TransactionStatus.pending:
+        statusStr = 'PENDING AUTH';
         amountLabel = 'AMOUNT PENDING';
         break;
       case TransactionStatus.failed:
+        statusStr = 'DECLINED';
         amountLabel = 'AMOUNT (NOT CHARGED)';
         break;
       case TransactionStatus.refunded:
+        statusStr = 'REFUNDED';
         amountLabel = 'AMOUNT REFUNDED';
         break;
     }
 
+    final branchName = (txn.branch != null && txn.branch!.trim().isNotEmpty) ? txn.branch! : 'Main Store';
+    final rcptNo = (txn.receiptNumber != null && txn.receiptNumber!.isNotEmpty) ? txn.receiptNumber! : 'N/A';
+
     return '''
 ================================
-          SWAGPAY
-   OFFICIAL PAYMENT RECEIPT
+          SWAGPAY POS
+    OFFICIAL PAYMENT RECEIPT
 ================================
 Date:       $formattedDate
-Ref:        ${txn.reference}
-Txn ID:     ${txn.id}
 Terminal:   ${txn.posId}
 Cashier:    ${txn.tellerName}
-Branch:     ${(txn.branch != null && txn.branch!.trim().isNotEmpty) ? txn.branch! : 'Main Counter'}
+Branch:     $branchName
 --------------------------------
 Customer:   ${txn.customerName}
-Number:     ${txn.customerNumber}
+Phone:      ${txn.displayPhone}
 Network:    ${txn.networkDisplay}
+Ref:        ${txn.reference}
+Receipt No: $rcptNo
 --------------------------------
-STATUS:     ${txn.status.name.toUpperCase()}
+Subtotal:   ${txn.currency} ${txn.amount.toStringAsFixed(2)}
+Fee:        ${txn.currency} 0.00
+--------------------------------
 $amountLabel: ${txn.currency} ${txn.amount.toStringAsFixed(2)}
---------------------------------
-Idempotency: ${txn.idempotencyKey.length > 8 ? txn.idempotencyKey.substring(0, 8) : txn.idempotencyKey}...
+STATUS:     $statusStr
 ================================
-  Thank You For Your Business
-  System powered by SwagPay
+  THANK YOU FOR TRANSACTING
+  KEEP RECEIPT FOR YOUR RECORDS
+   POWERED BY SWAGPAY GATEWAY
 ================================
 ''';
   }
@@ -99,7 +109,7 @@ Idempotency: ${txn.idempotencyKey.length > 8 ? txn.idempotencyKey.substring(0, 8
                         Icon(Icons.print_rounded, color: Color(0xFF1570A6), size: 22),
                         SizedBox(width: 8),
                         Text(
-                          'POS Thermal Dispatch',
+                          'POS Thermal Printer Dispatch',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                         ),
                       ],
@@ -112,14 +122,15 @@ Idempotency: ${txn.idempotencyKey.length > 8 ? txn.idempotencyKey.substring(0, 8
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
                     borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: isDark ? const Color(0xFF3F3F46) : const Color(0xFFE2E8F0)),
                   ),
                   child: Text(
                     receiptText,
-                    style: const TextStyle(fontFamily: 'Courier', fontSize: 11, height: 1.3),
+                    style: const TextStyle(fontFamily: 'Courier', fontSize: 11.5, height: 1.35),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -138,6 +149,9 @@ Idempotency: ${txn.idempotencyKey.length > 8 ? txn.idempotencyKey.substring(0, 8
                         },
                         icon: const Icon(Icons.copy_rounded, size: 16),
                         label: const Text('Copy Text'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -148,16 +162,17 @@ Idempotency: ${txn.idempotencyKey.length > 8 ? txn.idempotencyKey.substring(0, 8
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('ESC/POS payload generated (${escBytes.length} bytes) & sent to POS thermal queue'),
+                              content: Text('ESC/POS payload generated (${escBytes.length} bytes) & dispatched to POS thermal printer'),
                               backgroundColor: AppColors.success,
                             ),
                           );
                         },
-                        icon: const Icon(Icons.print_rounded, size: 16),
-                        label: const Text('Send to POS'),
+                        icon: const Icon(Icons.print_rounded, size: 18),
+                        label: const Text('Print Now', style: TextStyle(fontWeight: FontWeight.w800)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1570A6),
                           foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ),

@@ -318,6 +318,29 @@ app.post('/api/payments/initiate', enforceTellerIdentity, async (req, res) => {
     const gwData = await gwRes.json().catch(() => ({}));
 
     if (gwRes.ok || gwRes.status === 200 || gwRes.status === 201 || gwRes.status === 202) {
+      // If customerName was not provided from frontend, attempt to resolve from gateway response or telco lookup
+      const gwCustomerName = gwData.responseData?.name || gwData.customerName || (gwData.debitParty && gwData.debitParty.name) || gwData.accountName || customerName;
+      if (gwCustomerName && gwCustomerName !== customerName) {
+        await pool.query('UPDATE transactions SET "customerName" = $1 WHERE reference = $2', [gwCustomerName, reference]).catch(() => {});
+      } else if (!customerName) {
+        // Asynchronously resolve name from telco lookup in background to name the transaction
+        fetch(`${WHITSUNPAY_CONFIG.baseUrl}/api/v1/account/lookup/${encodeURIComponent(msisdn)}/${net.provider}`, {
+          method: 'GET',
+          headers: {
+            'x-client-id': WHITSUNPAY_CONFIG.clientId,
+            'x-api-key': WHITSUNPAY_CONFIG.apiKey,
+          },
+        })
+          .then((r) => r.json())
+          .then(async (lookupData) => {
+            const resolved = lookupData.responseData?.name || lookupData.name;
+            if (resolved && typeof resolved === 'string' && resolved.trim()) {
+              await pool.query('UPDATE transactions SET "customerName" = $1 WHERE reference = $2', [resolved.trim(), reference]);
+            }
+          })
+          .catch(() => {});
+      }
+
       recordAudit(pool, effectiveTeller, 'PAYMENT_INITIATED', 'TRANSACTION', reference, { amount: parsedAmount, network: net.network, posId: effectivePos }, req);
       return res.json({
         success: true,
@@ -326,7 +349,7 @@ app.post('/api/payments/initiate', enforceTellerIdentity, async (req, res) => {
         status: 'PENDING',
         amount: parsedAmount,
         currency: 'GH₵',
-        customerName: customerName || null,
+        customerName: gwCustomerName || customerName || null,
         momoNumber,
         network: net.label,
         message: 'Prompt sent to customer phone. Awaiting MoMo PIN authorization.',
@@ -420,6 +443,13 @@ app.get('/api/payments/status/:ref', async (req, res) => {
       finalReason = 'Payment declined by customer on handset';
     }
 
+    const upstreamCustomerName = data.responseData?.name || data.customerName || (data.debitParty && data.debitParty.name) || data.accountName || (data.data && (data.data.customerName || data.data.name || data.data.accountName));
+    let resolvedCustomerName = txn.customerName;
+    if (!resolvedCustomerName && upstreamCustomerName && typeof upstreamCustomerName === 'string' && upstreamCustomerName.trim()) {
+      resolvedCustomerName = upstreamCustomerName.trim();
+      await pool.query('UPDATE transactions SET "customerName" = $1 WHERE reference = $2', [resolvedCustomerName, cleanRef]).catch(() => {});
+    }
+
     if (newStatus !== 'PENDING') {
       await pool.query(
         'UPDATE transactions SET status = $1, "failureReason" = $2, "updatedAt" = NOW() WHERE reference = $3',
@@ -433,7 +463,7 @@ app.get('/api/payments/status/:ref', async (req, res) => {
       receiptNumber: txn.receiptNumber,
       amount: txn.amount,
       currency: 'GH₵',
-      customerName: txn.customerName,
+      customerName: resolvedCustomerName || txn.customerName,
       momoNumber: txn.momoNumber,
       network: txn.network,
       failureReason: finalReason,
