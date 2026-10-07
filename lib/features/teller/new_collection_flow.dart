@@ -1078,33 +1078,46 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     if (_completedTransaction == null) return const SizedBox();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF64748B);
+    final isOfflineQueued = _completedTransaction!.id.startsWith('tx_off_') ||
+        _completedTransaction!.reference.startsWith('OFF-') ||
+        _completedTransaction!.status == TransactionStatus.pending;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Sleek Success Confirmation Banner
+        // Confirmation Banner
         Container(
           margin: const EdgeInsets.only(bottom: 14),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.success.withValues(alpha: isDark ? 0.2 : 0.08),
+            color: (isOfflineQueued ? AppColors.pending : AppColors.success)
+                .withValues(alpha: isDark ? 0.2 : 0.08),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: AppColors.success.withValues(alpha: isDark ? 0.4 : 0.25),
+              color: (isOfflineQueued ? AppColors.pending : AppColors.success)
+                  .withValues(alpha: isDark ? 0.4 : 0.25),
             ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 22),
+              Icon(
+                isOfflineQueued ? Icons.cloud_off_rounded : Icons.check_circle_rounded,
+                color: isOfflineQueued ? AppColors.pending : AppColors.success,
+                size: 22,
+              ),
               const SizedBox(width: 8),
-              Text(
-                'Payment Received · GH₵ ${_completedTransaction!.amount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  color: AppColors.success,
-                  letterSpacing: 0.2,
+              Flexible(
+                child: Text(
+                  isOfflineQueued
+                      ? 'Saved to Offline Queue (Pending Sync) · GH₵ ${_completedTransaction!.amount.toStringAsFixed(2)}'
+                      : 'Payment Received · GH₵ ${_completedTransaction!.amount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                    color: isOfflineQueued ? AppColors.pending : AppColors.success,
+                    letterSpacing: 0.2,
+                  ),
                 ),
               ),
             ],

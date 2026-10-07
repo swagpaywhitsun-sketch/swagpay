@@ -391,9 +391,29 @@ app.get('/api/payments/status/:ref', async (req, res) => {
       return res.status(404).json({ error: 'Transaction not found' });
     }
 
-    const txn = localRes.rows[0];
+    let resolvedCustomerName = txn.customerName;
 
-    // If already terminal (SUCCESS or FAILED), return immediately
+    // If customer name is not yet present on the transaction, resolve it from telco
+    if (!resolvedCustomerName && txn.momoNumber) {
+      try {
+        const net = resolveNetwork(txn.momoNumber, txn.network);
+        const msisdn = formatGhanaMsisdn(txn.momoNumber);
+        const lkRes = await fetch(`${WHITSUNPAY_CONFIG.baseUrl}/api/v1/account/lookup/${encodeURIComponent(msisdn)}/${net.provider}`, {
+          method: 'GET',
+          headers: {
+            'x-client-id': WHITSUNPAY_CONFIG.clientId,
+            'x-api-key': WHITSUNPAY_CONFIG.apiKey,
+          },
+        });
+        const lkData = await lkRes.json().catch(() => ({}));
+        if (lkData.responseData && lkData.responseData.name) {
+          resolvedCustomerName = lkData.responseData.name;
+          await pool.query('UPDATE transactions SET "customerName" = $1 WHERE reference = $2', [resolvedCustomerName, cleanRef]).catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    // If already terminal (SUCCESS or FAILED), return immediately with resolved customer name
     if (txn.status === 'SUCCESS' || txn.status === 'FAILED') {
       return res.json({
         reference: txn.reference,
@@ -401,7 +421,7 @@ app.get('/api/payments/status/:ref', async (req, res) => {
         receiptNumber: txn.receiptNumber,
         amount: txn.amount,
         currency: 'GH₵',
-        customerName: txn.customerName,
+        customerName: resolvedCustomerName || txn.customerName,
         momoNumber: txn.momoNumber,
         network: txn.network,
         failureReason: txn.failureReason,

@@ -340,7 +340,17 @@ class PaymentRepository {
   Future<PaymentTransaction> checkPaymentStatus(String reference) async {
     final res = await apiClient.get<Map<String, dynamic>>('${ApiConfig.paymentStatus}/$reference');
     if (res.data != null) {
-      final txn = PaymentTransaction.fromJson(res.data!);
+      var txn = PaymentTransaction.fromJson(res.data!);
+
+      // If customer name is missing or defaulted, perform rapid background telco lookup
+      if ((txn.customerName == 'Counter Customer' || txn.customerName == 'Walk-in Customer' || txn.customerName.isEmpty) &&
+          txn.customerNumber.isNotEmpty) {
+        final cust = await lookupCustomer(txn.customerNumber, network: txn.network);
+        if (cust != null && cust.name.isNotEmpty) {
+          txn = txn.copyWith(customerName: cust.name);
+        }
+      }
+
       final idx = _transactions.indexWhere((t) => t.reference == reference);
       if (idx != -1) {
         _transactions[idx] = txn;
@@ -681,7 +691,7 @@ class PaymentRepository {
       reference: ref,
       amount: amount,
       currency: 'GH₵',
-      status: TransactionStatus.success,
+      status: TransactionStatus.pending,
       network: network ?? MoMoNetwork.mtn,
       customerNumber: momoNumber,
       customerPhone: momoNumber,

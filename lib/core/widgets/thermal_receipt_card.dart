@@ -15,11 +15,14 @@ class ThermalReceiptCard extends StatelessWidget {
   });
 
   Color get _statusColor {
+    if (transaction.id.startsWith('tx_off_') || transaction.reference.startsWith('OFF-')) {
+      return AppColors.pending;
+    }
     switch (transaction.status) {
       case TransactionStatus.success:
         return AppColors.success;
       case TransactionStatus.pending:
-        return AppColors.gold;
+        return AppColors.pending;
       case TransactionStatus.failed:
         return AppColors.error;
       case TransactionStatus.refunded:
@@ -28,6 +31,9 @@ class ThermalReceiptCard extends StatelessWidget {
   }
 
   String get _statusLabel {
+    if (transaction.id.startsWith('tx_off_') || transaction.reference.startsWith('OFF-')) {
+      return 'OFFLINE QUEUED (PENDING SYNC)';
+    }
     switch (transaction.status) {
       case TransactionStatus.success:
         return 'APPROVED / PAID';
@@ -41,6 +47,9 @@ class ThermalReceiptCard extends StatelessWidget {
   }
 
   String get _amountLabel {
+    if (transaction.id.startsWith('tx_off_') || transaction.reference.startsWith('OFF-')) {
+      return 'QUEUED AMOUNT (PENDING)';
+    }
     switch (transaction.status) {
       case TransactionStatus.success:
         return 'TOTAL PAID';
@@ -299,12 +308,12 @@ class ThermalReceiptCard extends StatelessWidget {
                       ),
                       SizedBox(height: 4),
                       Text(
-                        'POWERED BY SWAGPAY POS GATEWAY',
+                        'POWERED BY WHITSUN',
                         style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF64748B),
-                          letterSpacing: 0.8,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1570A6),
+                          letterSpacing: 1.2,
                         ),
                       ),
                     ],
@@ -358,7 +367,7 @@ class ThermalReceiptCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: onPrint ?? () => ReceiptService.showPrintModal(context, transaction),
+                    onPressed: onPrint ?? () => ReceiptService.printReceipt(context, transaction),
                     icon: const Icon(Icons.print_rounded, size: 18),
                     label: const Text('Print Receipt', style: TextStyle(fontWeight: FontWeight.w800)),
                     style: ElevatedButton.styleFrom(
