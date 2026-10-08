@@ -632,6 +632,8 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
               value: 'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)}',
               icon: Icons.account_balance_wallet_rounded,
               accentColor: AppColors.success,
+              deltaText: '${amountDeltaPct >= 0 ? "+" : ""}${amountDeltaPct.toStringAsFixed(1)}%',
+              isPositiveDelta: amountDeltaPct >= 0,
               subtitle: '${amountDeltaPct >= 0 ? "+" : ""}${amountDeltaPct.toStringAsFixed(1)}% vs prior period',
             ),
             StatCard(
@@ -639,6 +641,8 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
               value: '$successCount',
               icon: Icons.check_circle_outline_rounded,
               accentColor: const Color(0xFF10B981),
+              deltaText: '$successCount settled',
+              isPositiveDelta: true,
               subtitle: 'Out of $txnsCount total attempts',
             ),
             StatCard(
@@ -646,6 +650,8 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
               value: 'GH₵ ${NumberFormat('#,##0.00').format(avgTicket)}',
               icon: Icons.trending_up_rounded,
               accentColor: AppColors.gold,
+              deltaText: '${avgTicketDeltaPct >= 0 ? "+" : ""}${avgTicketDeltaPct.toStringAsFixed(1)}%',
+              isPositiveDelta: avgTicketDeltaPct >= 0,
               subtitle: '${avgTicketDeltaPct >= 0 ? "+" : ""}${avgTicketDeltaPct.toStringAsFixed(1)}% delta',
             ),
             StatCard(
@@ -653,6 +659,8 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
               value: '${successRate.toStringAsFixed(1)}%',
               icon: Icons.speed_rounded,
               accentColor: AppColors.primary,
+              deltaText: '${successRate.toStringAsFixed(1)}% SLA',
+              isPositiveDelta: successRate >= 90,
               subtitle: '$failedCount declines / timeouts',
             ),
             StatCard(
@@ -660,6 +668,8 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
               value: peakHourStr,
               icon: Icons.access_time_filled_rounded,
               accentColor: const Color(0xFF8B5CF6),
+              deltaText: 'Peak',
+              isPositiveDelta: true,
               subtitle: 'Yield: GH₵ ${NumberFormat('#,##0').format(maxHourRev)}',
             ),
             StatCard(
@@ -667,6 +677,8 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> with Si
               value: topNetworkName,
               icon: Icons.cell_tower_rounded,
               accentColor: const Color(0xFFF59E0B),
+              deltaText: '${topNetworkShare.toStringAsFixed(1)}% share',
+              isPositiveDelta: true,
               subtitle: '${topNetworkShare.toStringAsFixed(1)}% market volume',
             ),
           ],

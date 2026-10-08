@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/models/transaction.dart';
+import '../../core/services/receipt_service.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_thin_footer.dart';
 import '../../core/widgets/carrier_brand_icon.dart';
+import '../../core/widgets/lively_widgets.dart';
+import '../../core/widgets/notification_dropdown_button.dart';
+import '../../core/widgets/teller_bottom_nav_bar.dart';
+import '../../core/widgets/teller_user_avatar_menu.dart';
 import '../../core/widgets/thermal_receipt_card.dart';
 
 class NewCollectionScreen extends ConsumerStatefulWidget {
@@ -31,6 +36,9 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   MoMoNetwork? _selectedNetwork;
   String? _selectedPosId;
 
+  String? _liveCustomerName;
+  bool _isLiveLookingUp = false;
+
   String? _activeReference;
   PaymentTransaction? _completedTransaction;
   String? _errorMessage;
@@ -52,7 +60,20 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
   double get _currentAmount => double.tryParse(_amountController.text.trim()) ?? 0.0;
 
+  void _triggerAutoPrintReceipt(PaymentTransaction txn) {
+    final shouldAutoPrint = ref.read(autoPrintReceiptProvider);
+    if (!shouldAutoPrint) return;
+
+    Future.delayed(const Duration(milliseconds: 650), () {
+      if (mounted && _currentStep == 4) {
+        ReceiptService.printReceipt(context, txn);
+      }
+    });
+  }
+
+
   void _onNumpadTap(String val) {
+    HapticFeedback.selectionClick();
     String current = _amountController.text;
     if (val == 'C') {
       _amountController.clear();
@@ -83,14 +104,9 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     setState(() {});
   }
 
-  void _setPresetAmount(double val) {
-    setState(() {
-      _amountController.text = val.toStringAsFixed(val == val.roundToDouble() ? 0 : 2);
-    });
-  }
-
   void _proceedToStep2() {
     if (_currentAmount <= 0) {
+      HapticFeedback.heavyImpact();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter a valid amount greater than GH₵ 0.00'),
@@ -99,13 +115,37 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       );
       return;
     }
+    HapticFeedback.mediumImpact();
     setState(() {
       _currentStep = 2;
     });
+    _triggerLiveLookup();
   }
 
   void _selectNetwork(MoMoNetwork network) {
+    HapticFeedback.lightImpact();
     setState(() => _selectedNetwork = network);
+    _triggerLiveLookup();
+  }
+
+  void _triggerLiveLookup() async {
+    final clean = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+    if (clean.length == 10 && _selectedNetwork != null) {
+      setState(() => _isLiveLookingUp = true);
+      try {
+        final cust = await ref.read(paymentRepositoryProvider).lookupCustomer(clean, network: _selectedNetwork);
+        if (mounted && cust != null && cust.name.isNotEmpty) {
+          setState(() {
+            _liveCustomerName = cust.name;
+            _isLiveLookingUp = false;
+          });
+          return;
+        }
+      } catch (_) {}
+      if (mounted) {
+        setState(() => _isLiveLookingUp = false);
+      }
+    }
   }
 
   void _startMoMoCollection() async {
@@ -207,6 +247,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               _completedTransaction = txn;
               _currentStep = 4; // Success
             });
+            _triggerAutoPrintReceipt(txn);
           } else if (txn.status == TransactionStatus.failed) {
             timer.cancel();
             _countdownTimer?.cancel();
@@ -249,6 +290,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         _pollingTimer?.cancel();
         _countdownTimer?.cancel();
         setState(() => _currentStep = 4);
+        _triggerAutoPrintReceipt(txn);
       } else if (txn.status == TransactionStatus.failed) {
         _pollingTimer?.cancel();
         _countdownTimer?.cancel();
@@ -339,11 +381,15 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           ),
         ),
         actions: [
+          NotificationDropdownButton(isDark: isDark),
+          const SizedBox(width: 8),
+          TellerUserAvatarMenu(isDark: isDark),
           IconButton(
             icon: const Icon(Icons.close_rounded, color: Colors.white),
             tooltip: 'Dashboard',
             onPressed: () => context.go('/teller/dashboard'),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: SafeArea(
@@ -357,7 +403,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: const AppThinFooter(),
+      bottomNavigationBar: const TellerBottomNavBar(currentRoute: '/teller/collection'),
     );
   }
 
@@ -395,15 +441,15 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       children: [
         // Main Amount Display Card
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           decoration: BoxDecoration(
             color: cardBg,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                blurRadius: 10,
+                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+                blurRadius: 14,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -430,58 +476,23 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                     style: TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF1570A6),
+                      color: Color(0xFF229ED9),
                     ),
                   ),
                   Flexible(
                     child: Text(
                       _amountController.text.isEmpty ? '0.00' : _amountController.text,
                       style: TextStyle(
-                        fontSize: 42,
+                        fontSize: 44,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: -1.0,
+                        letterSpacing: -1.2,
                         color: _amountController.text.isEmpty
-                            ? muted.withValues(alpha: 0.4)
-                            : const Color(0xFF1570A6),
+                            ? muted.withValues(alpha: 0.35)
+                            : const Color(0xFF229ED9),
                       ),
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 16),
-              // Preset Amount Quick Chips
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                runSpacing: 8,
-                children: [10.0, 20.0, 50.0, 100.0, 200.0, 500.0].map((val) {
-                  final isSelected = _currentAmount == val;
-                  return InkWell(
-                    onTap: () => _setPresetAmount(val),
-                    borderRadius: BorderRadius.circular(20),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFF1570A6)
-                            : (isDark ? const Color(0xFF27272A) : const Color(0xFFF1F5F9)),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSelected ? const Color(0xFF1570A6) : borderColor,
-                        ),
-                      ),
-                      child: Text(
-                        'GH₵ ${val.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: isSelected ? Colors.white : heading,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
               ),
             ],
           ),
@@ -489,12 +500,12 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
         const SizedBox(height: 16),
 
-        // POS Virtual Touch Numpad
+        // POS Virtual Touch Numpad with Bouncy Feedback
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: cardBg,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: borderColor),
           ),
           child: Column(
@@ -510,27 +521,52 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           ),
         ),
 
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
 
         // Screen 1 Action Button: Continue to Screen 2
-        SizedBox(
-          height: 52,
-          child: ElevatedButton.icon(
-            onPressed: hasValidAmount ? _proceedToStep2 : null,
-            icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-            label: Text(
-              hasValidAmount
-                  ? 'Continue to Payment (GH₵ ${_currentAmount.toStringAsFixed(2)})'
-                  : 'Enter Amount to Continue',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+        BouncyTap(
+          onTap: hasValidAmount ? _proceedToStep2 : null,
+          child: Container(
+            height: 54,
+            decoration: BoxDecoration(
+              gradient: hasValidAmount
+                  ? const LinearGradient(
+                      colors: [Color(0xFF229ED9), Color(0xFF0284C7)],
+                    )
+                  : null,
+              color: hasValidAmount ? null : (isDark ? const Color(0xFF27272A) : const Color(0xFFE2E8F0)),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: hasValidAmount
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF229ED9).withValues(alpha: 0.35),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
+                    ]
+                  : null,
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1570A6),
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: isDark ? const Color(0xFF27272A) : const Color(0xFFE2E8F0),
-              disabledForegroundColor: muted,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  hasValidAmount
+                      ? 'Continue to Payment · GH₵ ${_currentAmount.toStringAsFixed(2)}'
+                      : 'Enter Amount to Continue',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: hasValidAmount ? Colors.white : muted,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 18,
+                  color: hasValidAmount ? Colors.white : muted,
+                ),
+              ],
             ),
           ),
         ),
@@ -541,33 +577,38 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   Widget _buildNumpadRow(List<String> keys, bool isDark, Color heading, Color cardBg, Color borderColor) {
     return Row(
       children: keys.map((key) {
+        final isSpecial = key == '⌫' || key == '.';
         return Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Material(
-              color: isDark ? const Color(0xFF27272A) : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(10),
-              child: InkWell(
-                onTap: () => _onNumpadTap(key),
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  height: 50,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: key == '⌫'
-                      ? Icon(Icons.backspace_outlined, size: 20, color: heading)
-                      : Text(
-                          key,
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: heading,
-                          ),
-                        ),
+            child: BouncyTap(
+              onTap: () => _onNumpadTap(key),
+              scaleFactor: 0.92,
+              child: Container(
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF262933) : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.02),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
+                child: key == '⌫'
+                    ? Icon(Icons.backspace_outlined, size: 20, color: heading)
+                    : Text(
+                        key,
+                        style: TextStyle(
+                          fontSize: isSpecial ? 24 : 22,
+                          fontWeight: FontWeight.w800,
+                          color: heading,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -704,7 +745,10 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(10),
                 ],
-                onChanged: (_) => setState(() {}),
+                onChanged: (_) {
+                  setState(() {});
+                  _triggerLiveLookup();
+                },
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: heading, letterSpacing: 1.0),
                 decoration: InputDecoration(
                   hintText: 'e.g. 0244123456',
@@ -724,6 +768,51 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   ),
                 ),
               ),
+              if (_isLiveLookingUp) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1570A6)),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Checking registered name with telco...',
+                      style: TextStyle(fontSize: 11.5, color: muted, fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ),
+              ] else if (_liveCustomerName != null && _liveCustomerName!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: isDark ? 0.15 : 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.success.withValues(alpha: isDark ? 0.3 : 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.verified_user_rounded, size: 14, color: AppColors.success),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Registered SIM Name: $_liveCustomerName',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? AppColors.success : AppColors.successDark,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -791,34 +880,63 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         const SizedBox(height: 20),
 
         // Pay Button carrying the amount dynamically
-        SizedBox(
-          height: 56,
-          child: ElevatedButton.icon(
-            onPressed: canPay ? _startMoMoCollection : null,
-            icon: _isInitiating
-                ? const SizedBox(
+        // Pay Button carrying the amount dynamically
+        BouncyTap(
+          onTap: canPay ? _startMoMoCollection : null,
+          child: Container(
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: canPay
+                  ? LinearGradient(
+                      colors: hasCarrier
+                          ? [payButtonColor, payButtonColor.withValues(alpha: 0.85)]
+                          : const [Color(0xFF229ED9), Color(0xFF0284C7)],
+                    )
+                  : null,
+              color: canPay ? null : (isDark ? const Color(0xFF27272A) : const Color(0xFFE2E8F0)),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: canPay
+                  ? [
+                      BoxShadow(
+                        color: (hasCarrier ? payButtonColor : const Color(0xFF229ED9)).withValues(alpha: 0.4),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (_isInitiating) ...[
+                  const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
-                  )
-                : const Icon(Icons.payment_rounded, size: 22),
-            label: Text(
-              _isInitiating
-                  ? 'Sending Prompt...'
-                  : !hasValidPhone
-                      ? 'Enter Customer MoMo Number'
-                      : !hasCarrier
-                          ? 'Select Carrier Network Above'
-                          : 'Pay GH₵ ${_currentAmount.toStringAsFixed(2)}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.3),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: hasCarrier ? payButtonColor : const Color(0xFF1570A6),
-              foregroundColor: payButtonTextColor,
-              disabledBackgroundColor: isDark ? const Color(0xFF27272A) : const Color(0xFFE2E8F0),
-              disabledForegroundColor: muted,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Sending Prompt to Customer...',
+                    style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                ] else ...[
+                  Icon(Icons.payment_rounded, size: 20, color: canPay ? payButtonTextColor : muted),
+                  const SizedBox(width: 10),
+                  Text(
+                    !hasValidPhone
+                        ? 'Enter Customer MoMo Number'
+                        : !hasCarrier
+                            ? 'Select Carrier Network Above'
+                            : 'Pay GH₵ ${_currentAmount.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.3,
+                      color: canPay ? payButtonTextColor : muted,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -837,53 +955,72 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     final brandColor = _getNetworkBrandColor(network);
     final selectedBg = _getNetworkSelectedBg(network, isDark);
 
-    return InkWell(
+    return BouncyTap(
       onTap: () => _selectNetwork(network),
-      borderRadius: BorderRadius.circular(12),
+      scaleFactor: 0.94,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
         decoration: BoxDecoration(
           color: isSelected
               ? selectedBg
-              : (isDark ? const Color(0xFF27272A) : const Color(0xFFF8FAFC)),
-          borderRadius: BorderRadius.circular(12),
+              : (isDark ? const Color(0xFF242730) : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? brandColor : defaultBorderColor,
-            width: isSelected ? 2.0 : 1.0,
+            width: isSelected ? 2.2 : 1.0,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: brandColor.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: brandColor.withValues(alpha: 0.28),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ]
               : null,
         ),
-        child: Column(
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            CarrierBrandIcon(network: network, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              network.carrierName,
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w900,
-                color: heading,
+            if (isSelected)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(2.5),
+                  decoration: BoxDecoration(
+                    color: brandColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 10, color: Colors.white),
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              network.serviceName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: isSelected ? brandColor : muted,
-              ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CarrierBrandIcon(network: network, size: 32),
+                const SizedBox(height: 8),
+                Text(
+                  network.carrierName,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: heading,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  network.serviceName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? brandColor : muted,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -900,24 +1037,57 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE2E8F0);
     final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF64748B);
     final heading = isDark ? Colors.white : const Color(0xFF1E293B);
-    final brandColor = _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF1570A6);
+    final brandColor = _selectedNetwork != null ? _getNetworkBrandColor(_selectedNetwork!) : const Color(0xFF229ED9);
     final isUrgent = _remainingSeconds <= 15;
-    final countdownColor = isUrgent ? const Color(0xFFE65100) : brandColor;
+    final countdownColor = isUrgent ? const Color(0xFFEF4444) : brandColor;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const SizedBox(height: 16),
-        // Countdown Timer Ring
+        const SizedBox(height: 10),
+
+        // Dribbble Radar Pulse Waves & Carrier Center
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            // Concentric radar wave effect
+            PulsingBeacon(
+              color: brandColor,
+              size: 54,
+              showRipple: true,
+            ),
+            // Carrier Icon
+            if (_selectedNetwork != null)
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: brandColor.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: CarrierBrandIcon(network: _selectedNetwork!, size: 48),
+              ),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+
+        // Countdown Timer Ring with Clean Dribbble Styling
         Stack(
           alignment: Alignment.center,
           children: [
             SizedBox(
-              width: 140,
-              height: 140,
+              width: 120,
+              height: 120,
               child: CircularProgressIndicator(
                 value: (_remainingSeconds.clamp(0, 60)) / 60.0,
-                strokeWidth: 8,
+                strokeWidth: 7,
                 backgroundColor: isDark ? const Color(0xFF2A2A2E) : const Color(0xFFE2E8F0),
                 valueColor: AlwaysStoppedAnimation<Color>(countdownColor),
               ),
@@ -928,7 +1098,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                 Text(
                   '$_remainingSeconds',
                   style: TextStyle(
-                    fontSize: 40,
+                    fontSize: 38,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -1.5,
                     color: countdownColor,
@@ -937,7 +1107,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                 Text(
                   'SEC REMAINING',
                   style: TextStyle(
-                    fontSize: 9.5,
+                    fontSize: 9,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.2,
                     color: muted,
@@ -948,123 +1118,169 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           ],
         ),
 
-        const SizedBox(height: 20),
-
-        if (_selectedNetwork != null)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: brandColor.withValues(alpha: isDark ? 0.2 : 0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: brandColor.withValues(alpha: 0.4)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CarrierBrandIcon(network: _selectedNetwork!, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  '${_selectedNetwork!.carrierName} (${_selectedNetwork!.serviceName})',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: brandColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        const SizedBox(height: 18),
 
         Text(
           'Awaiting Customer MoMo PIN',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: heading),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: heading, letterSpacing: -0.3),
         ),
         const SizedBox(height: 8),
         Text(
-          'MoMo prompt of GH₵ ${_currentAmount.toStringAsFixed(2)} was dispatched to ${_phoneController.text}.\nCustomer is approving the prompt on their phone.',
+          'Prompt of GH₵ ${_currentAmount.toStringAsFixed(2)} was sent to ${_phoneController.text}.\nCustomer is authorizing the transaction on their phone.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: muted, fontSize: 13.5, height: 1.4),
+          style: TextStyle(color: muted, fontSize: 13, height: 1.45),
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
 
+        // Progress Steps Card
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: cardBg,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: borderColor),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          child: Column(
             children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: AppColors.success,
-                  shape: BoxShape.circle,
-                ),
+              _buildProgressStep(
+                icon: Icons.check_circle_rounded,
+                iconColor: const Color(0xFF10B981),
+                text: 'USSD prompt dispatched to customer handset',
+                isDone: true,
+                isDark: isDark,
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Live Gateway Listening (1.5s interval)',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: muted),
+              const SizedBox(height: 10),
+              _buildProgressStep(
+                icon: Icons.lock_clock_rounded,
+                iconColor: const Color(0xFFF59E0B),
+                text: 'Waiting for customer to enter 4-digit PIN',
+                isDone: false,
+                isPulsing: true,
+                isDark: isDark,
+              ),
+              const SizedBox(height: 10),
+              _buildProgressStep(
+                icon: Icons.sync_rounded,
+                iconColor: const Color(0xFF229ED9),
+                text: 'Real-time gateway listener active (1.5s polling)',
+                isDone: false,
+                isDark: isDark,
               ),
             ],
           ),
         ),
 
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Text(
-          'Ref: ${_activeReference ?? ''}',
-          style: TextStyle(fontSize: 11.5, fontFamily: 'Courier', fontWeight: FontWeight.w600, color: muted),
+          'Reference: ${_activeReference ?? ''}',
+          style: TextStyle(fontSize: 11, fontFamily: 'Courier', fontWeight: FontWeight.w700, color: muted),
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
         ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 320),
+          constraints: const BoxConstraints(maxWidth: 340),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                height: 46,
-                child: ElevatedButton.icon(
-                  onPressed: _isRechecking ? null : _checkManualStatus,
-                  icon: _isRechecking
-                      ? const SizedBox(
-                          width: 15,
-                          height: 15,
+              BouncyTap(
+                onTap: _isRechecking ? null : _checkManualStatus,
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF229ED9), Color(0xFF0284C7)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF229ED9).withValues(alpha: 0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_isRechecking) ...[
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.sync_rounded, size: 16),
-                  label: Text(_isRechecking ? 'Checking Status...' : 'Check Status Now'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1570A6),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Checking Status...',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                        ),
+                      ] else ...[
+                        const Icon(Icons.sync_rounded, size: 18, color: Colors.white),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Check Status Now',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
               const SizedBox(height: 10),
-              SizedBox(
-                height: 44,
-                child: OutlinedButton.icon(
-                  onPressed: _resetFlow,
-                  icon: const Icon(Icons.close_rounded, size: 16),
-                  label: const Text('Cancel Request'),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: cardBg,
-                    foregroundColor: muted,
-                    side: BorderSide(color: borderColor),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              BouncyTap(
+                onTap: _resetFlow,
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: borderColor),
+                  ),
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.close_rounded, size: 16, color: muted),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Cancel Request',
+                        style: TextStyle(color: muted, fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressStep({
+    required IconData icon,
+    required Color iconColor,
+    required String text,
+    required bool isDone,
+    bool isPulsing = false,
+    required bool isDark,
+  }) {
+    return Row(
+      children: [
+        if (isPulsing)
+          PulsingBeacon(color: iconColor, size: 8)
+        else
+          Icon(icon, size: 16, color: iconColor),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isDone ? FontWeight.w700 : FontWeight.w600,
+              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+            ),
           ),
         ),
       ],
@@ -1085,73 +1301,137 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Confirmation Banner
-        Container(
-          margin: const EdgeInsets.only(bottom: 14),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: (isOfflineQueued ? AppColors.pending : AppColors.success)
-                .withValues(alpha: isDark ? 0.2 : 0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: (isOfflineQueued ? AppColors.pending : AppColors.success)
-                  .withValues(alpha: isDark ? 0.4 : 0.25),
+        // Dribbble Celebratory Confetti Burst Banner
+        SuccessCelebrationBurst(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: isOfflineQueued
+                  ? const LinearGradient(
+                      colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : const LinearGradient(
+                      colors: [Color(0xFF10B981), Color(0xFF059669)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: (isOfflineQueued ? const Color(0xFFF59E0B) : const Color(0xFF10B981))
+                      .withValues(alpha: 0.35),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                isOfflineQueued ? Icons.cloud_off_rounded : Icons.check_circle_rounded,
-                color: isOfflineQueued ? AppColors.pending : AppColors.success,
-                size: 22,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  isOfflineQueued
-                      ? 'Saved to Offline Queue (Pending Sync) · GH₵ ${_completedTransaction!.amount.toStringAsFixed(2)}'
-                      : 'Payment Received · GH₵ ${_completedTransaction!.amount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14.5,
-                    color: isOfflineQueued ? AppColors.pending : AppColors.success,
-                    letterSpacing: 0.2,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isOfflineQueued ? Icons.cloud_off_rounded : Icons.check_rounded,
+                    color: Colors.white,
+                    size: 22,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isOfflineQueued ? 'Queued for Offline Sync' : 'Payment Approved & Verified!',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          color: Colors.white,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      Text(
+                        'GH₵ ${_completedTransaction!.amount.toStringAsFixed(2)} received from ${_completedTransaction!.customerName}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
 
         // Authentic POS Thermal Receipt Hero Card
-        ThermalReceiptCard(transaction: _completedTransaction!),
+        ThermalReceiptCard(transaction: _completedTransaction!)
+            .animate()
+            .fadeIn(duration: 400.ms)
+            .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
 
         // Primary Action: Start New Collection
-        SizedBox(
-          height: 50,
-          child: ElevatedButton.icon(
-            onPressed: _resetFlow,
-            icon: const Icon(Icons.add_rounded, size: 20),
-            label: const Text('Start New Collection', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1570A6),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        BouncyTap(
+          onTap: _resetFlow,
+          child: Container(
+            height: 54,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF229ED9), Color(0xFF0284C7)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF229ED9).withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add_circle_outline_rounded, size: 20, color: Colors.white),
+                SizedBox(width: 10),
+                Text(
+                  'Start New Collection',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Colors.white),
+                ),
+              ],
             ),
           ),
         ),
 
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
 
-        Center(
-          child: TextButton.icon(
-            onPressed: () => context.go('/teller/dashboard'),
-            icon: Icon(Icons.dashboard_outlined, size: 16, color: muted),
-            label: Text('Back to Dashboard', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: muted)),
+        BouncyTap(
+          onTap: () => context.go('/teller/dashboard'),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.dashboard_outlined, size: 16, color: muted),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Back to Dashboard',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: muted),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -1257,6 +1537,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                 _completedTransaction = txn;
                 _currentStep = 4; // Success
               });
+              _triggerAutoPrintReceipt(txn);
             },
             icon: const Icon(Icons.cloud_off_rounded, size: 18),
             label: const Text(

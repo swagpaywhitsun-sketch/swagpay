@@ -391,6 +391,7 @@ app.get('/api/payments/status/:ref', async (req, res) => {
       return res.status(404).json({ error: 'Transaction not found' });
     }
 
+    const txn = localRes.rows[0];
     let resolvedCustomerName = txn.customerName;
 
     // If customer name is not yet present on the transaction, resolve it from telco
@@ -464,7 +465,6 @@ app.get('/api/payments/status/:ref', async (req, res) => {
     }
 
     const upstreamCustomerName = data.responseData?.name || data.customerName || (data.debitParty && data.debitParty.name) || data.accountName || (data.data && (data.data.customerName || data.data.name || data.data.accountName));
-    let resolvedCustomerName = txn.customerName;
     if (!resolvedCustomerName && upstreamCustomerName && typeof upstreamCustomerName === 'string' && upstreamCustomerName.trim()) {
       resolvedCustomerName = upstreamCustomerName.trim();
       await pool.query('UPDATE transactions SET "customerName" = $1 WHERE reference = $2', [resolvedCustomerName, cleanRef]).catch(() => {});
@@ -534,23 +534,26 @@ app.post(['/api/payments/webhook', '/api/payments/callback'], async (req, res) =
 // ─── TRANSACTIONS LIST ───────────────────────────────
 app.get('/api/transactions', async (req, res) => {
   try {
-    const isTeller = req.auth.role === 'TELLER';
     let whereClause = '';
     const params = [];
 
-    if (isTeller) {
+    if (req.query.scope === 'me' || req.query.scope === 'mine') {
       params.push(req.auth.userId);
       whereClause = 'WHERE t."tellerId" = $1';
-    } else if (req.query.scope === 'me') {
-      params.push(req.auth.userId);
+    } else if (req.query.tellerId) {
+      params.push(req.query.tellerId);
       whereClause = 'WHERE t."tellerId" = $1';
+    } else if (req.query.posId) {
+      params.push(req.query.posId);
+      whereClause = 'WHERE t."posId" = $1';
     }
 
     const result = await pool.query(`
       SELECT t.id, t.reference, t."gatewayReference", t."tellerId", t."posId",
              t.network, t."momoNumber", t."customerName", t.amount, t.fee,
              t."totalCharged", t.status, t."failureReason", t."receiptNumber",
-             t."createdAt", COALESCE(u.name, 'Staff Member') as "tellerName", COALESCE(p.name, 'Main Terminal') as "posName"
+             t."createdAt", COALESCE(u.name, 'Staff Member') as "tellerName", COALESCE(p.name, 'Main Terminal') as "posName",
+             COALESCE(p.location, u.branch, 'Main Branch') as "branch"
       FROM transactions t
       LEFT JOIN users u ON t."tellerId" = u.id
       LEFT JOIN pos_terminals p ON t."posId" = p.id
@@ -569,7 +572,7 @@ app.get('/api/transactions', async (req, res) => {
 app.get('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, email, phone, role, "posId", "singleTxnLimit", "dailyLimit", active, avatar, "createdAt"
+      `SELECT id, name, email, phone, role, branch, "posId", "singleTxnLimit", "dailyLimit", active, avatar, "createdAt"
        FROM users
        WHERE id != 'usr_archived'
        ORDER BY "createdAt" ASC`
@@ -612,7 +615,7 @@ app.put('/api/tellers/:id/limits', requireRole('ADMIN', 'SUPER_ADMIN'), async (r
 // Creates an account with a server-generated secret that is hashed at rest and
 // returned exactly once. No shared default PIN is ever written to the database.
 app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
-  const { id, name, email, phone, role, posId, singleTxnLimit, dailyLimit, initialPassword, password } = req.body;
+  const { id, name, email, phone, role, branch, posId, singleTxnLimit, dailyLimit, initialPassword, password } = req.body;
   if (!name || !email) {
     return res.status(400).json({ success: false, message: 'name and email are required' });
   }
@@ -623,26 +626,27 @@ app.post('/api/tellers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) =
   const normalised = ['ADMIN', 'SUPER_ADMIN'].includes(String(role).toUpperCase()) ? String(role).toUpperCase() : 'TELLER';
   const rawPos = (posId || '').toString().trim();
   const effectivePosId = (rawPos && rawPos !== 'ANY_POS' && rawPos !== 'Universal Access' && rawPos !== 'null' && rawPos !== 'undefined') ? rawPos : null;
+  const branchVal = (branch || '').toString().trim() || null;
 
   try {
     const existing = await pool.query('SELECT id FROM users WHERE id = $1', [tellerId]);
     if (existing.rows.length > 0) {
       await pool.query(
         `UPDATE users
-         SET name = $2, email = $3, phone = $4, role = $5, "posId" = $6, "singleTxnLimit" = $7, "dailyLimit" = $8, "pinHash" = $9, "updatedAt" = NOW()
+         SET name = $2, email = $3, phone = $4, role = $5, "posId" = $6, "singleTxnLimit" = $7, "dailyLimit" = $8, "pinHash" = $9, branch = COALESCE($10, branch), "updatedAt" = NOW()
          WHERE id = $1`,
-        [tellerId, name, email, phone || '', normalised, effectivePosId, sLimit, dLimit, hashPassword(defaultSecret)]
+        [tellerId, name, email, phone || '', normalised, effectivePosId, sLimit, dLimit, hashPassword(defaultSecret), branchVal]
       );
-      recordAudit(pool, req.auth.userId, 'TELLER_UPDATED', 'USER', tellerId, { name, email, role: normalised, posId: effectivePosId || 'ANY_POS', singleTxnLimit: sLimit, dailyLimit: dLimit }, req);
+      recordAudit(pool, req.auth.userId, 'TELLER_UPDATED', 'USER', tellerId, { name, email, role: normalised, posId: effectivePosId || 'ANY_POS', branch: branchVal, singleTxnLimit: sLimit, dailyLimit: dLimit }, req);
       return res.json({ success: true, id: tellerId, updated: true, initialPassword: defaultSecret, tempSecret: defaultSecret });
     }
 
     await pool.query(
-      `INSERT INTO users (id, name, email, phone, pin, "pinHash", role, "posId", "singleTxnLimit", "dailyLimit", active, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, 1, NOW(), NOW())`,
-      [tellerId, name, email, phone || '', hashPassword(defaultSecret), normalised, effectivePosId, sLimit, dLimit]
+      `INSERT INTO users (id, name, email, phone, pin, "pinHash", role, "posId", "singleTxnLimit", "dailyLimit", branch, active, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, $10, 1, NOW(), NOW())`,
+      [tellerId, name, email, phone || '', hashPassword(defaultSecret), normalised, effectivePosId, sLimit, dLimit, branchVal]
     );
-    recordAudit(pool, req.auth.userId, 'TELLER_CREATED', 'USER', tellerId, { name, email, role: normalised, posId: effectivePosId || 'ANY_POS', singleTxnLimit: sLimit, dailyLimit: dLimit }, req);
+    recordAudit(pool, req.auth.userId, 'TELLER_CREATED', 'USER', tellerId, { name, email, role: normalised, posId: effectivePosId || 'ANY_POS', branch: branchVal, singleTxnLimit: sLimit, dailyLimit: dLimit }, req);
     res.json({
       success: true,
       id: tellerId,

@@ -1,14 +1,22 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
 import '../../core/models/transaction.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_config.dart';
 import '../../core/services/payment_repository.dart';
 import '../../core/state/providers.dart';
+import '../../core/widgets/carrier_brand_icon.dart';
+import '../../core/widgets/lively_widgets.dart';
+import '../../core/widgets/notification_dropdown_button.dart';
 import '../../core/widgets/status_badge.dart';
-import '../../core/widgets/user_avatar_widget.dart';
+import '../../core/widgets/teller_bottom_nav_bar.dart';
+import '../../core/widgets/teller_user_avatar_menu.dart';
 
 class TellerDashboardScreen extends ConsumerStatefulWidget {
   const TellerDashboardScreen({super.key});
@@ -18,6 +26,8 @@ class TellerDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
+  bool _isBalanceVisible = true;
+  TransactionStatus? _filterStatus;
 
   @override
   void initState() {
@@ -33,209 +43,38 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
     final user = auth.currentUser;
     final avatar = ref.watch(userAvatarProvider);
     final repo = ref.watch(paymentRepositoryProvider);
-    final txns = repo.getTransactions();
+    final allTxns = repo.getTransactions();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final successTxns = txns.where((t) => t.status == TransactionStatus.success).toList();
+    final successTxns = allTxns.where((t) => t.status == TransactionStatus.success).toList();
     final now = DateTime.now();
     final todayTxns = successTxns.where((t) =>
         t.timestamp.year == now.year && t.timestamp.month == now.month && t.timestamp.day == now.day).toList();
     final todayTotal = todayTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
 
-    final bgColor = isDark ? const Color(0xFF121214) : const Color(0xFFF6F6F8);
-    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE1E3E5);
+    final displayTxns = _filterStatus == null
+        ? allTxns
+        : allTxns.where((t) => t.status == _filterStatus).toList();
+
+    final bgColor = isDark ? const Color(0xFF0F1115) : const Color(0xFFF4F6F9);
+    final cardBg = isDark ? const Color(0xFF181A20) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF262933) : const Color(0xFFE2E8F0);
 
     return Scaffold(
       backgroundColor: bgColor,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF303030),
-        elevation: 0,
-        title: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                'logo.png',
-                height: 28,
-                width: 28,
-                fit: BoxFit.contain,
-                errorBuilder: (ctx, err, stack) => Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.point_of_sale_outlined, color: Colors.white, size: 18),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'SwagPay',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                letterSpacing: -0.3,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          // ── Account Dropdown ────────────────────────────────────
-          PopupMenuButton<String>(
-            tooltip: 'Account Menu',
-            offset: const Offset(0, 52),
-            padding: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: borderColor),
-            ),
-            color: cardBg,
-            elevation: 10,
-            onSelected: (val) {
-              if (val == 'settings') {
-                context.push('/teller/profile');
-              } else if (val == 'reports') {
-                context.push('/teller/reports');
-              } else if (val == 'theme') {
-                ref.read(themeModeProvider.notifier).toggleTheme();
-              } else if (val == 'logout') {
-                ref.read(authProvider.notifier).logout();
-                context.go('/teller/login');
-              }
-            },
-            itemBuilder: (ctx) => [
-              // Branded profile header
-              PopupMenuItem<String>(
-                enabled: false,
-                height: 92,
-                child: SizedBox(
-                  width: 254,
-                  child: Container(
-                    margin: const EdgeInsets.all(8),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF229ED9), Color(0xFF1B82B3)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
-                        ),
-                        child: UserAvatarWidget(
-                          avatarData: avatar,
-                          name: user?.fullName ?? 'Cashier',
-                          radius: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              user?.fullName ?? 'Cashier',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14,
-                                color: Colors.white,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              user?.email ?? 'cashier@swagpay.com',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.white.withValues(alpha: 0.85),
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                user?.roleDisplay ?? 'Cashier',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const PopupMenuDivider(height: 1),
-              _buildMenuItem('settings', Icons.settings_outlined, 'Account Settings', isDark),
-              _buildMenuItem('reports', Icons.analytics_outlined, 'Shift Reports', isDark),
-              PopupMenuItem<String>(
-                value: 'theme',
-                height: 42,
-                child: Row(
-                  children: [
-                    Icon(
-                      isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                      size: 18,
-                      color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      isDark ? 'Light Theme' : 'Dark Theme',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: isDark ? Colors.white : const Color(0xFF303030),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(height: 1),
-              _buildMenuItem('logout', Icons.logout_rounded, 'Log Out', isDark, isDestructive: true),
-            ],
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14.0),
-              child: UserAvatarWidget(
-                avatarData: avatar,
-                name: user?.fullName ?? 'Cashier',
-                radius: 16,
-              ),
-            ),
-          ),
-        ],
-      ),
-
+      appBar: _buildDribbbleAppBar(context, user, avatar, isDark, cardBg, borderColor),
       body: RefreshIndicator(
+        color: const Color(0xFF229ED9),
         onRefresh: () async {
+          HapticFeedback.lightImpact();
           await ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
         },
         child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           slivers: [
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -244,98 +83,96 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                       const SizedBox(height: 14),
                     ],
 
-                    // ── Compact Shopify KPI Card (Size Reduced) ─────────────
-                    _buildCompactKpiCard(todayTotal, todayTxns.length, isDark, cardBg, borderColor),
-                    const SizedBox(height: 14),
+                    // ── Hero Dribbble Glassmorphic Wallet Card ──────────
+                    _buildHeroFintechCard(
+                      todayTotal,
+                      todayTxns.length,
+                      successTxns.length,
+                      allTxns.length,
+                      isDark,
+                    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic),
 
-                    // ── Main Payment Button (Shopify Action Bar) ────────────
-                    _buildPaymentButton(context),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 18),
 
-                    // ── Quick Navigation Actions ───────────────────────────
-                    Row(
-                      children: [
-                        _buildQuickAction(
-                          context,
-                          'History',
-                          Icons.receipt_long_outlined,
-                          () => context.push('/teller/history'),
-                          isDark, cardBg, borderColor,
-                        ),
-                        const SizedBox(width: 10),
-                        _buildQuickAction(
-                          context,
-                          'Offline Queue',
-                          Icons.cloud_off_outlined,
-                          () => context.push('/teller/offline-queue'),
-                          isDark, cardBg, borderColor,
-                        ),
-                        const SizedBox(width: 10),
-                        _buildQuickAction(
-                          context,
-                          'Reports',
-                          Icons.bar_chart_outlined,
-                          () => context.push('/teller/reports'),
-                          isDark, cardBg, borderColor,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
+                    // ── Lively Primary Payment CTA Button ───────────────
+                    _buildLivelyCollectButton(context)
+                        .animate()
+                        .fadeIn(delay: 100.ms, duration: 400.ms)
+                        .scale(begin: const Offset(0.96, 0.96), end: const Offset(1, 1), curve: Curves.easeOutBack),
 
-                    // ── Recent Collections Header ─────────────────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Recent Collections',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF303030),
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: () => context.push('/teller/history'),
-                          icon: const Icon(Icons.arrow_forward_rounded, size: 15),
-                          label: const Text('View All', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 18),
+
+                    // ── Quick Actions Grid / Hub ─────────────────────────
+                    _buildQuickActionsHub(context, isDark, cardBg, borderColor)
+                        .animate()
+                        .fadeIn(delay: 200.ms, duration: 400.ms),
+
+                    const SizedBox(height: 22),
+
+                    // ── Recent Activity Section Header & Filter Pills ───
+                    _buildActivityHeader(displayTxns.length, isDark),
+                    const SizedBox(height: 12),
                   ],
                 ),
               ),
             ),
 
-            // ── Recent Transaction list ──────────────────────────────────
-            if (txns.isEmpty)
+            // ── Recent Transaction List ──────────────────────────────────
+            if (displayTxns.isEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(40),
-                  child: Column(
-                    children: [
-                      Icon(Icons.inbox_outlined, size: 48, color: isDark ? const Color(0xFF4B5563) : const Color(0xFF9CA3AF)),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No transactions recorded',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
-                          fontWeight: FontWeight.w600,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF20232B) : const Color(0xFFEDF2F7),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.receipt_long_outlined,
+                            size: 40,
+                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 14),
+                        Text(
+                          _filterStatus != null ? 'No matching ${_filterStatus!.name} records' : 'No collections recorded today',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Tap "COLLECT PAYMENT" to initiate your first MoMo transaction',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildTxnCard(context, txns[index], isDark, cardBg, borderColor),
-                    childCount: txns.take(8).length,
+                    (context, index) {
+                      final txn = displayTxns[index];
+                      return _buildLivelyTxnCard(context, txn, isDark, cardBg, borderColor)
+                          .animate()
+                          .fadeIn(delay: (60 * (index < 6 ? index : 6)).ms, duration: 350.ms)
+                          .slideX(begin: 0.04, end: 0, curve: Curves.easeOutCubic);
+                    },
+                    childCount: displayTxns.take(12).length,
                   ),
                 ),
               ),
@@ -343,65 +180,817 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
         ),
       ),
 
-      // ── Bottom Nav ───────────────────────────────────────────────────
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: cardBg,
-          border: Border(top: BorderSide(color: borderColor, width: 1)),
+      // ── Icon-Only Footer Menu Toggle ─────────────────────────────────
+      bottomNavigationBar: const TellerBottomNavBar(currentRoute: '/teller/dashboard'),
+    );
+  }
+
+  // ── Dribbble Top Bar with Live Terminal Beacon ───────────────────────────
+  PreferredSizeWidget _buildDribbbleAppBar(
+    BuildContext context,
+    dynamic user,
+    String? avatar,
+    bool isDark,
+    Color cardBg,
+    Color borderColor,
+  ) {
+    return AppBar(
+      automaticallyImplyLeading: false,
+      backgroundColor: isDark ? const Color(0xFF14161B) : Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 2,
+      surfaceTintColor: Colors.transparent,
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF229ED9), Color(0xFF0F766E)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF229ED9).withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset(
+                'logo.png',
+                height: 20,
+                width: 20,
+                fit: BoxFit.contain,
+                errorBuilder: (ctx, err, stack) => const Icon(
+                  Icons.point_of_sale_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'SwagPay',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const PulsingBeacon(
+                    size: 6,
+                    color: Color(0xFF10B981),
+                    showRipple: false,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        // Notifications Dropdown with live badge (capped at 99+)
+        NotificationDropdownButton(isDark: isDark),
+        const SizedBox(width: 8),
+
+        // Account Dropdown Avatar (Uber Eats Style)
+        TellerUserAvatarMenu(isDark: isDark),
+      ],
+    );
+  }
+
+  // ── Dribbble Glassmorphic Hero Fintech Card ──────────────────────────────
+  Widget _buildHeroFintechCard(
+    double total,
+    int todayCount,
+    int totalSuccess,
+    int allTxnsCount,
+    bool isDark,
+  ) {
+    final successRate = allTxnsCount > 0
+        ? ((totalSuccess / allTxnsCount) * 100).toStringAsFixed(1)
+        : '100.0';
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF0C4A6E), // Deep Cyan Navy
+            Color(0xFF0369A1), // Electric Sky
+            Color(0xFF0284C7), // Vivid Cyan
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: BottomNavigationBar(
-          currentIndex: 0,
-          backgroundColor: cardBg,
-          selectedItemColor: const Color(0xFF229ED9),
-          unselectedItemColor: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
-          type: BottomNavigationBarType.fixed,
-          elevation: 0,
-          onTap: (index) {
-            if (index == 1) context.push('/teller/history');
-            if (index == 2) context.push('/teller/reports');
-            if (index == 3) context.push('/teller/profile');
-          },
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.space_dashboard_outlined), activeIcon: Icon(Icons.space_dashboard_rounded), label: 'Dashboard'),
-            BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long_rounded), label: 'History'),
-            BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), activeIcon: Icon(Icons.analytics_rounded), label: 'Reports'),
-            BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings_rounded), label: 'Settings'),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Ambient decorative glowing orbs (Dribbble signature)
+          Positioned(
+            top: -30,
+            right: -30,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -40,
+            left: 20,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top row: Header, Live Beacon, and Eye toggle
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 0.8),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              PulsingBeacon(size: 6, color: Color(0xFF4ADE80)),
+                              SizedBox(width: 6),
+                              Text(
+                                "TODAY'S COLLECTIONS",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    BouncyTap(
+                      onTap: () {
+                        setState(() => _isBalanceVisible = !_isBalanceVisible);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _isBalanceVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Amount Display with Animated Count Up
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    if (_isBalanceVisible) ...[
+                      AnimatedCountUp(
+                        value: total,
+                        prefix: 'GH₵ ',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1.0,
+                          height: 1.1,
+                        ),
+                      ),
+                    ] else ...[
+                      const Text(
+                        'GH₵ ••••••',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2.0,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Mini Sparkline Graph showing transaction pace
+                SizedBox(
+                  height: 38,
+                  child: LineChart(
+                    LineChartData(
+                      gridData: const FlGridData(show: false),
+                      titlesData: const FlTitlesData(show: false),
+                      borderData: FlBorderData(show: false),
+                      minX: 0,
+                      maxX: 6,
+                      minY: 0,
+                      maxY: 6,
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: const [
+                            FlSpot(0, 1.5),
+                            FlSpot(1, 2.8),
+                            FlSpot(2, 2.1),
+                            FlSpot(3, 4.2),
+                            FlSpot(4, 3.8),
+                            FlSpot(5, 5.2),
+                            FlSpot(6, 4.9),
+                          ],
+                          isCurved: true,
+                          curveSmoothness: 0.35,
+                          color: Colors.white.withValues(alpha: 0.9),
+                          barWidth: 2.4,
+                          isStrokeCapRound: true,
+                          dotData: const FlDotData(show: false),
+                          belowBarData: BarAreaData(
+                            show: true,
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withValues(alpha: 0.28),
+                                Colors.white.withValues(alpha: 0.0),
+                              ],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Bottom Metrics Pill Row inside Hero Card
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.bolt_rounded, size: 15, color: Color(0xFFFDE047)),
+                          const SizedBox(width: 5),
+                          Text(
+                            '$todayCount transactions',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(width: 1, height: 12, color: Colors.white.withValues(alpha: 0.2)),
+                      Row(
+                        children: [
+                          const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF4ADE80)),
+                          const SizedBox(width: 5),
+                          Text(
+                            '$successRate% success',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(width: 1, height: 12, color: Colors.white.withValues(alpha: 0.2)),
+                      Row(
+                        children: [
+                          const Icon(Icons.wifi_tethering_rounded, size: 14, color: Colors.white70),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Active',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Lively Primary Payment CTA Button ────────────────────────────────────
+  Widget _buildLivelyCollectButton(BuildContext context) {
+    return BouncyTap(
+      onTap: () => context.push('/teller/collection'),
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF229ED9), // Telegram Azure
+              Color(0xFF0284C7), // Deep Cyan
+            ],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF229ED9).withValues(alpha: 0.4),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.22),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'COLLECT PAYMENT',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text(
+                'MOMO',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
+  // ── Quick Actions Grid / Hub ─────────────────────────────────────────────
+  Widget _buildQuickActionsHub(
+    BuildContext context,
+    bool isDark,
+    Color cardBg,
+    Color borderColor,
+  ) {
+    return Row(
+      children: [
+        _buildActionCard(
+          context,
+          title: 'History',
+          subtitle: 'All txns',
+          icon: Icons.receipt_long_rounded,
+          gradientColors: const [Color(0xFFF59E0B), Color(0xFFD97706)],
+          onTap: () => context.push('/teller/history'),
+          isDark: isDark,
+          cardBg: cardBg,
+          borderColor: borderColor,
+        ),
+        const SizedBox(width: 10),
+        _buildActionCard(
+          context,
+          title: 'Offline',
+          subtitle: 'Queue',
+          icon: Icons.cloud_off_rounded,
+          gradientColors: const [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+          onTap: () => context.push('/teller/offline-queue'),
+          isDark: isDark,
+          cardBg: cardBg,
+          borderColor: borderColor,
+        ),
+        const SizedBox(width: 10),
+        _buildActionCard(
+          context,
+          title: 'Shift',
+          subtitle: 'Summary',
+          icon: Icons.analytics_rounded,
+          gradientColors: const [Color(0xFF10B981), Color(0xFF059669)],
+          onTap: () => context.push('/teller/reports'),
+          isDark: isDark,
+          cardBg: cardBg,
+          borderColor: borderColor,
+        ),
+      ],
+    );
+  }
 
+  Widget _buildActionCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required List<Color> gradientColors,
+    required VoidCallback onTap,
+    required bool isDark,
+    required Color cardBg,
+    required Color borderColor,
+  }) {
+    return Expanded(
+      child: BouncyTap(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: gradientColors,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: gradientColors[0].withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-  // ── Reduced Compact KPI Card (Shopify Polaris style) ─────────────────────
+  // ── Recent Activity Section Header & Filter Pills ─────────────────────────
+  Widget _buildActivityHeader(int count, bool isDark) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Recent Collections',
+                  style: TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF262933) : const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            BouncyTap(
+              onTap: () => context.push('/teller/history'),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                child: Row(
+                  children: [
+                    Text(
+                      'View All',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF229ED9),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.arrow_forward_rounded, size: 14, color: Color(0xFF229ED9)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // Filter Pills Row
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              _buildFilterPill('All', null, isDark),
+              const SizedBox(width: 8),
+              _buildFilterPill('Success', TransactionStatus.success, isDark),
+              const SizedBox(width: 8),
+              _buildFilterPill('Pending', TransactionStatus.pending, isDark),
+              const SizedBox(width: 8),
+              _buildFilterPill('Failed', TransactionStatus.failed, isDark),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterPill(String label, TransactionStatus? status, bool isDark) {
+    final isSelected = _filterStatus == status;
+    return BouncyTap(
+      onTap: () {
+        setState(() => _filterStatus = status);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF229ED9)
+              : (isDark ? const Color(0xFF1E2128) : const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF229ED9)
+                : (isDark ? const Color(0xFF2E3340) : const Color(0xFFE2E8F0)),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isSelected
+                ? Colors.white
+                : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Lively Transaction Card Item ─────────────────────────────────────────
+  Widget _buildLivelyTxnCard(
+    BuildContext context,
+    PaymentTransaction txn,
+    bool isDark,
+    Color cardBg,
+    Color borderColor,
+  ) {
+    final timeFormat = DateFormat('hh:mm a');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: BouncyTap(
+        onTap: () => context.push('/teller/transaction/${txn.id}'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              // Carrier Icon with subtle brand glow
+              Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: CarrierBrandIcon(
+                  network: txn.network,
+                  size: 38,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      txn.customerName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        letterSpacing: -0.2,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Text(
+                          txn.displayPhone,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 3,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          timeFormat.format(txn.timestamp),
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${txn.currency} ${NumberFormat('#,##0.00').format(txn.amount)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14.5,
+                      letterSpacing: -0.3,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  StatusBadge(status: txn.status),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Sync Banner Helper ───────────────────────────────────────────────────
   Widget _buildSyncBanner(PaymentRepository repo, bool isDark, Color cardBg) {
     final err = repo.lastSyncError;
     final isApiError = err is ApiException;
     final hasError = err != null;
     final title = !hasError
-        ? 'Connected — no collections yet'
+        ? 'Connected — terminal online'
         : isApiError && err.statusCode != null
-            ? 'Server error (HTTP ${err.statusCode})'
-            : 'Cannot reach the server';
+            ? 'Server sync notice (HTTP ${err.statusCode})'
+            : 'Terminal operating in local offline mode';
     final detail = !hasError
         ? 'Terminal is online. New MoMo collections will appear here.'
         : '${isApiError ? err.message : '$err'}\n${ApiConfig.baseUrl}';
-    final accent = hasError ? const Color(0xFFE53935) : const Color(0xFF229ED9);
+    final accent = hasError ? const Color(0xFFEF4444) : const Color(0xFF229ED9);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withValues(alpha: 0.35), width: 1.2),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(hasError ? Icons.wifi_tethering_error_rounded : Icons.cloud_done_outlined,
+          Icon(hasError ? Icons.cloud_off_rounded : Icons.cloud_done_rounded,
               color: accent, size: 22),
           const SizedBox(width: 10),
           Expanded(
@@ -415,7 +1004,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                     style: TextStyle(
                         fontSize: 11.5,
                         height: 1.35,
-                        color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280))),
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B))),
               ],
             ),
           ),
@@ -430,281 +1019,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
     );
   }
 
-  Widget _buildCompactKpiCard(double total, int count, bool isDark, Color cardBg, Color borderColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor, width: 1),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    "Today's Collections",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'GH₵ ${NumberFormat('#,##0.00').format(total)}',
-                style: TextStyle(
-                  color: isDark ? Colors.white : const Color(0xFF303030),
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: borderColor),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.receipt_outlined,
-                  size: 14,
-                  color: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF374151),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '$count txns',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : const Color(0xFF303030),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  // ── PAYMENT Primary Action Button ─────────────────────────────────────────
-  Widget _buildPaymentButton(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: ElevatedButton(
-        onPressed: () => context.push('/teller/collection'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF229ED9), // Shopify Dark Emerald
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add_circle_outline_rounded, size: 20),
-            SizedBox(width: 10),
-            Text(
-              'COLLECT PAYMENT',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  // ── Quick action navigation tile ─────────────────────────────────────────
-  Widget _buildQuickAction(
-    BuildContext context,
-    String title,
-    IconData icon,
-    VoidCallback onTap,
-    bool isDark,
-    Color cardBg,
-    Color borderColor,
-  ) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor, width: 1),
-          ),
-          child: Column(
-            children: [
-              Icon(
-                icon,
-                color: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF374151),
-                size: 20,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : const Color(0xFF303030),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  // ── Transaction Card Item ────────────────────────────────────────────────
-  Widget _buildTxnCard(
-    BuildContext context,
-    PaymentTransaction txn,
-    bool isDark,
-    Color cardBg,
-    Color borderColor,
-  ) {
-    final timeFormat = DateFormat('hh:mm a');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: 1),
-      ),
-      child: InkWell(
-        onTap: () => context.push('/teller/transaction/${txn.id}'),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              // Clean line icon container
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF27272A) : const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.payments_outlined,
-                  color: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF4B5563),
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      txn.customerName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: isDark ? Colors.white : const Color(0xFF303030),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${txn.displayPhone} · ${txn.networkDisplay} · ${timeFormat.format(txn.timestamp)}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '${txn.currency} ${NumberFormat('#,##0.00').format(txn.amount)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: isDark ? Colors.white : const Color(0xFF303030),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  StatusBadge(status: txn.status),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Helper: Popup Menu Item ──────────────────────────────────────────────
-  PopupMenuItem<String> _buildMenuItem(
-    String value,
-    IconData icon,
-    String label,
-    bool isDark, {
-    bool isDestructive = false,
-  }) {
-    final color = isDestructive
-        ? const Color(0xFFDC2626)
-        : (isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563));
-
-    return PopupMenuItem<String>(
-      value: value,
-      height: 42,
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 12),
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: isDestructive ? FontWeight.w700 : FontWeight.w600,
-              fontSize: 13,
-              color: isDestructive
-                  ? const Color(0xFFDC2626)
-                  : (isDark ? Colors.white : const Color(0xFF303030)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

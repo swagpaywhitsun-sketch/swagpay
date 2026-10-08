@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/lively_widgets.dart';
+import '../../core/widgets/notification_dropdown_button.dart';
 import '../../core/widgets/user_avatar_widget.dart';
 
 class AdminLayout extends ConsumerStatefulWidget {
@@ -255,14 +257,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                             ),
                           )
                         else
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF10B981),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
+                          const PulsingBeacon(color: Color(0xFF10B981), size: 7),
                         if (isWide) ...[
                           const SizedBox(width: 6),
                           Text(
@@ -282,7 +277,8 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
               );
             },
           ),
-          const SizedBox(width: 8),
+          NotificationDropdownButton(isDark: isDark),
+          const SizedBox(width: 10),
           // User Avatar with Settings Dropdown
           PopupMenuButton<String>(
             tooltip: 'Account Menu & Settings',
@@ -531,37 +527,54 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
   Widget _buildNavItem(IconData icon, String label, String route) {
     final isSelected = widget.currentRoute == route ||
         (route == '/admin/tellers' && widget.currentRoute == '/admin/cashiers');
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-      decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF1570A6) : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Tooltip(
-        message: _isSidebarCollapsed ? label : '',
-        child: ListTile(
-          leading: Icon(
-            icon,
-            color: isSelected ? Colors.white : const Color(0xFFCBD5E1),
-            size: 20,
-          ),
-          title: _isSidebarCollapsed
-              ? null
-              : Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? Colors.white : const Color(0xFFE2E8F0),
+    return BouncyTap(
+      onTap: () => context.go(route),
+      scaleFactor: 0.98,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? const LinearGradient(
+                  colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
+                )
+              : null,
+          color: isSelected ? null : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
-                ),
-          dense: true,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: _isSidebarCollapsed ? 16 : 14,
-            vertical: 1,
+                ]
+              : null,
+        ),
+        child: Tooltip(
+          message: _isSidebarCollapsed ? label : '',
+          child: ListTile(
+            leading: Icon(
+              icon,
+              color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+              size: 20,
+            ),
+            title: _isSidebarCollapsed
+                ? null
+                : Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                      color: isSelected ? Colors.white : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+            dense: true,
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: _isSidebarCollapsed ? 16 : 14,
+              vertical: 1,
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          onTap: () => context.go(route),
         ),
       ),
     );

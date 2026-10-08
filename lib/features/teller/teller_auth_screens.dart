@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/state/providers.dart';
 import '../../core/services/auth_vault.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_thin_footer.dart';
+import '../../core/widgets/lively_widgets.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -47,16 +48,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFF0F172A),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFFFFFFF),
-              Color(0xFFF1F5F9),
-              Color(0xFFE2E8F0),
+              Color(0xFF0C4A6E),
+              Color(0xFF0F172A),
+              Color(0xFF020617),
             ],
           ),
         ),
@@ -66,74 +67,94 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Spacer(),
-                // Official Brand Logo
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        blurRadius: 30,
-                        spreadRadius: 5,
-                        offset: const Offset(0, 10),
+                // Official Brand Logo with Dribbble Glow Wave
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const PulsingBeacon(
+                      color: Color(0xFF38BDF8),
+                      size: 80,
+                      showRipple: true,
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF229ED9).withValues(alpha: 0.35),
+                            blurRadius: 36,
+                            spreadRadius: 6,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
                       ),
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(50),
-                    child: Image.asset(
-                      'logo.png',
-                      width: 88,
-                      height: 88,
-                      fit: BoxFit.contain,
-                      errorBuilder: (ctx, err, stack) => const Icon(
-                        Icons.point_of_sale_rounded,
-                        size: 64,
-                        color: AppColors.primary,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(50),
+                        child: Image.asset(
+                          'logo.png',
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.contain,
+                          errorBuilder: (ctx, err, stack) => const Icon(
+                            Icons.point_of_sale_rounded,
+                            size: 64,
+                            color: AppColors.primary,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 24),
+                  ],
+                ).animate().scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1), curve: Curves.easeOutBack, duration: 600.ms),
+                const SizedBox(height: 28),
                 const Text(
                   'SwagPay',
                   style: TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontSize: 32,
+                    color: Colors.white,
+                    fontSize: 34,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
+                    letterSpacing: -0.6,
                   ),
-                ),
+                ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, end: 0),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Enterprise Collection & POS Terminal Suite',
                   style: TextStyle(
-                    color: Color(0xFF64748B),
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
-                ),
+                ).animate().fadeIn(delay: 300.ms),
                 const Spacer(),
-                const SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
                   ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Secure Payment Terminal • v1.0.1',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const PulsingBeacon(size: 6, color: Color(0xFF4ADE80)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Initializing Terminal Security Vault...',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ).animate().fadeIn(delay: 400.ms),
+                const SizedBox(height: 20),
+                Text(
+                  'Secure Payment Terminal • v1.0.2',
                   style: TextStyle(
-                    color: Color(0xFF94A3B8),
+                    color: Colors.white.withValues(alpha: 0.5),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.2,
@@ -325,16 +346,50 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
         ),
         const SizedBox(height: 24),
 
-        ElevatedButton(
-          onPressed: auth.isLoading ? null : _submit,
-          style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-          child: auth.isLoading
-              ? const SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                )
-              : const Text('Login to Portal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        BouncyTap(
+          onTap: auth.isLoading ? null : _submit,
+          child: Container(
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF229ED9), Color(0xFF0284C7)],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF229ED9).withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (auth.isLoading) ...[
+                  const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.2),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text('Authenticating...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                ] else ...[
+                  const Text(
+                    'Sign In to Terminal',
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.white),
+                ],
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -369,7 +424,6 @@ class _TellerLoginScreenState extends ConsumerState<TellerLoginScreen> {
 
     return Scaffold(
       body: body,
-      bottomNavigationBar: const AppThinFooter(),
     );
   }
 }
@@ -433,7 +487,6 @@ class DeviceUnauthorizedScreen extends ConsumerWidget {
           ),
         ),
       ),
-      bottomNavigationBar: const AppThinFooter(),
     );
   }
 }

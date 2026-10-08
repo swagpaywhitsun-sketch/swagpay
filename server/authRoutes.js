@@ -32,6 +32,7 @@ function shapeUser(row, role) {
     role: role === 'SUPER_ADMIN' ? 'admin' : role === 'ADMIN' ? 'admin' : 'teller',
     dbRole: role,
     posId: row.posId || null,
+    branch: row.resolvedBranch || row.branch || (role === 'ADMIN' ? 'HQ Main Administration' : 'Accra Central Hub - Counter 1'),
     active: row.active === 1 || row.active === true,
     avatar: row.avatar || null,
   };
@@ -120,22 +121,27 @@ module.exports = function registerAuthRoutes(app, pool) {
       // 2. Database users lookup: supports Phone Number, Email, or Staff ID
       const cleanDigits = identifier.replace(/\D/g, '');
       let userRes;
+      const userSelectSql = `
+        SELECT u.id, u.name, u.email, u.phone, u.role, u."posId", u.branch, u.active, u.pin, u."pinHash", u."deviceId", u.avatar,
+               COALESCE(u.branch, p.location, 'Accra Central Hub - Counter 1') as "resolvedBranch"
+        FROM users u
+        LEFT JOIN pos_terminals p ON u."posId" = p.id
+      `;
       if (cleanDigits.length >= 9) {
         const last9 = cleanDigits.slice(-9);
         userRes = await pool.query(
-          `SELECT id, name, email, phone, role, "posId", active, pin, "pinHash", "deviceId", avatar
-           FROM users
-           WHERE email = $1 
-              OR phone = $1 
-              OR id = $1 
-              OR RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 9) = $2
+          `${userSelectSql}
+           WHERE u.email = $1 
+              OR u.phone = $1 
+              OR u.id = $1 
+              OR RIGHT(REGEXP_REPLACE(u.phone, '[^0-9]', '', 'g'), 9) = $2
            LIMIT 1`,
           [identifier, last9]
         );
       } else {
         userRes = await pool.query(
-          `SELECT id, name, email, phone, role, "posId", active, pin, "pinHash", "deviceId", avatar
-           FROM users WHERE email = $1 OR phone = $1 OR id = $1 LIMIT 1`,
+          `${userSelectSql}
+           WHERE u.email = $1 OR u.phone = $1 OR u.id = $1 LIMIT 1`,
           [identifier]
         );
       }

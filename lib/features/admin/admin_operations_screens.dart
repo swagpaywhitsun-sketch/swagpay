@@ -86,6 +86,8 @@ class _AdminSettlementsScreenState extends ConsumerState<AdminSettlementsScreen>
                     value: 'GH₵ ${NumberFormat('#,##0.00').format(totalSettled)}',
                     icon: Icons.account_balance_rounded,
                     accentColor: AppColors.success,
+                    deltaText: 'Net Cleared',
+                    isPositiveDelta: true,
                     subtitle: 'Net cleared funds',
                   ),
                   StatCard(
@@ -93,6 +95,8 @@ class _AdminSettlementsScreenState extends ConsumerState<AdminSettlementsScreen>
                     value: 'GH₵ ${NumberFormat('#,##0.00').format(totalCollected)}',
                     icon: Icons.payments_rounded,
                     accentColor: AppColors.primaryLight,
+                    deltaText: '$totalTxns txns',
+                    isPositiveDelta: true,
                     subtitle: '$totalTxns total debits',
                   ),
                   StatCard(
@@ -100,6 +104,8 @@ class _AdminSettlementsScreenState extends ConsumerState<AdminSettlementsScreen>
                     value: 'GH₵ ${NumberFormat('#,##0.00').format(variance)}',
                     icon: Icons.balance_rounded,
                     accentColor: variance == 0 ? AppColors.success : AppColors.gold,
+                    deltaText: variance == 0 ? 'Balanced' : 'Variance',
+                    isPositiveDelta: variance == 0,
                     subtitle: variance == 0 ? 'Zero discrepancy' : 'Fees deducted',
                   ),
                   StatCard(
@@ -107,6 +113,8 @@ class _AdminSettlementsScreenState extends ConsumerState<AdminSettlementsScreen>
                     value: '${allSettlements.length}',
                     icon: Icons.checklist_rounded,
                     accentColor: AppColors.primary,
+                    deltaText: '${allSettlements.length} cycles',
+                    isPositiveDelta: true,
                     subtitle: 'Daily clearing cycles',
                   ),
                 ],
@@ -375,6 +383,8 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
                     value: '${allLogs.length}',
                     icon: Icons.history_edu_rounded,
                     accentColor: AppColors.primaryLight,
+                    deltaText: '${allLogs.length} events',
+                    isPositiveDelta: true,
                     subtitle: 'Recorded security operations',
                   ),
                   StatCard(
@@ -382,6 +392,8 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
                     value: '${allLogs.where((l) => l.action.contains('LOGIN')).length}',
                     icon: Icons.vpn_key_rounded,
                     accentColor: AppColors.gold,
+                    deltaText: 'Auth OK',
+                    isPositiveDelta: true,
                     subtitle: 'Authenticated sessions',
                   ),
                   StatCard(
@@ -389,6 +401,8 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
                     value: '${allLogs.where((l) => l.action.contains('RECONCILIATION')).length}',
                     icon: Icons.sync_lock_rounded,
                     accentColor: AppColors.success,
+                    deltaText: 'Audited',
+                    isPositiveDelta: true,
                     subtitle: 'Automated verification runs',
                   ),
                   StatCard(
@@ -396,6 +410,8 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
                     value: '${allLogs.map((l) => l.user).toSet().length}',
                     icon: Icons.fingerprint_rounded,
                     accentColor: AppColors.primary,
+                    deltaText: 'Actors',
+                    isPositiveDelta: true,
                     subtitle: 'Identified actors',
                   ),
                 ],

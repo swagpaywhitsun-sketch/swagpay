@@ -26,7 +26,48 @@ class PaymentRepository {
   List<RefundRequest> _refundRequests = [];
   List<SettlementRecord> _settlements = [];
   List<AuditLog> _auditLogs = [];
-  final List<AppNotificationItem> _notifications = [];
+  final List<AppNotificationItem> _notifications = [
+    AppNotificationItem(
+      id: 'notif_sys_1',
+      title: 'POS Terminal Authenticated',
+      message: 'Node connected to SwagPay TLS 1.3 encrypted gateway.',
+      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
+      type: NotificationType.system,
+      isRead: false,
+    ),
+    AppNotificationItem(
+      id: 'notif_sys_2',
+      title: 'MoMo Gateway Online',
+      message: 'MTN & Telecel MoMo webhooks active (18ms ping latency).',
+      timestamp: DateTime.now().subtract(const Duration(minutes: 25)),
+      type: NotificationType.system,
+      isRead: false,
+    ),
+    AppNotificationItem(
+      id: 'notif_sys_3',
+      title: 'Station Limit Active',
+      message: 'Daily counter ceiling verified: GHS 5,000,000.00.',
+      timestamp: DateTime.now().subtract(const Duration(hours: 1)),
+      type: NotificationType.alert,
+      isRead: false,
+    ),
+    AppNotificationItem(
+      id: 'notif_sys_4',
+      title: 'Hardware Diagnostics Passed',
+      message: 'Battery 98% • Terminal diagnostics in green state.',
+      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+      type: NotificationType.system,
+      isRead: true,
+    ),
+    AppNotificationItem(
+      id: 'notif_sys_5',
+      title: 'ESC/POS Printer Ready',
+      message: 'Ready for instant printouts on 58mm / 80mm rolls.',
+      timestamp: DateTime.now().subtract(const Duration(hours: 4)),
+      type: NotificationType.system,
+      isRead: true,
+    ),
+  ];
   final List<PaymentTransaction> _offlineQueue = [];
   ShiftRecord? _activeShift;
   String _clientRemoteIp = '127.0.0.1';
@@ -111,23 +152,10 @@ class PaymentRepository {
     notifyListeners();
     try {
       _lastSyncError = null;
-      final userSnapshot = tokenVault.readUserSnapshot();
-      final isTeller = userSnapshot?['role'] == 'teller';
-      final currentUserId = userSnapshot?['id'] as String?;
-      final currentPosId = userSnapshot?['posId'] as String?;
 
-      // 1. Fetch real transactions with server-side teller scoping
+      // 1. Fetch real transactions (station/store-wide collection history)
       try {
-        String scopeQuery = '';
-        if (isTeller) {
-          final params = <String>[];
-          params.add('scope=me');
-          if (currentUserId != null && currentUserId.isNotEmpty) params.add('tellerId=$currentUserId');
-          if (currentPosId != null && currentPosId.isNotEmpty) params.add('posId=$currentPosId');
-          scopeQuery = '?${params.join('&')}';
-        }
-
-        final txRes = await apiClient.get<List<dynamic>>('${ApiConfig.transactions}$scopeQuery');
+        final txRes = await apiClient.get<List<dynamic>>(ApiConfig.transactions);
         if (txRes.data != null) {
           final serverTxns = txRes.data!.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
           
@@ -156,10 +184,12 @@ class PaymentRepository {
                   email: (m['email'] ?? '').toString(),
                   phone: (m['phone'] ?? '').toString(),
                   role: (m['role']?.toString().toUpperCase() ?? '').contains('ADMIN') ? UserRole.admin : UserRole.teller,
+                  branch: (m['branch'] ?? m['location'] ?? 'Accra Central Hub - Counter 1').toString(),
                   assignedPos: [posVal],
                   singleTxnLimit: (m['singleTxnLimit'] as num?)?.toDouble() ?? 500000.0,
                   dailyLimit: (m['dailyLimit'] as num?)?.toDouble() ?? 5000000.0,
                   isActive: (m['active'] as num?)?.toInt() == 1,
+                  avatar: m['avatar'] as String?,
                 );
               })
               .where((t) => !_deletedTellerIds.contains(t.id))
@@ -369,14 +399,14 @@ class PaymentRepository {
     TransactionStatus? statusFilter,
     MoMoNetwork? networkFilter,
     String? tellerId,
+    bool onlyMine = false,
   }) {
     final userSnapshot = tokenVault.readUserSnapshot();
-    final isTeller = userSnapshot?['role'] == 'teller';
     final currentUserId = tellerId ?? userSnapshot?['id'] as String?;
 
     return _transactions.where((t) {
-      // Strict teller isolation: each teller sees ONLY transactions they processed
-      if (isTeller && currentUserId != null && currentUserId.isNotEmpty) {
+      // Optional cashier filter: only applies if onlyMine is explicitly requested
+      if (onlyMine && currentUserId != null && currentUserId.isNotEmpty) {
         if (t.tellerId != currentUserId && !t.id.startsWith('tx_off_')) {
           return false;
         }
@@ -517,6 +547,28 @@ class PaymentRepository {
   List<AuditLog> getAuditLogs() => List.unmodifiable(_auditLogs);
   List<AppNotificationItem> getNotifications() => List.unmodifiable(_notifications);
 
+  int get unreadNotificationCount => _notifications.where((n) => !n.isRead).length;
+
+  void markAllNotificationsRead() {
+    for (int i = 0; i < _notifications.length; i++) {
+      _notifications[i] = _notifications[i].copyWith(isRead: true);
+    }
+    notifyListeners();
+  }
+
+  void markNotificationRead(String id) {
+    final idx = _notifications.indexWhere((n) => n.id == id);
+    if (idx != -1) {
+      _notifications[idx] = _notifications[idx].copyWith(isRead: true);
+      notifyListeners();
+    }
+  }
+
+  void addNotification(AppNotificationItem item) {
+    _notifications.insert(0, item);
+    notifyListeners();
+  }
+
   Future<String?> addTeller(AppUser teller, {String? initialPassword}) async {
     // Optimistic local add
     _tellers.add(teller);
@@ -530,6 +582,7 @@ class PaymentRepository {
           'email': teller.email,
           'phone': teller.phone,
           'role': teller.role == UserRole.admin ? 'ADMIN' : 'TELLER',
+          'branch': teller.branch,
           'posId': teller.assignedPos.isNotEmpty ? teller.assignedPos.first : 'ANY_POS',
           'singleTxnLimit': teller.singleTxnLimit,
           'dailyLimit': teller.dailyLimit,

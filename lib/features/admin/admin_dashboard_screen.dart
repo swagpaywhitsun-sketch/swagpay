@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +9,8 @@ import '../../core/models/pos_device.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/carrier_brand_icon.dart';
+import '../../core/widgets/lively_widgets.dart';
 import '../../core/widgets/stat_card.dart';
 import '../../core/widgets/status_badge.dart';
 
@@ -223,20 +226,26 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       value: 'GH₵ ${NumberFormat('#,##0.00').format(todayCollected)}',
                       icon: Icons.account_balance_wallet_rounded,
                       accentColor: AppColors.success,
-                      subtitle: '${todaySuccessful.length} txns today • GH₵ ${NumberFormat('#,##0').format(totalCollected)} all-time',
+                      deltaText: '+${todaySuccessful.length} today',
+                      isPositiveDelta: true,
+                      subtitle: 'GH₵ ${NumberFormat('#,##0').format(totalCollected)} all-time',
                     ),
                     StatCard(
                       title: 'System Success Rate',
                       value: '$successRate%',
                       icon: Icons.speed_rounded,
                       accentColor: AppColors.primaryLight,
-                      subtitle: '${successfulTxns.length} success of ${txns.length} total txns',
+                      deltaText: '$successRate% SLA',
+                      isPositiveDelta: successRate >= 90,
+                      subtitle: '${successfulTxns.length} success of ${txns.length} total',
                     ),
                     StatCard(
                       title: 'Active Cashiers & POS',
                       value: '$activeTellers / $activePos',
                       icon: Icons.point_of_sale_rounded,
                       accentColor: AppColors.gold,
+                      deltaText: '$activePos online',
+                      isPositiveDelta: activePos > 0,
                       subtitle: '${posDevices.length} registered terminals',
                       onTap: () => context.go('/admin/pos'),
                     ),
@@ -245,11 +254,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       value: '${txns.length}',
                       icon: Icons.receipt_long_rounded,
                       accentColor: AppColors.primaryLight,
-                      subtitle: '${successfulTxns.length} successful • ${txns.length - successfulTxns.length} other',
+                      deltaText: '${successfulTxns.length} settled',
+                      isPositiveDelta: true,
+                      subtitle: '${txns.length - successfulTxns.length} pending / failed',
                       onTap: () => context.go('/admin/transactions'),
                     ),
                   ],
-                );
+                ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04, end: 0);
               },
             ),
             const SizedBox(height: 24),
@@ -415,6 +426,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 subtitle: posDevices.isEmpty
                                     ? 'No POS hardware registered in database yet.'
                                     : '${posDevices.where((p) => p.status == PosStatus.online).length} terminal node(s) actively reporting status.',
+                                isLiveBeacon: true,
                               ),
                               const Divider(height: 20),
                               _buildAlertItem(
@@ -475,19 +487,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                           children: [
                             Expanded(
                               flex: isWide ? 1 : 0,
-                              child: _buildNetworkCard('MTN Mobile Money', mtnTxns.length, mtnAmount, const Color(0xFFFFCC00)),
+                              child: _buildNetworkCard(MoMoNetwork.mtn, 'MTN Mobile Money', mtnTxns.length, mtnAmount, totalCollected, const Color(0xFFF59E0B)),
                             ),
                             if (isWide) const SizedBox(width: 12),
                             if (!isWide) const SizedBox(height: 12),
                             Expanded(
                               flex: isWide ? 1 : 0,
-                              child: _buildNetworkCard('Telecel Cash', telecelTxns.length, telecelAmount, const Color(0xFFE60000)),
+                              child: _buildNetworkCard(MoMoNetwork.vodafone, 'Telecel Cash', telecelTxns.length, telecelAmount, totalCollected, const Color(0xFFEF4444)),
                             ),
                             if (isWide) const SizedBox(width: 12),
                             if (!isWide) const SizedBox(height: 12),
                             Expanded(
                               flex: isWide ? 1 : 0,
-                              child: _buildNetworkCard('AT Money', atTxns.length, atAmount, const Color(0xFF0066CC)),
+                              child: _buildNetworkCard(MoMoNetwork.airtel, 'AT Money', atTxns.length, atAmount, totalCollected, const Color(0xFF3B82F6)),
                             ),
                           ],
                         ),
@@ -586,7 +598,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                     ),
                                     DataCell(Text(t.customerName == t.displayPhone ? t.displayPhone : '${t.customerName} (${t.displayPhone})')),
                                     DataCell(Text('GH₵ ${NumberFormat('#,##0.00').format(t.amount)}', style: const TextStyle(fontWeight: FontWeight.bold))),
-                                    DataCell(Text(t.networkDisplay)),
+                                    DataCell(Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CarrierBrandIcon(network: t.network, size: 18),
+                                        const SizedBox(width: 8),
+                                        Text(t.networkDisplay),
+                                      ],
+                                    )),
                                     DataCell(Text('${t.tellerName} • ${t.posId}')),
                                     DataCell(StatusBadge(status: t.status)),
                                   ],
@@ -607,35 +626,68 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildNetworkCard(String networkName, int count, double totalAmount, Color accent) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: accent.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(width: 10, height: 10, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
-              const SizedBox(width: 8),
-              Text(networkName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)}',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '$count collections',
-            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-          ),
-        ],
+  Widget _buildNetworkCard(MoMoNetwork network, String networkName, int count, double totalAmount, double grandTotal, Color accent) {
+    final fraction = grandTotal > 0 ? (totalAmount / grandTotal) : 0.0;
+    return BouncyTap(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accent.withValues(alpha: 0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CarrierBrandIcon(network: network, size: 28),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(networkName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${(fraction * 100).toStringAsFixed(1)}%',
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: accent),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '$count collections',
+              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: fraction,
+                backgroundColor: accent.withValues(alpha: 0.12),
+                color: accent,
+                minHeight: 5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -645,21 +697,28 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required Color color,
     required String title,
     required String subtitle,
+    bool isLiveBeacon = false,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-          child: Icon(icon, color: color, size: 20),
-        ),
+        if (isLiveBeacon)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, right: 6),
+            child: PulsingBeacon(color: color, size: 8),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 18),
+          ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
               const SizedBox(height: 2),
               Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
             ],
@@ -764,9 +823,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       color: netColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
-                      t.networkDisplay,
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: netColor),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CarrierBrandIcon(network: t.network, size: 12),
+                        const SizedBox(width: 4),
+                        Text(
+                          t.networkDisplay,
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: netColor),
+                        ),
+                      ],
                     ),
                   ),
                 ],

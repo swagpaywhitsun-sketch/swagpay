@@ -8,6 +8,7 @@ import '../../core/models/user.dart';
 import '../../core/network/api_client.dart';
 import '../../core/state/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/lively_widgets.dart';
 import '../../core/widgets/stat_card.dart';
 import '../../core/widgets/status_badge.dart';
 
@@ -761,6 +762,8 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                     value: '${allTellers.length}',
                     icon: Icons.people_alt_rounded,
                     accentColor: AppColors.primaryLight,
+                    deltaText: '${allTellers.length} staff',
+                    isPositiveDelta: true,
                     subtitle: 'Registered cashiers',
                   ),
                   StatCard(
@@ -768,6 +771,8 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                     value: '$activeCount',
                     icon: Icons.check_circle_rounded,
                     accentColor: AppColors.success,
+                    deltaText: '$activeCount active',
+                    isPositiveDelta: true,
                     subtitle: '${allTellers.length - activeCount} suspended',
                   ),
                   StatCard(
@@ -775,6 +780,8 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                     value: 'GH₵ ${NumberFormat('#,##0').format(avgLimit)}',
                     icon: Icons.security_rounded,
                     accentColor: AppColors.gold,
+                    deltaText: 'Universal',
+                    isPositiveDelta: true,
                     subtitle: 'Per transaction cap',
                   ),
                   StatCard(
@@ -782,6 +789,8 @@ class _AdminTellersScreenState extends ConsumerState<AdminTellersScreen> {
                     value: '${allTellers.expand((t) => t.assignedPos).toSet().length}',
                     icon: Icons.point_of_sale_rounded,
                     accentColor: AppColors.primary,
+                    deltaText: 'Nodes',
+                    isPositiveDelta: true,
                     subtitle: 'Hardware terminals',
                   ),
                 ],
@@ -1710,6 +1719,8 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                     value: '${allDevices.length}',
                     icon: Icons.point_of_sale_rounded,
                     accentColor: AppColors.primaryLight,
+                    deltaText: '${allDevices.length} nodes',
+                    isPositiveDelta: true,
                     subtitle: 'Provisioned devices',
                   ),
                   StatCard(
@@ -1717,6 +1728,8 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                     value: '$onlineCount',
                     icon: Icons.wifi_rounded,
                     accentColor: AppColors.success,
+                    deltaText: '$onlineCount online',
+                    isPositiveDelta: onlineCount > 0,
                     subtitle: '${allDevices.length - onlineCount} disconnected',
                   ),
                   StatCard(
@@ -1724,6 +1737,8 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                     value: '$activeCount',
                     icon: Icons.check_circle_outline_rounded,
                     accentColor: AppColors.gold,
+                    deltaText: 'Active',
+                    isPositiveDelta: true,
                     subtitle: 'Ready for billing',
                   ),
                   StatCard(
@@ -1731,6 +1746,8 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                     value: '${allDevices.map((p) => p.location).toSet().length}',
                     icon: Icons.store_mall_directory_rounded,
                     accentColor: AppColors.primary,
+                    deltaText: 'Hubs',
+                    isPositiveDelta: true,
                     subtitle: 'Store branches',
                   ),
                 ],
@@ -1933,13 +1950,22 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                                       color: p.status == PosStatus.online ? AppColors.success.withValues(alpha: 0.15) : AppColors.error.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
-                                    child: Text(
-                                      p.status.name.toUpperCase(),
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: p.status == PosStatus.online ? AppColors.successDark : AppColors.error,
-                                      ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (p.status == PosStatus.online) ...[
+                                          const PulsingBeacon(color: AppColors.success, size: 6, showRipple: false),
+                                          const SizedBox(width: 5),
+                                        ],
+                                        Text(
+                                          p.status.name.toUpperCase(),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: p.status == PosStatus.online ? AppColors.successDark : AppColors.error,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -2058,13 +2084,22 @@ class _AdminPosScreenState extends ConsumerState<AdminPosScreen> {
                   color: isOnline ? AppColors.success.withValues(alpha: 0.15) : AppColors.error.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text(
-                  p.status.name.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: isOnline ? AppColors.successDark : AppColors.error,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isOnline) ...[
+                      const PulsingBeacon(color: AppColors.success, size: 6, showRipple: false),
+                      const SizedBox(width: 5),
+                    ],
+                    Text(
+                      p.status.name.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: isOnline ? AppColors.successDark : AppColors.error,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -2462,6 +2497,8 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                     value: 'GH₵ ${NumberFormat('#,##0.00').format(totalCollected)}',
                     icon: Icons.account_balance_wallet_rounded,
                     accentColor: AppColors.success,
+                    deltaText: '${successfulTxns.length} settled',
+                    isPositiveDelta: true,
                     subtitle: '${successfulTxns.length} successful debits',
                   ),
                   StatCard(
@@ -2469,6 +2506,8 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                     value: '${allTxns.length}',
                     icon: Icons.receipt_long_rounded,
                     accentColor: AppColors.primaryLight,
+                    deltaText: '${allTxns.length} requests',
+                    isPositiveDelta: true,
                     subtitle: 'All customer requests',
                   ),
                   StatCard(
@@ -2476,6 +2515,8 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                     value: '$pendingCount',
                     icon: Icons.hourglass_top_rounded,
                     accentColor: AppColors.gold,
+                    deltaText: '$pendingCount waiting',
+                    isPositiveDelta: pendingCount == 0,
                     subtitle: 'Awaiting customer auth',
                   ),
                   StatCard(
@@ -2483,6 +2524,8 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                     value: '$successRate%',
                     icon: Icons.speed_rounded,
                     accentColor: AppColors.primary,
+                    deltaText: '$successRate% SLA',
+                    isPositiveDelta: successRate >= 90,
                     subtitle: 'Gateway authorization rate',
                   ),
                 ],

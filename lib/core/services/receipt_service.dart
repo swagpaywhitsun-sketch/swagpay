@@ -415,4 +415,147 @@ STATUS:     $statusStr
       },
     );
   }
+
+  /// Triggers real POS thermal printer / AirPrint dialog for Shift Reconciliation
+  static Future<void> printShiftReport({
+    required BuildContext context,
+    required String tellerName,
+    required String branch,
+    required int totalCount,
+    required int successCount,
+    required double mtnAmount,
+    required double telecelAmount,
+    required double atAmount,
+    required double totalAmount,
+    required DateTime timestamp,
+  }) async {
+    try {
+      await Printing.layoutPdf(
+        name: 'SwagPay-Shift-Reconciliation-${DateFormat('yyyyMMdd-HHmm').format(timestamp)}',
+        onLayout: (PdfPageFormat format) async => generateShiftReportPdf(
+          format: format,
+          tellerName: tellerName,
+          branch: branch,
+          totalCount: totalCount,
+          successCount: successCount,
+          mtnAmount: mtnAmount,
+          telecelAmount: telecelAmount,
+          atAmount: atAmount,
+          totalAmount: totalAmount,
+          timestamp: timestamp,
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Print failed: $e')),
+        );
+      }
+    }
+  }
+
+  static Future<Uint8List> generateShiftReportPdf({
+    required PdfPageFormat format,
+    required String tellerName,
+    required String branch,
+    required int totalCount,
+    required int successCount,
+    required double mtnAmount,
+    required double telecelAmount,
+    required double atAmount,
+    required double totalAmount,
+    required DateTime timestamp,
+  }) async {
+    final doc = pw.Document();
+    final dateFormat = DateFormat('dd-MMM-yyyy hh:mm a');
+    final formattedDate = dateFormat.format(timestamp);
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.roll80,
+        margin: const pw.EdgeInsets.all(12),
+        build: (pw.Context context) {
+          return pw.Container(
+            width: double.infinity,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              mainAxisSize: pw.MainAxisSize.min,
+              children: [
+                pw.Text(
+                  'SWAGPAY POS',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  'SHIFT RECONCILIATION REPORT',
+                  style: pw.TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: pw.FontWeight.bold,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                pw.SizedBox(height: 1),
+                pw.Text(
+                  'OFFICIAL AUDIT COPY',
+                  style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
+                ),
+                pw.SizedBox(height: 6),
+                pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
+                pw.SizedBox(height: 4),
+
+                _buildPdfRow('Generated:', formattedDate),
+                _buildPdfRow('Cashier / Teller:', tellerName),
+                _buildPdfRow('Branch:', branch.isEmpty ? 'Main Hub' : branch),
+                _buildPdfRow('Settled Txns:', '$successCount of $totalCount txns', isBold: true),
+
+                pw.SizedBox(height: 4),
+                pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
+                pw.SizedBox(height: 4),
+
+                _buildPdfRow('MTN MoMo Total:', 'GH₵ ${mtnAmount.toStringAsFixed(2)}'),
+                _buildPdfRow('Telecel Cash Total:', 'GH₵ ${telecelAmount.toStringAsFixed(2)}'),
+                _buildPdfRow('AT Money Total:', 'GH₵ ${atAmount.toStringAsFixed(2)}'),
+
+                pw.SizedBox(height: 4),
+                pw.Divider(thickness: 1),
+                pw.SizedBox(height: 3),
+
+                _buildPdfRow('TOTAL REVENUE:', 'GH₵ ${totalAmount.toStringAsFixed(2)}', isBold: true),
+
+                pw.SizedBox(height: 10),
+                pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
+                pw.SizedBox(height: 6),
+
+                pw.Center(
+                  child: pw.Column(
+                    children: [
+                      pw.Text(
+                        'SHIFT RECONCILED & CLOSED',
+                        style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        'POWERED BY WHITSUN',
+                        style: pw.TextStyle(
+                          fontSize: 8,
+                          fontWeight: pw.FontWeight.bold,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    return doc.save();
+  }
 }
