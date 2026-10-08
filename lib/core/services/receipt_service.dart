@@ -38,6 +38,12 @@ class ReceiptService {
       }
     }
 
+    final isUniversal = txn.posId.isEmpty ||
+        txn.posId == 'ANY_POS' ||
+        txn.posId.startsWith('pos_') ||
+        txn.posId.toLowerCase().contains('universal');
+    final displayPos = isUniversal ? 'Universal POS' : txn.posId;
+
     final branchName = (txn.branch != null && txn.branch!.trim().isNotEmpty) ? txn.branch! : 'Main Store';
     final rcptNo = (txn.receiptNumber != null && txn.receiptNumber!.isNotEmpty) ? txn.receiptNumber! : 'N/A';
 
@@ -47,7 +53,7 @@ class ReceiptService {
     OFFICIAL PAYMENT RECEIPT
 ================================
 Date:       $formattedDate
-Terminal:   ${txn.posId}
+Terminal:   $displayPos
 Cashier:    ${txn.tellerName}
 Branch:     $branchName
 --------------------------------
@@ -57,10 +63,10 @@ Network:    ${txn.networkDisplay}
 Ref:        ${txn.reference}
 Receipt No: $rcptNo
 --------------------------------
-Subtotal:   ${txn.currency} ${txn.amount.toStringAsFixed(2)}
-Fee:        ${txn.currency} 0.00
+Subtotal:   GHS ${txn.amount.toStringAsFixed(2)}
+Fee:        GHS 0.00
 --------------------------------
-$amountLabel: ${txn.currency} ${txn.amount.toStringAsFixed(2)}
+$amountLabel: GHS ${txn.amount.toStringAsFixed(2)}
 STATUS:     $statusStr
 ================================
   THANK YOU FOR TRANSACTING
@@ -98,6 +104,12 @@ STATUS:     $statusStr
 
     final isSuccess = txn.status == TransactionStatus.success;
     final isOffline = txn.id.startsWith('tx_off_') || txn.reference.startsWith('OFF-') || txn.status == TransactionStatus.pending;
+
+    final isUniversal = txn.posId.isEmpty ||
+        txn.posId == 'ANY_POS' ||
+        txn.posId.startsWith('pos_') ||
+        txn.posId.toLowerCase().contains('universal');
+    final displayPos = isUniversal ? 'Universal POS' : txn.posId;
 
     String statusText = 'APPROVED / PAID';
     if (isOffline) {
@@ -145,19 +157,21 @@ STATUS:     $statusStr
                           letterSpacing: 0.8,
                         ),
                       ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        'Terminal: ${txn.posId} · Cashier: ${txn.tellerName}',
-                        style: const pw.TextStyle(fontSize: 8.5),
-                      ),
-                      pw.Text(
-                        formattedDate,
-                        style: const pw.TextStyle(fontSize: 8),
-                      ),
                     ],
                   ),
                 ),
                 pw.SizedBox(height: 6),
+                pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
+                pw.SizedBox(height: 4),
+
+                // Terminal, Cashier & Audit Meta (Professionally Aligned Key-Value Rows)
+                _buildPdfRow('Date / Time', formattedDate),
+                _buildPdfRow('Terminal', displayPos),
+                _buildPdfRow('Cashier', txn.tellerName),
+                if (txn.branch != null && txn.branch!.isNotEmpty)
+                  _buildPdfRow('Branch', txn.branch!),
+
+                pw.SizedBox(height: 4),
                 pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
                 pw.SizedBox(height: 4),
 
@@ -168,16 +182,14 @@ STATUS:     $statusStr
                 _buildPdfRow('Reference', txn.reference),
                 if (txn.receiptNumber != null && txn.receiptNumber!.isNotEmpty)
                   _buildPdfRow('Receipt No', txn.receiptNumber!),
-                if (txn.branch != null && txn.branch!.isNotEmpty)
-                  _buildPdfRow('Branch', txn.branch!),
 
                 pw.SizedBox(height: 4),
                 pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
                 pw.SizedBox(height: 4),
 
-                // Amount Section
-                _buildPdfRow('Subtotal', '${txn.currency} ${txn.amount.toStringAsFixed(2)}'),
-                _buildPdfRow('Fee', '${txn.currency} 0.00'),
+                // Amount Section with Universal GHS Currency (Never produces crossed [X] boxes)
+                _buildPdfRow('Subtotal', 'GHS ${txn.amount.toStringAsFixed(2)}'),
+                _buildPdfRow('Fee', 'GHS 0.00'),
                 pw.SizedBox(height: 4),
                 pw.Container(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -193,7 +205,7 @@ STATUS:     $statusStr
                         style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
                       ),
                       pw.Text(
-                        '${txn.currency} ${txn.amount.toStringAsFixed(2)}',
+                        'GHS ${txn.amount.toStringAsFixed(2)}',
                         style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
                       ),
                     ],
@@ -516,15 +528,15 @@ STATUS:     $statusStr
                 pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
                 pw.SizedBox(height: 4),
 
-                _buildPdfRow('MTN MoMo Total:', 'GH₵ ${mtnAmount.toStringAsFixed(2)}'),
-                _buildPdfRow('Telecel Cash Total:', 'GH₵ ${telecelAmount.toStringAsFixed(2)}'),
-                _buildPdfRow('AT Money Total:', 'GH₵ ${atAmount.toStringAsFixed(2)}'),
+                _buildPdfRow('MTN MoMo Total:', 'GHS ${mtnAmount.toStringAsFixed(2)}'),
+                _buildPdfRow('Telecel Cash Total:', 'GHS ${telecelAmount.toStringAsFixed(2)}'),
+                _buildPdfRow('AT Money Total:', 'GHS ${atAmount.toStringAsFixed(2)}'),
 
                 pw.SizedBox(height: 4),
                 pw.Divider(thickness: 1),
                 pw.SizedBox(height: 3),
 
-                _buildPdfRow('TOTAL REVENUE:', 'GH₵ ${totalAmount.toStringAsFixed(2)}', isBold: true),
+                _buildPdfRow('TOTAL REVENUE:', 'GHS ${totalAmount.toStringAsFixed(2)}', isBold: true),
 
                 pw.SizedBox(height: 10),
                 pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),

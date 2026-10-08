@@ -440,3 +440,21 @@ class AutoPrintNotifier extends Notifier<bool> {
 
 final autoPrintReceiptProvider = NotifierProvider<AutoPrintNotifier, bool>(AutoPrintNotifier.new);
 
+class HapticFeedbackNotifier extends Notifier<bool> {
+  static const _key = 'haptic_feedback_enabled';
+
+  @override
+  bool build() {
+    final prefs = ref.watch(sharedPreferencesProvider);
+    return prefs.getBool(_key) ?? true;
+  }
+
+  Future<void> toggle(bool val) async {
+    state = val;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(_key, val);
+  }
+}
+
+final hapticFeedbackProvider = NotifierProvider<HapticFeedbackNotifier, bool>(HapticFeedbackNotifier.new);
+

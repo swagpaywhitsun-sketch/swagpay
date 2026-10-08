@@ -55,7 +55,7 @@ class _BouncyTapState extends State<BouncyTap> with SingleTickerProviderStateMix
 
   void _onTapDown(TapDownDetails details) {
     if (widget.onTap == null) return;
-    HapticFeedback.selectionClick();
+    HapticFeedback.lightImpact();
     _controller.forward();
   }
 

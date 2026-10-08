@@ -73,7 +73,10 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
 
   void _onNumpadTap(String val) {
-    HapticFeedback.selectionClick();
+    if (ref.read(hapticFeedbackProvider)) {
+      HapticFeedback.mediumImpact();
+      Feedback.forTap(context);
+    }
     String current = _amountController.text;
     if (val == 'C') {
       _amountController.clear();
@@ -183,12 +186,13 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     });
 
     try {
-      final posDevices = repo.getPosDevices();
+      final isUniversal = user.assignedPos.isEmpty ||
+          user.assignedPos.contains('ANY_POS') ||
+          user.assignedPos.firstOrNull == null ||
+          user.assignedPos.first.startsWith('pos_');
       final effectivePos = (_selectedPosId != null && _selectedPosId!.isNotEmpty)
           ? _selectedPosId!
-          : (user.assignedPos.firstOrNull?.isNotEmpty == true
-              ? user.assignedPos.first
-              : (posDevices.isNotEmpty ? posDevices.first.id : 'POS-01'));
+          : (isUniversal ? 'Universal POS' : (user.assignedPos.firstOrNull ?? 'Universal POS'));
 
       // Fire prompt immediately without waiting for customer name lookup!
       final initRes = await repo.initiateMoMoPayment(
@@ -1517,12 +1521,13 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                 return;
               }
               final repo = ref.read(paymentRepositoryProvider);
-              final posDevices = repo.getPosDevices();
+              final isUniversal = user.assignedPos.isEmpty ||
+                  user.assignedPos.contains('ANY_POS') ||
+                  user.assignedPos.firstOrNull == null ||
+                  user.assignedPos.first.startsWith('pos_');
               final effectivePos = (_selectedPosId != null && _selectedPosId!.isNotEmpty)
                   ? _selectedPosId!
-                  : (user.assignedPos.firstOrNull?.isNotEmpty == true
-                      ? user.assignedPos.first
-                      : (posDevices.isNotEmpty ? posDevices.first.id : 'POS-01'));
+                  : (isUniversal ? 'Universal POS' : (user.assignedPos.firstOrNull ?? 'Universal POS'));
               final txn = repo.recordOfflineTransaction(
                 momoNumber: _phoneController.text.trim(),
                 amount: _currentAmount,

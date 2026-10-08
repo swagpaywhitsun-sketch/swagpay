@@ -102,11 +102,11 @@ class TellerReportsScreen extends ConsumerWidget {
                     Divider(height: 16, color: borderColor),
                     _reconcileRow('Settled Collections', '$successCount of $totalCount txns', isDark),
                     Divider(height: 16, color: borderColor),
-                    _reconcileRow('MTN MoMo Total', 'GH₵ ${NumberFormat('#,##0.00').format(mtnAmount)}', isDark),
+                    _reconcileRow('MTN MoMo Total', 'GHS ${NumberFormat('#,##0.00').format(mtnAmount)}', isDark),
                     Divider(height: 16, color: borderColor),
-                    _reconcileRow('Telecel Cash Total', 'GH₵ ${NumberFormat('#,##0.00').format(telecelAmount)}', isDark),
+                    _reconcileRow('Telecel Cash Total', 'GHS ${NumberFormat('#,##0.00').format(telecelAmount)}', isDark),
                     Divider(height: 16, color: borderColor),
-                    _reconcileRow('AT Money Total', 'GH₵ ${NumberFormat('#,##0.00').format(atAmount)}', isDark),
+                    _reconcileRow('AT Money Total', 'GHS ${NumberFormat('#,##0.00').format(atAmount)}', isDark),
                     Divider(height: 16, color: borderColor),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -116,7 +116,7 @@ class TellerReportsScreen extends ConsumerWidget {
                           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
                         ),
                         Text(
-                          'GH₵ ${NumberFormat('#,##0.00').format(totalAmount)}',
+                          'GHS ${NumberFormat('#,##0.00').format(totalAmount)}',
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 16,

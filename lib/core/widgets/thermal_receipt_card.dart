@@ -142,16 +142,44 @@ class ThermalReceiptCard extends StatelessWidget {
                           color: Color(0xFF334155),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Terminal: ${transaction.posId} · Cashier: ${transaction.tellerName}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
-                        ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0284C7).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              (transaction.posId.isEmpty ||
+                                      transaction.posId == 'ANY_POS' ||
+                                      transaction.posId.startsWith('pos_') ||
+                                      transaction.posId.toLowerCase().contains('universal'))
+                                  ? 'Terminal: Universal POS'
+                                  : 'Terminal: ${transaction.posId}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0284C7),
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'Cashier: ${transaction.tellerName}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF475569),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         dateFormat.format(transaction.timestamp),
                         style: const TextStyle(
@@ -182,8 +210,8 @@ class ThermalReceiptCard extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 // Amount Breakdown
-                _buildReceiptRow('Payment Subtotal', '${transaction.currency} ${transaction.amount.toStringAsFixed(2)}'),
-                _buildReceiptRow('Processing Fee', '${transaction.currency} 0.00'),
+                _buildReceiptRow('Payment Subtotal', 'GHS ${transaction.amount.toStringAsFixed(2)}'),
+                _buildReceiptRow('Processing Fee', 'GHS 0.00'),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -207,7 +235,7 @@ class ThermalReceiptCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${transaction.currency} ${transaction.amount.toStringAsFixed(2)}',
+                        'GHS ${transaction.amount.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,

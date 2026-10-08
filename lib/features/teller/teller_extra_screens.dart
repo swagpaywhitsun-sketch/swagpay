@@ -7,8 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/customer.dart';
-import '../../core/models/transaction.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/state/providers.dart';
 import '../../core/widgets/carrier_brand_icon.dart';
 import '../../core/widgets/lively_widgets.dart';
@@ -176,8 +174,6 @@ class TellerProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
-  bool _soundAndHaptics = true;
-
   void _showAvatarPicker(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E2128) : Colors.white;
@@ -420,40 +416,6 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      BouncyTap(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          Clipboard.setData(ClipboardData(text: user?.id ?? 'CSH-001'));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Copied Cashier ID "${user?.id ?? "CSH-001"}"'), duration: const Duration(seconds: 1)),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF229ED9).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: const Color(0xFF229ED9).withValues(alpha: 0.25)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                user?.id ?? 'CSH-001',
-                                style: const TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF229ED9),
-                                  fontFamily: 'Courier',
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(Icons.copy_rounded, size: 11, color: Color(0xFF229ED9)),
-                            ],
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ],
@@ -476,7 +438,7 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
                     Icons.point_of_sale_rounded,
                     'POS Hardware Assigned',
                     (user?.assignedPos.contains('ANY_POS') == true || user?.assignedPos.isEmpty == true)
-                        ? 'Universal Access (Any Authorized POS Node)'
+                        ? 'Universal Access'
                         : (user?.assignedPos.firstOrNull ?? 'Universal Access'),
                     isDark,
                   ),
@@ -490,127 +452,6 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
                 ],
               ),
             ).animate().fadeIn(delay: 100.ms, duration: 350.ms),
-            const SizedBox(height: 20),
-
-            // ── Authorization Limits & Live Headroom ────────────────
-            _sectionLabel('Counter Limits & Live Headroom', isDark),
-            Builder(
-              builder: (context) {
-                final now = DateTime.now();
-                final todayTxns = repo.getTransactions().where((t) {
-                  final isToday = t.timestamp.year == now.year &&
-                      t.timestamp.month == now.month &&
-                      t.timestamp.day == now.day;
-                  return isToday && t.status == TransactionStatus.success;
-                }).toList();
-                final todaySpent = todayTxns.fold<double>(0.0, (acc, t) => acc + t.amount);
-                final dailyCap = user?.dailyLimit ?? 5000000.0;
-                final remainingCap = (dailyCap - todaySpent).clamp(0.0, dailyCap);
-                final capPercentUsed = dailyCap > 0 ? (todaySpent / dailyCap).clamp(0.0, 1.0) : 0.0;
-
-                return Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: borderColor, width: 1),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('SINGLE TRANSACTION LIMIT', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B))),
-                              const SizedBox(height: 2),
-                              Text('GH₵ ${NumberFormat('#,##0').format(user?.singleTxnLimit ?? 500000)}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF0F172A))),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text('AUTHORIZED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF10B981))),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('DAILY AGGREGATE CAP', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B))),
-                              const SizedBox(height: 2),
-                              Text('GH₵ ${NumberFormat('#,##0').format(dailyCap)}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF0F172A))),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF229ED9).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text('MAX LIMIT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF229ED9))),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('REMAINING AVAILABLE CAP TODAY', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF10B981))),
-                              const SizedBox(height: 2),
-                              Text('GH₵ ${NumberFormat('#,##0.00').format(remainingCap)}', style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: Color(0xFF10B981))),
-                            ],
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text('PROCESSED TODAY', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B))),
-                              const SizedBox(height: 2),
-                              Text('GH₵ ${NumberFormat('#,##0.00').format(todaySpent)}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: isDark ? Colors.white70 : const Color(0xFF334155))),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: capPercentUsed,
-                          backgroundColor: isDark ? const Color(0xFF2E3340) : const Color(0xFFE2E8F0),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF229ED9)),
-                          minHeight: 6,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${(capPercentUsed * 100).toStringAsFixed(1)}% limit utilized today',
-                            style: TextStyle(fontSize: 10, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                          ),
-                          Text(
-                            'Reduces dynamically as transactions occur',
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isDark ? Colors.white38 : AppColors.textDisabled),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ).animate().fadeIn(delay: 200.ms, duration: 350.ms),
             const SizedBox(height: 20),
 
             // ── App Preferences & Tactile Toggles ────────────────────
@@ -680,48 +521,17 @@ class _TellerProfileScreenState extends ConsumerState<TellerProfileScreen> {
                       style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                     ),
                     trailing: Switch(
-                      value: _soundAndHaptics,
+                      value: ref.watch(hapticFeedbackProvider),
                       activeThumbColor: const Color(0xFF10B981),
                       onChanged: (val) {
-                        HapticFeedback.heavyImpact();
-                        setState(() => _soundAndHaptics = val);
-                      },
-                    ),
-                  ),
-                  Divider(height: 1, indent: 52, color: borderColor),
-                  ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.print_rounded, color: Color(0xFFF59E0B), size: 18),
-                    ),
-                    title: Text(
-                      'Auto-Print Thermal Receipts',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13.5,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Issue customer receipt immediately upon approval',
-                      style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                    ),
-                    trailing: Switch(
-                      value: ref.watch(autoPrintReceiptProvider),
-                      activeThumbColor: const Color(0xFFF59E0B),
-                      onChanged: (val) {
-                        HapticFeedback.selectionClick();
-                        ref.read(autoPrintReceiptProvider.notifier).toggle(val);
+                        HapticFeedback.mediumImpact();
+                        ref.read(hapticFeedbackProvider.notifier).toggle(val);
                       },
                     ),
                   ),
                 ],
               ),
-            ).animate().fadeIn(delay: 300.ms, duration: 350.ms),
+            ).animate().fadeIn(delay: 200.ms, duration: 350.ms),
             const SizedBox(height: 24),
 
             // ── Logout Button ─────────────────────────────────────────
