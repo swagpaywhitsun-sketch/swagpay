@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/transaction.dart';
 import '../../core/services/receipt_service.dart';
@@ -246,7 +247,13 @@ class TellerReportsScreen extends ConsumerWidget {
         backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF303030),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-          onPressed: () => Navigator.maybePop(context),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/teller/dashboard');
+            }
+          },
         ),
         title: const Text(
           'Cashier Performance',
