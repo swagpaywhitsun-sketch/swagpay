@@ -696,7 +696,67 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
         const SizedBox(height: 16),
 
-        // 1. Enter Mobile Money Number
+        // 1. Select Carrier Network Provider
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '1. SELECT NETWORK PROVIDER',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                  color: muted,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildNetworkCard(
+                      network: MoMoNetwork.mtn,
+                      isDark: isDark,
+                      defaultBorderColor: borderColor,
+                      muted: muted,
+                      heading: heading,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildNetworkCard(
+                      network: MoMoNetwork.vodafone,
+                      isDark: isDark,
+                      defaultBorderColor: borderColor,
+                      muted: muted,
+                      heading: heading,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildNetworkCard(
+                      network: MoMoNetwork.airtel,
+                      isDark: isDark,
+                      defaultBorderColor: borderColor,
+                      muted: muted,
+                      heading: heading,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // 2. Enter Number
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -711,7 +771,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '1. MOBILE MONEY NUMBER',
+                    '2. NUMBER',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -817,66 +877,6 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                   ),
                 ),
               ],
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // 2. Select Carrier Network Provider
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                '2. SELECT NETWORK PROVIDER',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.0,
-                  color: muted,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildNetworkCard(
-                      network: MoMoNetwork.mtn,
-                      isDark: isDark,
-                      defaultBorderColor: borderColor,
-                      muted: muted,
-                      heading: heading,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildNetworkCard(
-                      network: MoMoNetwork.vodafone,
-                      isDark: isDark,
-                      defaultBorderColor: borderColor,
-                      muted: muted,
-                      heading: heading,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildNetworkCard(
-                      network: MoMoNetwork.airtel,
-                      isDark: isDark,
-                      defaultBorderColor: borderColor,
-                      muted: muted,
-                      heading: heading,
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
