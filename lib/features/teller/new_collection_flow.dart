@@ -60,16 +60,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
   double get _currentAmount => double.tryParse(_amountController.text.trim()) ?? 0.0;
 
-  void _triggerAutoPrintReceipt(PaymentTransaction txn) {
-    final shouldAutoPrint = ref.read(autoPrintReceiptProvider);
-    if (!shouldAutoPrint) return;
 
-    Future.delayed(const Duration(milliseconds: 650), () {
-      if (mounted && _currentStep == 4) {
-        ReceiptService.printReceipt(context, txn);
-      }
-    });
-  }
 
 
   void _onNumpadTap(String val) {
@@ -251,7 +242,6 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               _completedTransaction = txn;
               _currentStep = 4; // Success
             });
-            _triggerAutoPrintReceipt(txn);
           } else if (txn.status == TransactionStatus.failed) {
             timer.cancel();
             _countdownTimer?.cancel();
@@ -294,7 +284,6 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         _pollingTimer?.cancel();
         _countdownTimer?.cancel();
         setState(() => _currentStep = 4);
-        _triggerAutoPrintReceipt(txn);
       } else if (txn.status == TransactionStatus.failed) {
         _pollingTimer?.cancel();
         _countdownTimer?.cancel();
@@ -1385,11 +1374,48 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
         const SizedBox(height: 18),
 
+        // Prominent Button: Print Receipt (Two Copies: Attendant and Customer)
+        BouncyTap(
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            ReceiptService.printReceipt(context, _completedTransaction!);
+          },
+          child: Container(
+            height: 54,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF10B981), Color(0xFF059669)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.print_rounded, size: 22, color: Colors.white),
+                SizedBox(width: 10),
+                Text(
+                  'Print Receipt (2 Copies)',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
         // Primary Action: Start New Collection
         BouncyTap(
           onTap: _resetFlow,
           child: Container(
-            height: 54,
+            height: 52,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFF229ED9), Color(0xFF0284C7)],
@@ -1397,9 +1423,9 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF229ED9).withValues(alpha: 0.35),
-                  blurRadius: 14,
-                  offset: const Offset(0, 5),
+                  color: const Color(0xFF229ED9).withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -1542,7 +1568,6 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                 _completedTransaction = txn;
                 _currentStep = 4; // Success
               });
-              _triggerAutoPrintReceipt(txn);
             },
             icon: const Icon(Icons.cloud_off_rounded, size: 18),
             label: const Text(

@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/widgets/carrier_brand_icon.dart';
 import '../../core/widgets/lively_widgets.dart';
 import '../../core/widgets/notification_dropdown_button.dart';
@@ -536,123 +534,6 @@ class TransactionDetailScreen extends ConsumerWidget {
 
   const TransactionDetailScreen({super.key, required this.transactionId});
 
-  void _showRefundDialog(BuildContext context, WidgetRef ref, PaymentTransaction txn) {
-    final reasonController = TextEditingController(text: 'Customer requested cancellation');
-    final notesController = TextEditingController();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 580),
-          child: Padding(
-            padding: EdgeInsets.only(left: 24, right: 24, top: 24, bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.undo_rounded, color: AppColors.error, size: 22),
-                ),
-                const SizedBox(width: 14),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Request Refund / Void', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                    Text('Requires Admin approval', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.error.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(txn.customerName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                    Text(txn.reference, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                  ]),
-                  Text('${txn.currency} ${txn.amount.toStringAsFixed(2)}',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.error)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: reasonController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Reason for Void / Refund *', prefixIcon: Icon(Icons.edit_note_rounded), alignLabelWithHint: true),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: notesController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Additional Notes (optional)', prefixIcon: Icon(Icons.notes_rounded), alignLabelWithHint: true),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                    child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      final auth = ref.read(authProvider);
-                      await ref.read(paymentRepositoryProvider).submitRefundRequest(
-                        transactionId: txn.id,
-                        reason: reasonController.text.trim(),
-                        notes: notesController.text.trim(),
-                        tellerId: auth.currentUser?.id ?? 'TEL-001',
-                        tellerName: auth.currentUser?.fullName ?? 'Teller',
-                      );
-                      if (ctx.mounted) {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                            content: Text('Refund request submitted to Admin for approval'),
-                            backgroundColor: AppColors.gold));
-                      }
-                    },
-                    icon: const Icon(Icons.send_rounded, size: 18),
-                    label: const Text('Submit Refund Request', style: TextStyle(fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.error, foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    ),
-  ),
-);
-}
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(paymentRepositoryProvider);
@@ -684,71 +565,11 @@ class TransactionDetailScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ThermalReceiptCard(transaction: txn).animate().fadeIn(duration: 350.ms).scale(begin: const Offset(0.96, 0.96), end: const Offset(1, 1)),
-            const SizedBox(height: 20),
-
-            BouncyTap(
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.print_rounded, color: Colors.white, size: 20),
-                        SizedBox(width: 10),
-                        Text('Receipt sent to POS thermal printer!'),
-                      ],
-                    ),
-                    backgroundColor: Color(0xFF10B981),
-                  ),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF229ED9), Color(0xFF1570A6)],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF229ED9).withValues(alpha: 0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.print_rounded, color: Colors.white, size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      'PRINT THERMAL RECEIPT',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            if (txn.status == TransactionStatus.success) ...[
-              OutlinedButton.icon(
-                onPressed: () => _showRefundDialog(context, ref, txn),
-                icon: const Icon(Icons.undo_rounded, color: AppColors.error),
-                label: const Text('Request Void / Refund Reversal', style: TextStyle(color: AppColors.error)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.error,
-                  side: const BorderSide(color: AppColors.error),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-
+            ThermalReceiptCard(transaction: txn)
+                .animate()
+                .fadeIn(duration: 350.ms)
+                .scale(begin: const Offset(0.96, 0.96), end: const Offset(1, 1)),
+            const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: () => context.go('/teller/dashboard'),
               icon: const Icon(Icons.home_rounded),

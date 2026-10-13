@@ -141,5 +141,13 @@ void main() {
       expect(textReceipt, contains('PURCHASE'));
       expect(textReceipt, isNot(contains('OFFICIAL PAYMENT RECEIPT')));
     });
+
+    test('11. Generates two copies: one for Attendant and one for Customer', () {
+      final twoCopiesText = ReceiptService.generateTwoCopiesTextReceipt(testTxn);
+
+      expect(twoCopiesText, contains('*ATTENDANT COPY*'));
+      expect(twoCopiesText, contains('*CUSTOMER COPY*'));
+      expect(twoCopiesText.indexOf('*ATTENDANT COPY*'), lessThan(twoCopiesText.indexOf('*CUSTOMER COPY*')));
+    });
   });
 }

@@ -14,7 +14,7 @@ class ReceiptService {
     return ' ' * leftPadding + text;
   }
 
-  static String generateTextReceipt(PaymentTransaction txn) {
+  static String generateTextReceipt(PaymentTransaction txn, {String copyLabel = '*CUSTOMER COPY*'}) {
     final dateFormat = DateFormat('dd-MMM-yyyy hh:mm a');
     final formattedDate = dateFormat.format(txn.timestamp);
 
@@ -68,9 +68,16 @@ STATUS:     $statusStr
 ${_centerText('THANK YOU FOR TRANSACTING', 32)}
 ${_centerText('KEEP RECEIPT FOR YOUR RECORDS', 32)}
 ${_centerText(txn.operatorReference, 32)}
-${_centerText('*CUSTOMER COPY*', 32)}
+${_centerText(copyLabel, 32)}
 ================================
 ''';
+  }
+
+  /// Generates both Attendant Copy and Customer Copy formatted for text display
+  static String generateTwoCopiesTextReceipt(PaymentTransaction txn) {
+    final attendantCopy = generateTextReceipt(txn, copyLabel: '*ATTENDANT COPY*');
+    final customerCopy = generateTextReceipt(txn, copyLabel: '*CUSTOMER COPY*');
+    return '$attendantCopy\n\n================================\n\n$customerCopy';
   }
 
   /// Generates ESC/POS standard byte array suitable for standard 58mm/80mm thermal POS receipt printers.
@@ -94,7 +101,11 @@ ${_centerText('*CUSTOMER COPY*', 32)}
   }
 
   /// Generates a high-quality 58mm/80mm PDF receipt formatted for POS thermal printers and AirPrint
-  static Future<Uint8List> generatePdfReceipt(PaymentTransaction txn, PdfPageFormat format) async {
+  static Future<Uint8List> generatePdfReceipt(
+    PaymentTransaction txn,
+    PdfPageFormat format, {
+    bool twoCopies = true,
+  }) async {
     final doc = pw.Document();
     final dateFormat = DateFormat('dd-MMM-yyyy hh:mm a');
     final formattedDate = dateFormat.format(txn.timestamp);
@@ -126,182 +137,197 @@ ${_centerText('*CUSTOMER COPY*', 32)}
       marginAll: 4 * PdfPageFormat.mm,
     );
 
-    doc.addPage(
-      pw.Page(
-        pageFormat: rollFormat,
-        build: (pw.Context context) {
-          return pw.Container(
-            padding: const pw.EdgeInsets.all(6),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: [
-                // Header with Merchant Name, Address, and Shop Location (no phone)
-                pw.Center(
-                  child: pw.Column(
-                    children: [
-                      pw.Text(
-                        'SwagPay',
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
-                        textAlign: pw.TextAlign.center,
+    if (twoCopies) {
+      doc.addPage(_buildReceiptPdfPage(txn, rollFormat, '*ATTENDANT COPY*', statusText, displayPos, formattedDate, isSuccess));
+      doc.addPage(_buildReceiptPdfPage(txn, rollFormat, '*CUSTOMER COPY*', statusText, displayPos, formattedDate, isSuccess));
+    } else {
+      doc.addPage(_buildReceiptPdfPage(txn, rollFormat, '*CUSTOMER COPY*', statusText, displayPos, formattedDate, isSuccess));
+    }
+
+    return doc.save();
+  }
+
+  static pw.Page _buildReceiptPdfPage(
+    PaymentTransaction txn,
+    PdfPageFormat rollFormat,
+    String copyLabel,
+    String statusText,
+    String displayPos,
+    String formattedDate,
+    bool isSuccess,
+  ) {
+    return pw.Page(
+      pageFormat: rollFormat,
+      build: (pw.Context context) {
+        return pw.Container(
+          padding: const pw.EdgeInsets.all(6),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              // Header with Merchant Name, Address, and Shop Location (no phone)
+              pw.Center(
+                child: pw.Column(
+                  children: [
+                    pw.Text(
+                      'SwagPay',
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                        letterSpacing: 1.5,
                       ),
-                      pw.SizedBox(height: 3),
-                      pw.Text(
-                        txn.effectiveMerchantName.toUpperCase(),
-                        style: pw.TextStyle(
-                          fontSize: 11,
-                          fontWeight: pw.FontWeight.bold,
-                          letterSpacing: 1.0,
-                        ),
-                        textAlign: pw.TextAlign.center,
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    pw.SizedBox(height: 3),
+                    pw.Text(
+                      txn.effectiveMerchantName.toUpperCase(),
+                      style: pw.TextStyle(
+                        fontSize: 11,
+                        fontWeight: pw.FontWeight.bold,
+                        letterSpacing: 1.0,
                       ),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        txn.effectiveMerchantAddress,
-                        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-                        textAlign: pw.TextAlign.center,
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      txn.effectiveMerchantAddress,
+                      style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    pw.SizedBox(height: 1),
+                    pw.Text(
+                      'Location: ${txn.effectiveShopLocation}',
+                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.grey800),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'PURCHASE',
+                      style: pw.TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: pw.FontWeight.bold,
+                        letterSpacing: 1.0,
                       ),
-                      pw.SizedBox(height: 1),
-                      pw.Text(
-                        'Location: ${txn.effectiveShopLocation}',
-                        style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.grey800),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        'PURCHASE',
-                        style: pw.TextStyle(
-                          fontSize: 8.5,
-                          fontWeight: pw.FontWeight.bold,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                pw.SizedBox(height: 6),
-                pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
-                pw.SizedBox(height: 4),
+              ),
+              pw.SizedBox(height: 6),
+              pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
+              pw.SizedBox(height: 4),
 
-                // Terminal, Cashier & Audit Meta
-                _buildPdfRow('Date / Time', formattedDate),
-                _buildPdfRow('Terminal', displayPos),
-                _buildPdfRow('Cashier', txn.tellerFirstName),
+              // Terminal, Cashier & Audit Meta
+              _buildPdfRow('Date / Time', formattedDate),
+              _buildPdfRow('Terminal', displayPos),
+              _buildPdfRow('Cashier', txn.tellerFirstName),
 
-                pw.SizedBox(height: 4),
-                pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
-                pw.SizedBox(height: 4),
+              pw.SizedBox(height: 4),
+              pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
+              pw.SizedBox(height: 4),
 
-                // Transaction Details (Phone Number Removed, Only 1 Reference placed under barcode)
-                _buildPdfRow('Customer Name', txn.customerName, isBold: true),
-                _buildPdfRow('Network', txn.networkDisplay),
-                if (txn.receiptNumber != null && txn.receiptNumber!.isNotEmpty)
-                  _buildPdfRow('Receipt No', txn.receiptNumber!),
+              // Transaction Details
+              _buildPdfRow('Customer Name', txn.customerName, isBold: true),
+              _buildPdfRow('Network', txn.networkDisplay),
+              if (txn.receiptNumber != null && txn.receiptNumber!.isNotEmpty)
+                _buildPdfRow('Receipt No', txn.receiptNumber!),
 
-                pw.SizedBox(height: 4),
-                pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
-                pw.SizedBox(height: 4),
+              pw.SizedBox(height: 4),
+              pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
+              pw.SizedBox(height: 4),
 
-                // Amount Section (Processing fee included in amount, not separated)
-                _buildPdfRow('Amount', 'GHS ${txn.totalAmount.toStringAsFixed(2)}', isBold: true),
-                pw.SizedBox(height: 4),
-                pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              // Amount Section (Processing fee included in amount, not separated)
+              _buildPdfRow('Amount', 'GHS ${txn.totalAmount.toStringAsFixed(2)}', isBold: true),
+              pw.SizedBox(height: 4),
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(width: 1),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'TOTAL AMOUNT',
+                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(
+                      'GHS ${txn.totalAmount.toStringAsFixed(2)}',
+                      style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+
+              pw.SizedBox(height: 6),
+              pw.Center(
+                child: pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: pw.BoxDecoration(
-                    border: pw.Border.all(width: 1),
+                    color: isSuccess ? PdfColors.grey200 : PdfColors.grey100,
                     borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
                   ),
-                  child: pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text(
-                        'TOTAL AMOUNT',
-                        style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
-                      ),
-                      pw.Text(
-                        'GHS ${txn.totalAmount.toStringAsFixed(2)}',
-                        style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-                      ),
-                    ],
+                  child: pw.Text(
+                    statusText,
+                    style: pw.TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: pw.FontWeight.bold,
+                      letterSpacing: 0.8,
+                    ),
                   ),
                 ),
+              ),
 
-                pw.SizedBox(height: 6),
-                pw.Center(
-                  child: pw.Container(
-                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: pw.BoxDecoration(
-                      color: isSuccess ? PdfColors.grey200 : PdfColors.grey100,
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                    ),
-                    child: pw.Text(
-                      statusText,
+              pw.SizedBox(height: 8),
+              pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
+              pw.SizedBox(height: 6),
+
+              // Single Reference & Copy Label
+              pw.Center(
+                child: pw.Column(
+                  children: [
+                    pw.Text(
+                      txn.operatorReference,
                       style: pw.TextStyle(
                         fontSize: 8.5,
                         fontWeight: pw.FontWeight.bold,
                         letterSpacing: 0.8,
                       ),
                     ),
-                  ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      copyLabel,
+                      style: pw.TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: pw.FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
 
-                pw.SizedBox(height: 8),
-                pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
-                pw.SizedBox(height: 6),
-
-                // Single Reference & Customer Copy
-                pw.Center(
-                  child: pw.Column(
-                    children: [
-                      pw.Text(
-                        txn.operatorReference,
-                        style: pw.TextStyle(
-                          fontSize: 8.5,
-                          fontWeight: pw.FontWeight.bold,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        '*CUSTOMER COPY*',
-                        style: pw.TextStyle(
-                          fontSize: 8.5,
-                          fontWeight: pw.FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
+              pw.SizedBox(height: 6),
+              // Footer
+              pw.Center(
+                child: pw.Column(
+                  children: [
+                    pw.Text(
+                      'THANK YOU FOR TRANSACTING',
+                      style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.SizedBox(height: 1),
+                    pw.Text(
+                      'KEEP THIS RECEIPT FOR YOUR RECORDS',
+                      style: const pw.TextStyle(fontSize: 7),
+                    ),
+                  ],
                 ),
-
-                pw.SizedBox(height: 6),
-                // Footer
-                pw.Center(
-                  child: pw.Column(
-                    children: [
-                      pw.Text(
-                        'THANK YOU FOR TRANSACTING',
-                        style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
-                      ),
-                      pw.SizedBox(height: 1),
-                      pw.Text(
-                        'KEEP THIS RECEIPT FOR YOUR RECORDS',
-                        style: const pw.TextStyle(fontSize: 7),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
-
-    return doc.save();
   }
 
   static pw.Widget _buildPdfRow(String label, String value, {bool isBold = false}) {
@@ -341,7 +367,7 @@ ${_centerText('*CUSTOMER COPY*', 32)}
   static void showPrintModal(BuildContext context, PaymentTransaction txn) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
-    final receiptText = generateTextReceipt(txn);
+    final receiptText = generateTwoCopiesTextReceipt(txn);
 
     showModalBottomSheet(
       context: context,
