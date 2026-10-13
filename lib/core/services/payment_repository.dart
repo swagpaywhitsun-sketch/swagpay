@@ -103,6 +103,18 @@ class PaymentRepository {
     if (savedBaseUrl != null && savedBaseUrl.isNotEmpty) {
       apiClient.updateBaseUrl(savedBaseUrl);
     }
+    final savedMName = prefs.getString('merchant_name');
+    if (savedMName != null && savedMName.isNotEmpty) {
+      PaymentTransaction.defaultMerchantName = savedMName;
+    }
+    final savedMAddr = prefs.getString('merchant_address');
+    if (savedMAddr != null && savedMAddr.isNotEmpty) {
+      PaymentTransaction.defaultMerchantAddress = savedMAddr;
+    }
+    final savedMLoc = prefs.getString('merchant_location');
+    if (savedMLoc != null && savedMLoc.isNotEmpty) {
+      PaymentTransaction.defaultShopLocation = savedMLoc;
+    }
     _loadOfflineQueue();
   }
 
@@ -302,6 +314,28 @@ class PaymentRepository {
               device: deviceDisplay,
             );
           }).toList();
+        }
+      } catch (_) {}
+
+      // 7. Fetch merchant profile for receipts
+      try {
+        final profRes = await apiClient.get<Map<String, dynamic>>(ApiConfig.merchantProfile);
+        if (profRes.data != null) {
+          final mName = profRes.data!['merchantName']?.toString();
+          final mAddr = profRes.data!['merchantAddress']?.toString();
+          final mLoc = profRes.data!['shopLocation']?.toString();
+          if (mName != null && mName.isNotEmpty) {
+            PaymentTransaction.defaultMerchantName = mName;
+            await prefs.setString('merchant_name', mName);
+          }
+          if (mAddr != null && mAddr.isNotEmpty) {
+            PaymentTransaction.defaultMerchantAddress = mAddr;
+            await prefs.setString('merchant_address', mAddr);
+          }
+          if (mLoc != null && mLoc.isNotEmpty) {
+            PaymentTransaction.defaultShopLocation = mLoc;
+            await prefs.setString('merchant_location', mLoc);
+          }
         }
       } catch (_) {}
     } catch (_) {
@@ -870,5 +904,69 @@ class PaymentRepository {
     );
     onChanged?.call();
     return _activeShift!;
+  }
+
+  // --- MERCHANT POS RECEIPT PROFILE (SUPER ADMIN CONFIGURABLE) ---
+  String get merchantName => prefs.getString('merchant_name') ?? PaymentTransaction.defaultMerchantName;
+  String get merchantAddress => prefs.getString('merchant_address') ?? PaymentTransaction.defaultMerchantAddress;
+  String get shopLocation => prefs.getString('merchant_location') ?? PaymentTransaction.defaultShopLocation;
+
+  Future<Map<String, String>> fetchMerchantProfile() async {
+    try {
+      final res = await apiClient.get<Map<String, dynamic>>(ApiConfig.merchantProfile);
+      if (res.data != null) {
+        final mName = res.data!['merchantName']?.toString();
+        final mAddr = res.data!['merchantAddress']?.toString();
+        final mLoc = res.data!['shopLocation']?.toString();
+        if (mName != null && mName.isNotEmpty) {
+          PaymentTransaction.defaultMerchantName = mName;
+          await prefs.setString('merchant_name', mName);
+        }
+        if (mAddr != null && mAddr.isNotEmpty) {
+          PaymentTransaction.defaultMerchantAddress = mAddr;
+          await prefs.setString('merchant_address', mAddr);
+        }
+        if (mLoc != null && mLoc.isNotEmpty) {
+          PaymentTransaction.defaultShopLocation = mLoc;
+          await prefs.setString('merchant_location', mLoc);
+        }
+        notifyListeners();
+      }
+    } catch (_) {}
+    return {
+      'merchantName': merchantName,
+      'merchantAddress': merchantAddress,
+      'shopLocation': shopLocation,
+    };
+  }
+
+  Future<void> updateMerchantProfile({
+    required String merchantName,
+    required String merchantAddress,
+    required String shopLocation,
+  }) async {
+    final cleanName = merchantName.trim();
+    final cleanAddr = merchantAddress.trim();
+    final cleanLoc = shopLocation.trim();
+
+    PaymentTransaction.defaultMerchantName = cleanName;
+    PaymentTransaction.defaultMerchantAddress = cleanAddr;
+    PaymentTransaction.defaultShopLocation = cleanLoc;
+
+    await prefs.setString('merchant_name', cleanName);
+    await prefs.setString('merchant_address', cleanAddr);
+    await prefs.setString('merchant_location', cleanLoc);
+
+    try {
+      await apiClient.put<Map<String, dynamic>>(
+        ApiConfig.merchantProfile,
+        data: {
+          'merchantName': cleanName,
+          'merchantAddress': cleanAddr,
+          'shopLocation': cleanLoc,
+        },
+      );
+    } catch (_) {}
+    notifyListeners();
   }
 }

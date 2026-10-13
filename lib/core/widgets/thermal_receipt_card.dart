@@ -36,7 +36,7 @@ class ThermalReceiptCard extends StatelessWidget {
     }
     switch (transaction.status) {
       case TransactionStatus.success:
-        return 'APPROVED / PAID';
+        return 'Approved by PIN';
       case TransactionStatus.pending:
         return 'PAYMENT PENDING';
       case TransactionStatus.failed:
@@ -52,7 +52,7 @@ class ThermalReceiptCard extends StatelessWidget {
     }
     switch (transaction.status) {
       case TransactionStatus.success:
-        return 'TOTAL PAID';
+        return 'TOTAL AMOUNT';
       case TransactionStatus.pending:
         return 'AMOUNT PENDING';
       case TransactionStatus.failed:
@@ -95,51 +95,56 @@ class ThermalReceiptCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header Branding
+                // Header with Merchant Name, Address, and Shop Location (no phone)
                 Center(
                   child: Column(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.circular(8),
+                      Text(
+                        transaction.effectiveMerchantName.toUpperCase(),
+                        style: const TextStyle(
+                          color: Color(0xFF0F172A),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: Image.asset(
-                                'logo.png',
-                                width: 20,
-                                height: 20,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 18),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'SWAGPAY POS',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ],
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        transaction.effectiveMerchantAddress,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Text(
+                          'Location: ${transaction.effectiveShopLocation}',
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF334155),
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
                         'OFFICIAL PAYMENT RECEIPT',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                          color: Color(0xFF334155),
+                          letterSpacing: 1.1,
+                          color: Color(0xFF0284C7),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -195,23 +200,18 @@ class ThermalReceiptCard extends StatelessWidget {
                 _buildDottedDivider(),
                 const SizedBox(height: 12),
 
-                // Customer & Transaction Details
+                // Customer & Transaction Details (Phone Number Removed, Only 1 Reference placed under barcode)
                 _buildReceiptRow('Customer Name', transaction.customerName, isBold: true),
-                _buildReceiptRow('Phone Number', transaction.displayPhone),
                 _buildReceiptRow('Network', transaction.networkDisplay),
-                _buildReceiptRow('Reference', transaction.reference, isMono: true),
                 if (transaction.receiptNumber != null && transaction.receiptNumber!.isNotEmpty)
                   _buildReceiptRow('Receipt No', transaction.receiptNumber!, isMono: true),
-                if (transaction.branch != null && transaction.branch!.isNotEmpty)
-                  _buildReceiptRow('Branch / Location', transaction.branch!),
 
                 const SizedBox(height: 12),
                 _buildDottedDivider(),
                 const SizedBox(height: 12),
 
-                // Amount Breakdown
-                _buildReceiptRow('Payment Subtotal', 'GHS ${transaction.amount.toStringAsFixed(2)}'),
-                _buildReceiptRow('Processing Fee', 'GHS 0.00'),
+                // Amount Section (Processing fee included in amount, not separated)
+                _buildReceiptRow('Amount', 'GHS ${transaction.totalAmount.toStringAsFixed(2)}', isBold: true),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -235,7 +235,7 @@ class ThermalReceiptCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'GHS ${transaction.amount.toStringAsFixed(2)}',
+                        'GHS ${transaction.totalAmount.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
@@ -271,7 +271,7 @@ class ThermalReceiptCard extends StatelessWidget {
                 _buildDottedDivider(),
                 const SizedBox(height: 14),
 
-                // Thermal Barcode Simulation
+                // Thermal Barcode Simulation & Single Reference Underneath
                 Center(
                   child: Column(
                     children: [
@@ -295,22 +295,41 @@ class ThermalReceiptCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
+                      // Single Reference on the receipt, directly under the barcode
                       Text(
-                        transaction.reference,
+                        transaction.operatorReference,
                         style: const TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 11,
                           fontFamily: 'Courier',
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF475569),
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1E293B),
                           letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFFCBD5E1)),
+                        ),
+                        child: const Text(
+                          '*CUSTOMER COPY*',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: 1.5,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 // Footer
                 const Center(
                   child: Column(
@@ -334,11 +353,11 @@ class ThermalReceiptCard extends StatelessWidget {
                           letterSpacing: 0.5,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      SizedBox(height: 5),
                       Text(
-                        'POWERED BY WHITSUN',
+                        'SwagPay',
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 9.5,
                           fontWeight: FontWeight.w800,
                           color: Color(0xFF1570A6),
                           letterSpacing: 1.2,

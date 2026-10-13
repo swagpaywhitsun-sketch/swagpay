@@ -136,3 +136,16 @@ INSERT INTO pos_terminals (id, code, name, location, active)
 VALUES
   ('pos_01', 'POS-01', 'Counter 1', '', 1)
 ON CONFLICT (id) DO NOTHING;
+
+-- Merchant Profile for Receipts (Configured in Super Admin Portal)
+CREATE TABLE IF NOT EXISTS merchant_profile (
+  id VARCHAR(64) PRIMARY KEY DEFAULT 'default',
+  "merchantName" VARCHAR(255) NOT NULL DEFAULT 'KOFI & SONS ELECTRONICS',
+  "merchantAddress" VARCHAR(255) NOT NULL DEFAULT 'Plot 48 Spintex Road, Accra',
+  "shopLocation" VARCHAR(255) NOT NULL DEFAULT 'Accra Mall Branch #12',
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO merchant_profile (id, "merchantName", "merchantAddress", "shopLocation")
+VALUES ('default', 'KOFI & SONS ELECTRONICS', 'Plot 48 Spintex Road, Accra', 'Accra Mall Branch #12')
+ON CONFLICT (id) DO NOTHING;

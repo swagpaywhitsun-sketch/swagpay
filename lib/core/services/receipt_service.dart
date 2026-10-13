@@ -8,32 +8,32 @@ import 'package:printing/printing.dart';
 import '../models/transaction.dart';
 
 class ReceiptService {
+  static String _centerText(String text, int width) {
+    if (text.length >= width) return text;
+    final leftPadding = (width - text.length) ~/ 2;
+    return ' ' * leftPadding + text;
+  }
+
   static String generateTextReceipt(PaymentTransaction txn) {
     final dateFormat = DateFormat('dd-MMM-yyyy hh:mm a');
     final formattedDate = dateFormat.format(txn.timestamp);
 
-    String statusStr = 'APPROVED';
-    String amountLabel = 'TOTAL PAID';
+    String statusStr = 'Approved by PIN';
     if (txn.id.startsWith('tx_off_') || txn.reference.startsWith('OFF-')) {
       statusStr = 'OFFLINE QUEUED (PENDING SYNC)';
-      amountLabel = 'QUEUED AMOUNT (PENDING)';
     } else {
       switch (txn.status) {
         case TransactionStatus.success:
-          statusStr = 'APPROVED / PAID';
-          amountLabel = 'TOTAL PAID';
+          statusStr = 'Approved by PIN';
           break;
         case TransactionStatus.pending:
           statusStr = 'PENDING AUTH';
-          amountLabel = 'AMOUNT PENDING';
           break;
         case TransactionStatus.failed:
           statusStr = 'DECLINED';
-          amountLabel = 'AMOUNT (NOT CHARGED)';
           break;
         case TransactionStatus.refunded:
           statusStr = 'REFUNDED';
-          amountLabel = 'AMOUNT REFUNDED';
           break;
       }
     }
@@ -43,35 +43,32 @@ class ReceiptService {
         txn.posId.startsWith('pos_') ||
         txn.posId.toLowerCase().contains('universal');
     final displayPos = isUniversal ? 'Universal POS' : txn.posId;
-
-    final branchName = (txn.branch != null && txn.branch!.trim().isNotEmpty) ? txn.branch! : 'Main Store';
     final rcptNo = (txn.receiptNumber != null && txn.receiptNumber!.isNotEmpty) ? txn.receiptNumber! : 'N/A';
 
     return '''
 ================================
-          SWAGPAY POS
-    OFFICIAL PAYMENT RECEIPT
+${_centerText(txn.effectiveMerchantName.toUpperCase(), 32)}
+${_centerText(txn.effectiveMerchantAddress, 32)}
+${_centerText('Location: ${txn.effectiveShopLocation}', 32)}
 ================================
+${_centerText('OFFICIAL PAYMENT RECEIPT', 32)}
+--------------------------------
 Date:       $formattedDate
 Terminal:   $displayPos
 Cashier:    ${txn.tellerName}
-Branch:     $branchName
 --------------------------------
 Customer:   ${txn.customerName}
-Phone:      ${txn.displayPhone}
 Network:    ${txn.networkDisplay}
-Ref:        ${txn.reference}
 Receipt No: $rcptNo
 --------------------------------
-Subtotal:   GHS ${txn.amount.toStringAsFixed(2)}
-Fee:        GHS 0.00
---------------------------------
-$amountLabel: GHS ${txn.amount.toStringAsFixed(2)}
+Amount:     GHS ${txn.totalAmount.toStringAsFixed(2)}
 STATUS:     $statusStr
 ================================
-  THANK YOU FOR TRANSACTING
-  KEEP RECEIPT FOR YOUR RECORDS
-       POWERED BY WHITSUN
+${_centerText('THANK YOU FOR TRANSACTING', 32)}
+${_centerText('KEEP RECEIPT FOR YOUR RECORDS', 32)}
+${_centerText(txn.operatorReference, 32)}
+${_centerText('*CUSTOMER COPY*', 32)}
+${_centerText('SwagPay', 32)}
 ================================
 ''';
   }
@@ -111,13 +108,15 @@ STATUS:     $statusStr
         txn.posId.toLowerCase().contains('universal');
     final displayPos = isUniversal ? 'Universal POS' : txn.posId;
 
-    String statusText = 'APPROVED / PAID';
+    String statusText = 'Approved by PIN';
     if (isOffline) {
       statusText = 'OFFLINE QUEUED (PENDING SYNC)';
     } else if (txn.status == TransactionStatus.failed) {
       statusText = 'PAYMENT DECLINED';
     } else if (txn.status == TransactionStatus.pending) {
       statusText = 'PAYMENT PENDING';
+    } else if (txn.status == TransactionStatus.refunded) {
+      statusText = 'PAYMENT REFUNDED';
     }
 
     // POS Roll standard width (58mm or 80mm roll format)
@@ -136,23 +135,36 @@ STATUS:     $statusStr
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                // Header
+                // Header with Merchant Name, Address, and Shop Location (no phone)
                 pw.Center(
                   child: pw.Column(
                     children: [
                       pw.Text(
-                        'SWAGPAY POS',
+                        txn.effectiveMerchantName.toUpperCase(),
                         style: pw.TextStyle(
-                          fontSize: 16,
+                          fontSize: 13,
                           fontWeight: pw.FontWeight.bold,
-                          letterSpacing: 1.5,
+                          letterSpacing: 1.2,
                         ),
+                        textAlign: pw.TextAlign.center,
                       ),
                       pw.SizedBox(height: 2),
                       pw.Text(
+                        txn.effectiveMerchantAddress,
+                        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                      pw.SizedBox(height: 1),
+                      pw.Text(
+                        'Location: ${txn.effectiveShopLocation}',
+                        style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.grey800),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
                         'OFFICIAL PAYMENT RECEIPT',
                         style: pw.TextStyle(
-                          fontSize: 9.5,
+                          fontSize: 8.5,
                           fontWeight: pw.FontWeight.bold,
                           letterSpacing: 0.8,
                         ),
@@ -164,22 +176,18 @@ STATUS:     $statusStr
                 pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
                 pw.SizedBox(height: 4),
 
-                // Terminal, Cashier & Audit Meta (Professionally Aligned Key-Value Rows)
+                // Terminal, Cashier & Audit Meta
                 _buildPdfRow('Date / Time', formattedDate),
                 _buildPdfRow('Terminal', displayPos),
                 _buildPdfRow('Cashier', txn.tellerName),
-                if (txn.branch != null && txn.branch!.isNotEmpty)
-                  _buildPdfRow('Branch', txn.branch!),
 
                 pw.SizedBox(height: 4),
                 pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
                 pw.SizedBox(height: 4),
 
-                // Transaction Details
+                // Transaction Details (Phone Number Removed, Only 1 Reference placed under barcode)
                 _buildPdfRow('Customer Name', txn.customerName, isBold: true),
-                _buildPdfRow('Phone Number', txn.displayPhone),
                 _buildPdfRow('Network', txn.networkDisplay),
-                _buildPdfRow('Reference', txn.reference),
                 if (txn.receiptNumber != null && txn.receiptNumber!.isNotEmpty)
                   _buildPdfRow('Receipt No', txn.receiptNumber!),
 
@@ -187,9 +195,8 @@ STATUS:     $statusStr
                 pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
                 pw.SizedBox(height: 4),
 
-                // Amount Section with Universal GHS Currency (Never produces crossed [X] boxes)
-                _buildPdfRow('Subtotal', 'GHS ${txn.amount.toStringAsFixed(2)}'),
-                _buildPdfRow('Fee', 'GHS 0.00'),
+                // Amount Section (Processing fee included in amount, not separated)
+                _buildPdfRow('Amount', 'GHS ${txn.totalAmount.toStringAsFixed(2)}', isBold: true),
                 pw.SizedBox(height: 4),
                 pw.Container(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -201,11 +208,11 @@ STATUS:     $statusStr
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
                       pw.Text(
-                        'TOTAL PAID',
+                        'TOTAL AMOUNT',
                         style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
                       ),
                       pw.Text(
-                        'GHS ${txn.amount.toStringAsFixed(2)}',
+                        'GHS ${txn.totalAmount.toStringAsFixed(2)}',
                         style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
                       ),
                     ],
@@ -235,7 +242,7 @@ STATUS:     $statusStr
                 pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
                 pw.SizedBox(height: 6),
 
-                // Simulated Barcode / Ref
+                // Simulated Barcode & Single Reference directly underneath
                 pw.Center(
                   child: pw.Column(
                     children: [
@@ -253,16 +260,31 @@ STATUS:     $statusStr
                           ),
                         ),
                       ),
+                      pw.SizedBox(height: 4),
+                      // Single Reference on the receipt, directly under the barcode
+                      pw.Text(
+                        txn.operatorReference,
+                        style: pw.TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: pw.FontWeight.bold,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
                       pw.SizedBox(height: 2),
                       pw.Text(
-                        txn.reference,
-                        style: const pw.TextStyle(fontSize: 8),
+                        '*CUSTOMER COPY*',
+                        style: pw.TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: pw.FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
                       ),
                     ],
                   ),
                 ),
 
-                pw.SizedBox(height: 8),
+                pw.SizedBox(height: 6),
+                // Footer
                 pw.Center(
                   child: pw.Column(
                     children: [
@@ -277,9 +299,9 @@ STATUS:     $statusStr
                       ),
                       pw.SizedBox(height: 3),
                       pw.Text(
-                        'POWERED BY WHITSUN',
+                        'SwagPay',
                         style: pw.TextStyle(
-                          fontSize: 8,
+                          fontSize: 7.5,
                           fontWeight: pw.FontWeight.bold,
                           letterSpacing: 0.8,
                         ),
@@ -551,7 +573,7 @@ STATUS:     $statusStr
                       ),
                       pw.SizedBox(height: 2),
                       pw.Text(
-                        'POWERED BY WHITSUN',
+                        'SwagPay',
                         style: pw.TextStyle(
                           fontSize: 8,
                           fontWeight: pw.FontWeight.bold,

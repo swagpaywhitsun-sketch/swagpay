@@ -761,6 +761,13 @@ class AdminSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
+  late final TextEditingController _merchantNameCtrl;
+  late final TextEditingController _merchantAddressCtrl;
+  late final TextEditingController _shopLocationCtrl;
+  bool _isSavingProfile = false;
+  String? _profileStatusMessage;
+  bool _isProfileSuccess = false;
+
   final _currentPassCtrl = TextEditingController();
   final _newPassCtrl = TextEditingController();
   final _confirmPassCtrl = TextEditingController();
@@ -774,11 +781,87 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
   bool _isSuccess = false;
 
   @override
+  void initState() {
+    super.initState();
+    final repo = ref.read(paymentRepositoryProvider);
+    _merchantNameCtrl = TextEditingController(text: repo.merchantName);
+    _merchantAddressCtrl = TextEditingController(text: repo.merchantAddress);
+    _shopLocationCtrl = TextEditingController(text: repo.shopLocation);
+    _merchantNameCtrl.addListener(() => setState(() {}));
+    _merchantAddressCtrl.addListener(() => setState(() {}));
+    _shopLocationCtrl.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
+    _merchantNameCtrl.dispose();
+    _merchantAddressCtrl.dispose();
+    _shopLocationCtrl.dispose();
     _currentPassCtrl.dispose();
     _newPassCtrl.dispose();
     _confirmPassCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleSaveMerchantProfile() async {
+    final name = _merchantNameCtrl.text.trim();
+    final addr = _merchantAddressCtrl.text.trim();
+    final loc = _shopLocationCtrl.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a merchant name'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSavingProfile = true;
+      _profileStatusMessage = null;
+    });
+
+    try {
+      final repo = ref.read(paymentRepositoryProvider);
+      await repo.updateMerchantProfile(
+        merchantName: name,
+        merchantAddress: addr.isNotEmpty ? addr : 'Plot 48 Spintex Road, Accra',
+        shopLocation: loc.isNotEmpty ? loc : 'Accra Mall Branch #12',
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isSavingProfile = false;
+        _isProfileSuccess = true;
+        _profileStatusMessage = 'Merchant receipt profile updated successfully! All POS receipts will carry these details.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Receipt profile updated! Printed receipts will reflect these details.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSavingProfile = false;
+        _isProfileSuccess = false;
+        _profileStatusMessage = e is ApiException ? e.message : '$e';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_profileStatusMessage ?? 'Failed to update merchant profile'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  void _loadDefaultSample() {
+    setState(() {
+      _merchantNameCtrl.text = 'KOFI & SONS ELECTRONICS';
+      _merchantAddressCtrl.text = 'Plot 48 Spintex Road, Accra';
+      _shopLocationCtrl.text = 'Accra Mall Branch #12';
+    });
   }
 
   Future<void> _handleChangePassword() async {
@@ -833,6 +916,16 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     final user = auth.currentUser;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final previewMerchantName = _merchantNameCtrl.text.trim().isNotEmpty
+        ? _merchantNameCtrl.text.trim().toUpperCase()
+        : 'KOFI & SONS ELECTRONICS';
+    final previewMerchantAddress = _merchantAddressCtrl.text.trim().isNotEmpty
+        ? _merchantAddressCtrl.text.trim()
+        : 'Plot 48 Spintex Road, Accra';
+    final previewShopLocation = _shopLocationCtrl.text.trim().isNotEmpty
+        ? _shopLocationCtrl.text.trim()
+        : 'Accra Mall Branch #12';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 36),
       child: Center(
@@ -843,15 +936,277 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
             children: [
               // Header
               const Text(
-                'Account Security & Password',
+                'Super Admin Settings',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5),
               ),
               const SizedBox(height: 4),
               Text(
-                'Manage your administrator password and account credentials',
+                'Configure POS thermal receipt merchant branding, shop location, and administrator security.',
                 style: TextStyle(
                   color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
                   fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // ─── MERCHANT POS RECEIPT PROFILE CARD ───
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Merchant POS Receipt Profile',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Configures the shop name, address, and branch location on all printed thermal receipts.',
+                                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'SUPER ADMIN',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 10,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Merchant Name Input
+                      TextFormField(
+                        controller: _merchantNameCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'Merchant / Business Name',
+                          hintText: 'e.g., KOFI & SONS ELECTRONICS',
+                          prefixIcon: const Icon(Icons.business_rounded),
+                          suffixIcon: IconButton(
+                            tooltip: 'Reset to default sample',
+                            icon: const Icon(Icons.restore_rounded, size: 20),
+                            onPressed: _loadDefaultSample,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Merchant Address Input
+                      TextFormField(
+                        controller: _merchantAddressCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Merchant Street Address',
+                          hintText: 'e.g., Plot 48 Spintex Road, Accra',
+                          prefixIcon: const Icon(Icons.place_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Shop Location Input
+                      TextFormField(
+                        controller: _shopLocationCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Shop Location / Branch',
+                          hintText: 'e.g., Accra Mall Branch #12',
+                          helperText: 'Displayed on receipt as: Location: <Shop Location>',
+                          prefixIcon: const Icon(Icons.storefront_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Live Thermal Receipt Header Preview
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                            style: BorderStyle.solid,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.print_rounded, size: 14, color: AppColors.textSecondary),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'LIVE THERMAL RECEIPT HEADER PREVIEW',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.0,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              '================================',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              previewMerchantName,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: 'Courier',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            Text(
+                              previewMerchantAddress,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontFamily: 'Courier', fontSize: 11),
+                            ),
+                            Text(
+                              'Location: $previewShopLocation',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontFamily: 'Courier', fontSize: 11),
+                            ),
+                            const Text(
+                              '================================',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                            const Text(
+                              'OFFICIAL PAYMENT RECEIPT',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                            const Text(
+                              '--------------------------------',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11),
+                            ),
+                            const Text(
+                              'STATUS:     Approved by PIN',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                            const Text(
+                              '================================',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                            const Text(
+                              '*CUSTOMER COPY*',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 10.5, fontWeight: FontWeight.bold),
+                            ),
+                            const Text(
+                              'SwagPay',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF1570A6)),
+                            ),
+                            const Text(
+                              '================================',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      if (_profileStatusMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _isProfileSuccess ? AppColors.success.withValues(alpha: 0.1) : AppColors.error.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _isProfileSuccess ? AppColors.success.withValues(alpha: 0.3) : AppColors.error.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _isProfileSuccess ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                                color: _isProfileSuccess ? AppColors.successDark : AppColors.error,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _profileStatusMessage!,
+                                  style: TextStyle(
+                                    color: _isProfileSuccess ? AppColors.successDark : AppColors.error,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Action Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 48,
+                              child: ElevatedButton.icon(
+                                onPressed: _isSavingProfile ? null : _handleSaveMerchantProfile,
+                                icon: _isSavingProfile
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      )
+                                    : const Icon(Icons.save_rounded, size: 18),
+                                label: Text(
+                                  _isSavingProfile ? 'Saving Profile...' : 'Save Receipt Profile',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton.icon(
+                            onPressed: _isSavingProfile ? null : _loadDefaultSample,
+                            icon: const Icon(Icons.settings_backup_restore_rounded, size: 16),
+                            label: const Text('Load Sample'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

@@ -32,4 +32,5 @@ class ApiConfig {
   static const String settlements = '/api/settlements';
   static const String auditLogs = '/api/audit-logs';
   static const String updateAvatar = '/api/users/me/avatar';
+  static const String merchantProfile = '/api/merchant-profile';
 }

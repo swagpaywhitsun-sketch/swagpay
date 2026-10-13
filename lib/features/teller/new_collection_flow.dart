@@ -1354,7 +1354,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        isOfflineQueued ? 'Queued for Offline Sync' : 'Payment Approved & Verified!',
+                        isOfflineQueued ? 'Queued for Offline Sync' : 'Payment Approved by PIN!',
                         style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 15,

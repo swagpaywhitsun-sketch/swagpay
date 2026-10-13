@@ -75,6 +75,16 @@ async function initDbMigrations() {
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT',
     "INSERT INTO pos_terminals (id, code, name, location, active) VALUES ('POS-01', 'POS-01', 'Counter Terminal 01', 'Main Branch', 1) ON CONFLICT (id) DO NOTHING",
     "INSERT INTO pos_terminals (id, code, name, location, active) VALUES ('pos_01', 'POS-01', 'Counter Terminal 01', 'Main Branch', 1) ON CONFLICT (id) DO NOTHING",
+    `CREATE TABLE IF NOT EXISTS merchant_profile (
+       id VARCHAR(64) PRIMARY KEY DEFAULT 'default',
+       "merchantName" VARCHAR(255) NOT NULL DEFAULT 'KOFI & SONS ELECTRONICS',
+       "merchantAddress" VARCHAR(255) NOT NULL DEFAULT 'Plot 48 Spintex Road, Accra',
+       "shopLocation" VARCHAR(255) NOT NULL DEFAULT 'Accra Mall Branch #12',
+       "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     )`,
+    `INSERT INTO merchant_profile (id, "merchantName", "merchantAddress", "shopLocation")
+     VALUES ('default', 'KOFI & SONS ELECTRONICS', 'Plot 48 Spintex Road, Accra', 'Accra Mall Branch #12')
+     ON CONFLICT (id) DO NOTHING`,
   ];
   for (const sql of migrations) {
     try {
@@ -83,6 +93,83 @@ async function initDbMigrations() {
   }
 }
 initDbMigrations();
+
+// Extracts Telco Reference / Financial Transaction ID from WhitsunPay upstream responses
+function extractTelcoReference(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  const nested = payload.data && typeof payload.data === 'object' ? payload.data : {};
+  const responseData = payload.responseData && typeof payload.responseData === 'object' ? payload.responseData : {};
+  const debitParty = payload.debitParty && typeof payload.debitParty === 'object' ? payload.debitParty : {};
+
+  const candidates = [
+    payload.telcoReference,
+    payload.telco_reference,
+    payload.telcoTransactionId,
+    payload.telco_transaction_id,
+    payload.financialTransactionId,
+    payload.financial_transaction_id,
+    payload.transactionId,
+    payload.transaction_id,
+    payload.externalReference,
+    payload.external_reference,
+    payload.operatorReference,
+    payload.operator_reference,
+    payload.gatewayReference,
+    payload.gateway_reference,
+    payload.momoTransactionId,
+    payload.momo_transaction_id,
+    payload.providerReference,
+    payload.provider_reference,
+    payload.networkReference,
+    payload.network_reference,
+    payload.telcoRef,
+    payload.telcoId,
+    nested.telcoReference,
+    nested.telco_reference,
+    nested.telcoTransactionId,
+    nested.telco_transaction_id,
+    nested.financialTransactionId,
+    nested.financial_transaction_id,
+    nested.transactionId,
+    nested.transaction_id,
+    nested.externalReference,
+    nested.external_reference,
+    nested.operatorReference,
+    nested.operator_reference,
+    nested.gatewayReference,
+    nested.gateway_reference,
+    nested.providerReference,
+    nested.provider_reference,
+    nested.networkReference,
+    nested.momoTransactionId,
+    nested.telcoRef,
+    nested.telcoId,
+    nested.id,
+    responseData.telcoReference,
+    responseData.telco_reference,
+    responseData.telcoTransactionId,
+    responseData.financialTransactionId,
+    responseData.transactionId,
+    responseData.externalReference,
+    responseData.operatorReference,
+    responseData.gatewayReference,
+    responseData.id,
+    debitParty.telcoReference,
+    debitParty.financialTransactionId,
+    debitParty.transactionId,
+    payload.id,
+  ];
+
+  for (const c of candidates) {
+    if (c !== undefined && c !== null) {
+      const s = String(c).trim();
+      if (s.length > 0 && s.toLowerCase() !== 'null' && s.toLowerCase() !== 'undefined') {
+        return s;
+      }
+    }
+  }
+  return null;
+}
 
 // Telco helper
 function formatGhanaMsisdn(phone) {
@@ -318,6 +405,12 @@ app.post('/api/payments/initiate', enforceTellerIdentity, async (req, res) => {
     const gwData = await gwRes.json().catch(() => ({}));
 
     if (gwRes.ok || gwRes.status === 200 || gwRes.status === 201 || gwRes.status === 202) {
+      // Extract Telco Reference / Transaction ID from WhitsunPay response
+      const initTelcoRef = extractTelcoReference(gwData);
+      if (initTelcoRef) {
+        await pool.query('UPDATE transactions SET "gatewayReference" = $1 WHERE reference = $2', [initTelcoRef, reference]).catch(() => {});
+      }
+
       // If customerName was not provided from frontend, attempt to resolve from gateway response or telco lookup
       const gwCustomerName = gwData.responseData?.name || gwData.customerName || (gwData.debitParty && gwData.debitParty.name) || gwData.accountName || customerName;
       if (gwCustomerName && gwCustomerName !== customerName) {
@@ -345,6 +438,7 @@ app.post('/api/payments/initiate', enforceTellerIdentity, async (req, res) => {
       return res.json({
         success: true,
         reference,
+        gatewayReference: initTelcoRef || null,
         receiptNumber,
         status: 'PENDING',
         amount: parsedAmount,
@@ -418,9 +512,12 @@ app.get('/api/payments/status/:ref', async (req, res) => {
     if (txn.status === 'SUCCESS' || txn.status === 'FAILED') {
       return res.json({
         reference: txn.reference,
+        gatewayReference: txn.gatewayReference,
         status: txn.status,
         receiptNumber: txn.receiptNumber,
         amount: txn.amount,
+        fee: txn.fee || 0.0,
+        totalCharged: txn.totalCharged || txn.amount,
         currency: 'GH₵',
         customerName: resolvedCustomerName || txn.customerName,
         momoNumber: txn.momoNumber,
@@ -440,14 +537,30 @@ app.get('/api/payments/status/:ref', async (req, res) => {
     });
 
     if (gwRes.status === 404) {
-      return res.json({ reference: cleanRef, status: 'PENDING', currency: 'GH₵', amount: txn.amount });
+      return res.json({
+        reference: cleanRef,
+        gatewayReference: txn.gatewayReference,
+        status: 'PENDING',
+        currency: 'GH₵',
+        amount: txn.amount,
+        fee: txn.fee || 0.0,
+        totalCharged: txn.totalCharged || txn.amount,
+      });
     }
 
     const data = await gwRes.json().catch(() => ({}));
-    const nestedStatus = data.data && typeof data.data === 'object' ? (data.data.status || data.data.state || '') : '';
+    const nestedData = data.data && typeof data.data === 'object' ? data.data : {};
+    const nestedStatus = nestedData.status || nestedData.state || '';
     const rawStatus = String(data.status || data.state || nestedStatus || data.transactionStatus || data.paymentStatus || '').toUpperCase();
-    const rawMsg = data.message || data.detail || data.title || (data.data && data.data.message) || '';
+    const rawMsg = data.message || data.detail || data.title || nestedData.message || '';
     const upperMsg = String(rawMsg).toUpperCase();
+
+    // Extract Telco reference / transaction ID from WhitsunPay response
+    const gwRef = extractTelcoReference(data) || txn.gatewayReference;
+
+    if (gwRef && gwRef !== txn.gatewayReference) {
+      await pool.query('UPDATE transactions SET "gatewayReference" = $1 WHERE reference = $2', [gwRef, cleanRef]).catch(() => {});
+    }
 
     let newStatus = 'PENDING';
     if (['SUCCESS', 'SUCCESSFUL', 'PAID', 'DELIVERED', 'COMPLETED', 'AUTHORIZED', 'APPROVED'].includes(rawStatus)) {
@@ -464,7 +577,7 @@ app.get('/api/payments/status/:ref', async (req, res) => {
       finalReason = 'Payment declined by customer on handset';
     }
 
-    const upstreamCustomerName = data.responseData?.name || data.customerName || (data.debitParty && data.debitParty.name) || data.accountName || (data.data && (data.data.customerName || data.data.name || data.data.accountName));
+    const upstreamCustomerName = data.responseData?.name || data.customerName || (data.debitParty && data.debitParty.name) || data.accountName || nestedData.customerName || nestedData.name || nestedData.accountName;
     if (!resolvedCustomerName && upstreamCustomerName && typeof upstreamCustomerName === 'string' && upstreamCustomerName.trim()) {
       resolvedCustomerName = upstreamCustomerName.trim();
       await pool.query('UPDATE transactions SET "customerName" = $1 WHERE reference = $2', [resolvedCustomerName, cleanRef]).catch(() => {});
@@ -479,9 +592,12 @@ app.get('/api/payments/status/:ref', async (req, res) => {
 
     res.json({
       reference: cleanRef,
+      gatewayReference: gwRef,
       status: newStatus,
       receiptNumber: txn.receiptNumber,
       amount: txn.amount,
+      fee: txn.fee || 0.0,
+      totalCharged: txn.totalCharged || txn.amount,
       currency: 'GH₵',
       customerName: resolvedCustomerName || txn.customerName,
       momoNumber: txn.momoNumber,
@@ -503,10 +619,18 @@ app.post(['/api/payments/webhook', '/api/payments/callback'], async (req, res) =
       return res.status(200).json({ received: true });
     }
 
-    const nestedStatus = body.data && typeof body.data === 'object' ? (body.data.status || body.data.state || '') : '';
+    const nestedData = body.data && typeof body.data === 'object' ? body.data : {};
+    const nestedStatus = nestedData.status || nestedData.state || '';
     const rawStatus = String(body.status || body.state || nestedStatus || body.transactionStatus || body.paymentStatus || '').toUpperCase();
-    const rawMsg = body.message || body.detail || body.title || (body.data && body.data.message) || '';
+    const rawMsg = body.message || body.detail || body.title || nestedData.message || '';
     const upperMsg = String(rawMsg).toUpperCase();
+
+    // Extract Telco reference / transaction ID from WhitsunPay webhook payload
+    const gwRef = extractTelcoReference(body);
+
+    if (gwRef) {
+      await pool.query('UPDATE transactions SET "gatewayReference" = $1 WHERE reference = $2', [gwRef, ref]).catch(() => {});
+    }
 
     let newStatus = null;
     if (['SUCCESS', 'SUCCESSFUL', 'PAID', 'DELIVERED', 'COMPLETED', 'AUTHORIZED', 'APPROVED'].includes(rawStatus)) {
@@ -528,6 +652,47 @@ app.post(['/api/payments/webhook', '/api/payments/callback'], async (req, res) =
     return res.status(200).json({ received: true, status: newStatus });
   } catch (err) {
     return res.status(200).json({ received: true, error: err.message });
+  }
+});
+
+// ─── MERCHANT PROFILE FOR RECEIPTS (SUPER ADMIN SETTINGS) ───
+app.get('/api/merchant-profile', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT "merchantName", "merchantAddress", "shopLocation" FROM merchant_profile WHERE id = $1', ['default']);
+    if (result.rows.length > 0) {
+      return res.json(result.rows[0]);
+    }
+    res.json({
+      merchantName: 'KOFI & SONS ELECTRONICS',
+      merchantAddress: 'Plot 48 Spintex Road, Accra',
+      shopLocation: 'Accra Mall Branch #12',
+    });
+  } catch (err) {
+    res.json({
+      merchantName: 'KOFI & SONS ELECTRONICS',
+      merchantAddress: 'Plot 48 Spintex Road, Accra',
+      shopLocation: 'Accra Mall Branch #12',
+    });
+  }
+});
+
+app.put('/api/merchant-profile', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
+  const { merchantName, merchantAddress, shopLocation } = req.body;
+  const name = (merchantName || 'KOFI & SONS ELECTRONICS').trim();
+  const address = (merchantAddress || 'Plot 48 Spintex Road, Accra').trim();
+  const location = (shopLocation || 'Accra Mall Branch #12').trim();
+
+  try {
+    await pool.query(
+      `INSERT INTO merchant_profile (id, "merchantName", "merchantAddress", "shopLocation", "updatedAt")
+       VALUES ('default', $1, $2, $3, NOW())
+       ON CONFLICT (id) DO UPDATE SET "merchantName" = $1, "merchantAddress" = $2, "shopLocation" = $3, "updatedAt" = NOW()`,
+      [name, address, location]
+    );
+    recordAudit(pool, req.auth.userId, 'MERCHANT_PROFILE_UPDATED', 'SETTINGS', 'default', { name, address, location }, req);
+    res.json({ success: true, merchantName: name, merchantAddress: address, shopLocation: location });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

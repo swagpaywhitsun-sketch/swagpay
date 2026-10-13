@@ -49,10 +49,13 @@ extension MoMoNetworkHelper on MoMoNetwork {
 class PaymentTransaction {
   final String id;
   final String reference;
+  final String? gatewayReference;
   final String customerNumber;
   final String customerName;
   final String customerPhone;
   final double amount;
+  final double fee;
+  final double totalCharged;
   final String currency;
   final TransactionStatus status;
   final MoMoNetwork network;
@@ -65,14 +68,20 @@ class PaymentTransaction {
   final String? notes;
   final String? failureReason;
   final String idempotencyKey;
+  final String? merchantName;
+  final String? merchantAddress;
+  final String? shopLocation;
 
   const PaymentTransaction({
     required this.id,
     required this.reference,
+    this.gatewayReference,
     required this.customerNumber,
     required this.customerName,
     required this.customerPhone,
     required this.amount,
+    this.fee = 0.0,
+    this.totalCharged = 0.0,
     this.currency = 'GH₵',
     required this.status,
     this.network = MoMoNetwork.mtn,
@@ -85,7 +94,47 @@ class PaymentTransaction {
     this.notes,
     this.failureReason,
     required this.idempotencyKey,
+    this.merchantName,
+    this.merchantAddress,
+    this.shopLocation,
   });
+
+  /// Total amount including processing fee (not separated)
+  double get totalAmount {
+    if (totalCharged > 0) return totalCharged;
+    return amount + fee;
+  }
+
+  /// Reference coming from the Mobile operator (falls back to system reference if not yet assigned)
+  String get operatorReference {
+    if (gatewayReference != null && gatewayReference!.trim().isNotEmpty) {
+      return gatewayReference!.trim();
+    }
+    return reference;
+  }
+
+  static String defaultMerchantName = 'KOFI & SONS ELECTRONICS';
+  static String defaultMerchantAddress = 'Plot 48 Spintex Road, Accra';
+  static String defaultShopLocation = 'Accra Mall Branch #12';
+
+  /// Effective merchant / shop name for receipt header
+  String get effectiveMerchantName {
+    if (merchantName != null && merchantName!.trim().isNotEmpty) return merchantName!.trim();
+    return defaultMerchantName;
+  }
+
+  /// Effective merchant address for receipt header
+  String get effectiveMerchantAddress {
+    if (merchantAddress != null && merchantAddress!.trim().isNotEmpty) return merchantAddress!.trim();
+    return defaultMerchantAddress;
+  }
+
+  /// Effective shop location for receipt header
+  String get effectiveShopLocation {
+    if (shopLocation != null && shopLocation!.trim().isNotEmpty) return shopLocation!.trim();
+    if (branch != null && branch!.trim().isNotEmpty) return branch!.trim();
+    return defaultShopLocation;
+  }
 
   String get networkDisplay {
     switch (network) {
@@ -109,10 +158,13 @@ class PaymentTransaction {
   Map<String, dynamic> toJson() => {
         'id': id,
         'reference': reference,
+        'gatewayReference': gatewayReference,
         'customerNumber': displayPhone,
         'customerName': customerName,
         'customerPhone': displayPhone,
         'amount': amount,
+        'fee': fee,
+        'totalCharged': totalAmount,
         'currency': currency,
         'status': status.name,
         'network': network.name,
@@ -125,6 +177,9 @@ class PaymentTransaction {
         'notes': notes,
         'failureReason': failureReason,
         'idempotencyKey': idempotencyKey,
+        'merchantName': merchantName,
+        'merchantAddress': merchantAddress,
+        'shopLocation': shopLocation,
       };
 
   factory PaymentTransaction.fromJson(Map<String, dynamic> json) {
@@ -170,10 +225,19 @@ class PaymentTransaction {
     return PaymentTransaction(
       id: json['id'] as String? ?? 'tx_${DateTime.now().millisecondsSinceEpoch}',
       reference: json['reference'] as String? ?? '',
+      gatewayReference: json['gatewayReference'] as String? ??
+          json['gateway_reference'] as String? ??
+          json['operatorReference'] as String? ??
+          json['operator_reference'] as String? ??
+          json['externalReference'] as String?,
       customerNumber: rawPhone,
       customerName: resolvedName,
       customerPhone: rawPhone,
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      fee: (json['fee'] as num?)?.toDouble() ?? 0.0,
+      totalCharged: (json['totalCharged'] as num?)?.toDouble() ??
+          (json['total_charged'] as num?)?.toDouble() ??
+          0.0,
       currency: 'GH₵',
       status: s,
       network: net,
@@ -188,16 +252,22 @@ class PaymentTransaction {
       notes: json['notes'] as String?,
       failureReason: json['failureReason'] as String?,
       idempotencyKey: json['idempotencyKey'] as String? ?? json['reference'] as String? ?? '',
+      merchantName: json['merchantName'] as String? ?? json['merchant_name'] as String?,
+      merchantAddress: json['merchantAddress'] as String? ?? json['merchant_address'] as String?,
+      shopLocation: json['shopLocation'] as String? ?? json['shop_location'] as String?,
     );
   }
 
   PaymentTransaction copyWith({
     String? id,
     String? reference,
+    String? gatewayReference,
     String? customerNumber,
     String? customerName,
     String? customerPhone,
     double? amount,
+    double? fee,
+    double? totalCharged,
     String? currency,
     TransactionStatus? status,
     MoMoNetwork? network,
@@ -210,14 +280,20 @@ class PaymentTransaction {
     String? notes,
     String? failureReason,
     String? idempotencyKey,
+    String? merchantName,
+    String? merchantAddress,
+    String? shopLocation,
   }) {
     return PaymentTransaction(
       id: id ?? this.id,
       reference: reference ?? this.reference,
+      gatewayReference: gatewayReference ?? this.gatewayReference,
       customerNumber: customerNumber ?? this.customerNumber,
       customerName: customerName ?? this.customerName,
       customerPhone: customerPhone ?? this.customerPhone,
       amount: amount ?? this.amount,
+      fee: fee ?? this.fee,
+      totalCharged: totalCharged ?? this.totalCharged,
       currency: currency ?? this.currency,
       status: status ?? this.status,
       network: network ?? this.network,
@@ -230,6 +306,9 @@ class PaymentTransaction {
       notes: notes ?? this.notes,
       failureReason: failureReason ?? this.failureReason,
       idempotencyKey: idempotencyKey ?? this.idempotencyKey,
+      merchantName: merchantName ?? this.merchantName,
+      merchantAddress: merchantAddress ?? this.merchantAddress,
+      shopLocation: shopLocation ?? this.shopLocation,
     );
   }
 }
