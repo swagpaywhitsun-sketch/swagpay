@@ -95,17 +95,28 @@ class ThermalReceiptCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header with Merchant Name, Address, and Shop Location (no phone)
+                // Header with SwagPay Branding, Merchant Name, Address, and Shop Location
                 Center(
                   child: Column(
                     children: [
+                      const Text(
+                        'SwagPay',
+                        style: TextStyle(
+                          color: Color(0xFF1570A6),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 3),
                       Text(
                         transaction.effectiveMerchantName.toUpperCase(),
                         style: const TextStyle(
                           color: Color(0xFF0F172A),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -139,11 +150,11 @@ class ThermalReceiptCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'OFFICIAL PAYMENT RECEIPT',
+                        'PURCHASE',
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.1,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
                           color: Color(0xFF0284C7),
                         ),
                       ),
@@ -175,7 +186,7 @@ class ThermalReceiptCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Cashier: ${transaction.tellerName}',
+                            'Cashier: ${transaction.tellerFirstName}',
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -271,32 +282,10 @@ class ThermalReceiptCard extends StatelessWidget {
                 _buildDottedDivider(),
                 const SizedBox(height: 14),
 
-                // Thermal Barcode Simulation & Single Reference Underneath
+                // Single Reference & Customer Copy (Barcode removed)
                 Center(
                   child: Column(
                     children: [
-                      Container(
-                        height: 36,
-                        width: 220,
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: const Color(0xFFCBD5E1)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: List.generate(
-                            38,
-                            (index) => Container(
-                              width: (index % 5 == 0) ? 3 : ((index % 2 == 0) ? 2 : 1),
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      // Single Reference on the receipt, directly under the barcode
                       Text(
                         transaction.operatorReference,
                         style: const TextStyle(
@@ -351,16 +340,6 @@ class ThermalReceiptCard extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF94A3B8),
                           letterSpacing: 0.5,
-                        ),
-                      ),
-                      SizedBox(height: 5),
-                      Text(
-                        'SwagPay',
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1570A6),
-                          letterSpacing: 1.2,
                         ),
                       ),
                     ],

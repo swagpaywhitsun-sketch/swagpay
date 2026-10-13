@@ -1084,6 +1084,16 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                               '================================',
                               style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
                             ),
+                            const Text(
+                              'SwagPay',
+                              style: TextStyle(
+                                fontFamily: 'Courier',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF1570A6),
+                                letterSpacing: 1.0,
+                              ),
+                            ),
                             Text(
                               previewMerchantName,
                               textAlign: TextAlign.center,
@@ -1109,8 +1119,16 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                               style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
                             ),
                             const Text(
-                              'OFFICIAL PAYMENT RECEIPT',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.w600),
+                              'PURCHASE',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF0284C7)),
+                            ),
+                            const Text(
+                              '--------------------------------',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11),
+                            ),
+                            const Text(
+                              'Cashier:    Ama',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11),
                             ),
                             const Text(
                               '--------------------------------',
@@ -1125,12 +1143,12 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                               style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
                             ),
                             const Text(
-                              '*CUSTOMER COPY*',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 10.5, fontWeight: FontWeight.bold),
+                              'MTN-FIN-9876543210',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
                             ),
                             const Text(
-                              'SwagPay',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF1570A6)),
+                              '*CUSTOMER COPY*',
+                              style: TextStyle(fontFamily: 'Courier', fontSize: 10.5, fontWeight: FontWeight.bold),
                             ),
                             const Text(
                               '================================',

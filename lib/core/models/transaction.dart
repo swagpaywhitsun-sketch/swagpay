@@ -136,6 +136,13 @@ class PaymentTransaction {
     return defaultShopLocation;
   }
 
+  /// Cashier first name only (not full name) for terminal receipts
+  String get tellerFirstName {
+    final trimmed = tellerName.trim();
+    if (trimmed.isEmpty) return 'Cashier';
+    return trimmed.split(RegExp(r'\s+')).first;
+  }
+
   String get networkDisplay {
     switch (network) {
       case MoMoNetwork.mtn:

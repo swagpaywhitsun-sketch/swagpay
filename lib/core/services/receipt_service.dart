@@ -47,15 +47,16 @@ class ReceiptService {
 
     return '''
 ================================
+${_centerText('SwagPay', 32)}
 ${_centerText(txn.effectiveMerchantName.toUpperCase(), 32)}
 ${_centerText(txn.effectiveMerchantAddress, 32)}
 ${_centerText('Location: ${txn.effectiveShopLocation}', 32)}
 ================================
-${_centerText('OFFICIAL PAYMENT RECEIPT', 32)}
+${_centerText('PURCHASE', 32)}
 --------------------------------
 Date:       $formattedDate
 Terminal:   $displayPos
-Cashier:    ${txn.tellerName}
+Cashier:    ${txn.tellerFirstName}
 --------------------------------
 Customer:   ${txn.customerName}
 Network:    ${txn.networkDisplay}
@@ -68,7 +69,6 @@ ${_centerText('THANK YOU FOR TRANSACTING', 32)}
 ${_centerText('KEEP RECEIPT FOR YOUR RECORDS', 32)}
 ${_centerText(txn.operatorReference, 32)}
 ${_centerText('*CUSTOMER COPY*', 32)}
-${_centerText('SwagPay', 32)}
 ================================
 ''';
   }
@@ -140,11 +140,21 @@ ${_centerText('SwagPay', 32)}
                   child: pw.Column(
                     children: [
                       pw.Text(
+                        'SwagPay',
+                        style: pw.TextStyle(
+                          fontSize: 14,
+                          fontWeight: pw.FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                      pw.SizedBox(height: 3),
+                      pw.Text(
                         txn.effectiveMerchantName.toUpperCase(),
                         style: pw.TextStyle(
-                          fontSize: 13,
+                          fontSize: 11,
                           fontWeight: pw.FontWeight.bold,
-                          letterSpacing: 1.2,
+                          letterSpacing: 1.0,
                         ),
                         textAlign: pw.TextAlign.center,
                       ),
@@ -162,11 +172,11 @@ ${_centerText('SwagPay', 32)}
                       ),
                       pw.SizedBox(height: 4),
                       pw.Text(
-                        'OFFICIAL PAYMENT RECEIPT',
+                        'PURCHASE',
                         style: pw.TextStyle(
                           fontSize: 8.5,
                           fontWeight: pw.FontWeight.bold,
-                          letterSpacing: 0.8,
+                          letterSpacing: 1.0,
                         ),
                       ),
                     ],
@@ -179,7 +189,7 @@ ${_centerText('SwagPay', 32)}
                 // Terminal, Cashier & Audit Meta
                 _buildPdfRow('Date / Time', formattedDate),
                 _buildPdfRow('Terminal', displayPos),
-                _buildPdfRow('Cashier', txn.tellerName),
+                _buildPdfRow('Cashier', txn.tellerFirstName),
 
                 pw.SizedBox(height: 4),
                 pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
@@ -242,26 +252,10 @@ ${_centerText('SwagPay', 32)}
                 pw.Divider(thickness: 0.8, borderStyle: pw.BorderStyle.dashed),
                 pw.SizedBox(height: 6),
 
-                // Simulated Barcode & Single Reference directly underneath
+                // Single Reference & Customer Copy
                 pw.Center(
                   child: pw.Column(
                     children: [
-                      pw.Container(
-                        height: 24,
-                        width: 160,
-                        child: pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-                          children: List.generate(
-                            30,
-                            (index) => pw.Container(
-                              width: (index % 4 == 0) ? 2.5 : ((index % 2 == 0) ? 1.5 : 0.8),
-                              color: PdfColors.black,
-                            ),
-                          ),
-                        ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      // Single Reference on the receipt, directly under the barcode
                       pw.Text(
                         txn.operatorReference,
                         style: pw.TextStyle(
@@ -296,15 +290,6 @@ ${_centerText('SwagPay', 32)}
                       pw.Text(
                         'KEEP THIS RECEIPT FOR YOUR RECORDS',
                         style: const pw.TextStyle(fontSize: 7),
-                      ),
-                      pw.SizedBox(height: 3),
-                      pw.Text(
-                        'SwagPay',
-                        style: pw.TextStyle(
-                          fontSize: 7.5,
-                          fontWeight: pw.FontWeight.bold,
-                          letterSpacing: 0.8,
-                        ),
                       ),
                     ],
                   ),

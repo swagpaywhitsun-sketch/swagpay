@@ -37,12 +37,12 @@ void main() {
       expect(textReceipt, contains('Location: Accra Mall Branch #12'));
 
       // Header must NOT contain any merchant phone
-      final headerSection = textReceipt.split('OFFICIAL PAYMENT RECEIPT')[0];
+      final headerSection = textReceipt.split('PURCHASE')[0];
       expect(headerSection, isNot(contains('0241234567')));
       expect(headerSection, isNot(contains('Phone')));
     });
 
-    test('2 & 5. Only 1 reference is shown on the receipt, located under the barcode/footnote with *CUSTOMER COPY*', () {
+    test('2 & 5. Only 1 reference is shown on the receipt, located in the footnote with *CUSTOMER COPY*', () {
       final textReceipt = ReceiptService.generateTextReceipt(testTxn);
 
       // Must NOT have a Reference line in the upper transaction details
@@ -94,10 +94,14 @@ void main() {
       expect(textReceipt, isNot(contains('Phone:')));
     });
 
-    test('7. Receipt branding name just says SwagPay', () {
+    test('7. Receipt branding SwagPay is in header, not in footer', () {
       final textReceipt = ReceiptService.generateTextReceipt(testTxn);
 
-      expect(textReceipt, contains('SwagPay'));
+      final header = textReceipt.split('PURCHASE')[0];
+      final footer = textReceipt.split('*CUSTOMER COPY*')[1];
+
+      expect(header, contains('SwagPay'));
+      expect(footer, isNot(contains('SwagPay')));
       expect(textReceipt, isNot(contains('POWERED BY WHITSUN')));
     });
 
@@ -122,6 +126,20 @@ void main() {
       expect(textReceipt, contains('KOFI & SONS ELECTRONICS'));
       expect(textReceipt, contains('Plot 48 Spintex Road, Accra'));
       expect(textReceipt, contains('Location: Accra Mall Branch #12'));
+    });
+
+    test('9. Cashier name uses first name only, not full name', () {
+      final textReceipt = ReceiptService.generateTextReceipt(testTxn);
+
+      expect(textReceipt, contains('Cashier:    Ama'));
+      expect(textReceipt, isNot(contains('Cashier:    Ama Serwaa')));
+    });
+
+    test('10. Label says PURCHASE (terminal payment receipt, not POS Official Receipt)', () {
+      final textReceipt = ReceiptService.generateTextReceipt(testTxn);
+
+      expect(textReceipt, contains('PURCHASE'));
+      expect(textReceipt, isNot(contains('OFFICIAL PAYMENT RECEIPT')));
     });
   });
 }
