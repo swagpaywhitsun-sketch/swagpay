@@ -33,6 +33,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
   final _amountController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _phoneFocusNode = FocusNode();
   MoMoNetwork? _selectedNetwork;
   String? _selectedPosId;
 
@@ -55,7 +56,14 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     _countdownTimer?.cancel();
     _amountController.dispose();
     _phoneController.dispose();
+    _phoneFocusNode.dispose();
     super.dispose();
+  }
+
+  void _dismissKeyboard() {
+    _phoneFocusNode.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
+    SystemChannels.textInput.invokeMethod('TextInput.hide');
   }
 
   double get _currentAmount => double.tryParse(_amountController.text.trim()) ?? 0.0;
@@ -143,6 +151,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   }
 
   void _startMoMoCollection() async {
+    _dismissKeyboard();
     final cleanPhone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
     if (cleanPhone.length < 9) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -197,6 +206,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
 
       _activeReference = initRes['reference'] as String;
 
+      _dismissKeyboard();
       setState(() {
         _isInitiating = false;
         _currentStep = 3; // Awaiting Customer PIN
@@ -216,6 +226,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           } else {
             timer.cancel();
             _pollingTimer?.cancel();
+            _dismissKeyboard();
             _errorMessage = 'Customer prompt timed out (60s). Customer did not authorize prompt on their phone.';
             _currentStep = 5; // Failed
           }
@@ -238,6 +249,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           if (txn.status == TransactionStatus.success) {
             timer.cancel();
             _countdownTimer?.cancel();
+            _dismissKeyboard();
             setState(() {
               _completedTransaction = txn;
               _currentStep = 4; // Success
@@ -245,6 +257,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
           } else if (txn.status == TransactionStatus.failed) {
             timer.cancel();
             _countdownTimer?.cancel();
+            _dismissKeyboard();
             setState(() {
               _completedTransaction = txn;
               _errorMessage = txn.failureReason ?? 'Payment declined by customer on handset';
@@ -258,6 +271,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
     } catch (e) {
       _countdownTimer?.cancel();
       _pollingTimer?.cancel();
+      _dismissKeyboard();
       setState(() {
         _isInitiating = false;
         _errorMessage = e.toString().replaceAll('ApiException: ', '');
@@ -267,6 +281,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   }
 
   Future<void> _checkManualStatus() async {
+    _dismissKeyboard();
     if (_activeReference == null) return;
     setState(() => _isRechecking = true);
     final repo = ref.read(paymentRepositoryProvider);
@@ -283,10 +298,12 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
       if (txn.status == TransactionStatus.success) {
         _pollingTimer?.cancel();
         _countdownTimer?.cancel();
+        _dismissKeyboard();
         setState(() => _currentStep = 4);
       } else if (txn.status == TransactionStatus.failed) {
         _pollingTimer?.cancel();
         _countdownTimer?.cancel();
+        _dismissKeyboard();
         setState(() {
           _errorMessage = txn.failureReason ?? 'Payment declined by customer on handset';
           _currentStep = 5;
@@ -309,6 +326,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   }
 
   void _resetFlow() {
+    _dismissKeyboard();
     _pollingTimer?.cancel();
     _countdownTimer?.cancel();
     setState(() {
@@ -386,12 +404,17 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         ],
       ),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 580),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: _buildCurrentContent(context),
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: _dismissKeyboard,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 580),
+              child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: _buildCurrentContent(context),
+              ),
             ),
           ),
         ),
@@ -792,7 +815,10 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
               const SizedBox(height: 10),
               TextField(
                 controller: _phoneController,
+                focusNode: _phoneFocusNode,
                 keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _dismissKeyboard(),
                 maxLength: 10,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
@@ -1025,6 +1051,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   // SCREEN 3: AWAITING CUSTOMER AUTHORIZATION (60s COUNTDOWN & POLLING)
   // ─────────────────────────────────────────────────────────────
   Widget _buildStep3AwaitingPin() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _dismissKeyboard());
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
     final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE2E8F0);
@@ -1285,6 +1312,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   // ─────────────────────────────────────────────────────────────
   Widget _buildStep4Success() {
     if (_completedTransaction == null) return const SizedBox();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _dismissKeyboard());
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF64748B);
     final isOfflineQueued = _completedTransaction!.id.startsWith('tx_off_') ||
@@ -1472,6 +1500,7 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
   // SCREEN 5: PAYMENT FAILED / DECLINED
   // ─────────────────────────────────────────────────────────────
   Widget _buildStep5Failed() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _dismissKeyboard());
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = isDark ? const Color(0xFF2E2E32) : const Color(0xFFE2E8F0);
     final muted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF64748B);
