@@ -2414,7 +2414,12 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
     final paginatedTxns = totalCount > 0 ? txns.sublist(startIndex, endIndex) : <PaymentTransaction>[];
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
+      padding: EdgeInsets.fromLTRB(
+        MediaQuery.of(context).size.width < 600 ? 12 : 28,
+        16,
+        MediaQuery.of(context).size.width < 600 ? 12 : 28,
+        28,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2538,25 +2543,24 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
           Card(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: _searchCtrl,
-                      onChanged: (_) => setState(() => _currentPage = 1),
-                      decoration: const InputDecoration(
-                        hintText: 'Search by Ref, customer phone, name, teller...',
-                        prefixIcon: Icon(Icons.search_rounded),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 14),
-                      ),
+              child: LayoutBuilder(
+                builder: (context, filterConstraints) {
+                  final isMobile = filterConstraints.maxWidth < 650;
+                  final searchField = TextField(
+                    controller: _searchCtrl,
+                    onChanged: (_) => setState(() => _currentPage = 1),
+                    decoration: const InputDecoration(
+                      hintText: 'Search by Ref, customer phone, name, teller...',
+                      prefixIcon: Icon(Icons.search_rounded),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 14),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  DropdownButton<TransactionStatus?>(
+                  );
+
+                  final statusDropdown = DropdownButton<TransactionStatus?>(
                     value: _filterStatus,
                     hint: const Text('All Statuses'),
+                    isDense: isMobile,
                     underline: const SizedBox(),
                     items: const [
                       DropdownMenuItem(value: null, child: Text('All Statuses')),
@@ -2569,11 +2573,12 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                       _filterStatus = val;
                       _currentPage = 1;
                     }),
-                  ),
-                  const SizedBox(width: 12),
-                  DropdownButton<MoMoNetwork?>(
+                  );
+
+                  final networkDropdown = DropdownButton<MoMoNetwork?>(
                     value: _filterNetwork,
                     hint: const Text('All Networks'),
+                    isDense: isMobile,
                     underline: const SizedBox(),
                     items: const [
                       DropdownMenuItem(value: null, child: Text('All Networks')),
@@ -2585,8 +2590,38 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                       _filterNetwork = val;
                       _currentPage = 1;
                     }),
-                  ),
-                ],
+                  );
+
+                  if (isMobile) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        searchField,
+                        const Divider(height: 1),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            statusDropdown,
+                            networkDropdown,
+                          ],
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: searchField,
+                      ),
+                      const SizedBox(width: 12),
+                      statusDropdown,
+                      const SizedBox(width: 12),
+                      networkDropdown,
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -2934,38 +2969,46 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
           children: [
             // Top Row: Ref & Copy + Status Badge
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        t.reference,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: AppColors.primary,
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            t.reference,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      InkWell(
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(text: t.reference));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Copied reference "${t.reference}"'), duration: const Duration(seconds: 1)),
-                          );
-                        },
-                        child: const Icon(Icons.copy_rounded, size: 13),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: t.reference));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Copied reference "${t.reference}"'), duration: const Duration(seconds: 1)),
+                            );
+                          },
+                          child: const Icon(Icons.copy_rounded, size: 13),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 StatusBadge(status: t.status),
               ],
             ),

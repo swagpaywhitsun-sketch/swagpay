@@ -910,11 +910,27 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     }
   }
 
+  Widget _buildDottedDivider() {
+    return Row(
+      children: List.generate(
+        32,
+        (i) => Expanded(
+          child: Container(
+            height: 1.2,
+            color: i % 2 == 0 ? const Color(0xFF94A3B8) : Colors.transparent,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
     final user = auth.currentUser;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 650;
 
     final previewMerchantName = _merchantNameCtrl.text.trim().isNotEmpty
         ? _merchantNameCtrl.text.trim().toUpperCase()
@@ -927,7 +943,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
         : 'Accra Mall Branch #12';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(28, 24, 28, 36),
+      padding: EdgeInsets.fromLTRB(isMobile ? 14 : 28, isMobile ? 16 : 24, isMobile ? 14 : 28, 36),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
@@ -935,9 +951,13 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header
-              const Text(
+              Text(
                 'Super Admin Settings',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                style: TextStyle(
+                  fontSize: isMobile ? 21 : 24,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -947,68 +967,77 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                   fontSize: 13,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // ─── MERCHANT POS RECEIPT PROFILE CARD ───
               Card(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                   side: BorderSide(
                     color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                   ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(28),
+                  padding: EdgeInsets.all(isMobile ? 16 : 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Header Row
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(9),
                             decoration: BoxDecoration(
                               color: AppColors.primary.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 22),
+                            child: const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 20),
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Merchant POS Receipt Profile',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Flexible(
+                                      child: Text(
+                                        'Merchant Receipt Profile',
+                                        style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: const Text(
+                                        'SUPER ADMIN',
+                                        style: TextStyle(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 9.5,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                SizedBox(height: 2),
-                                Text(
+                                const SizedBox(height: 3),
+                                const Text(
                                   'Configures the shop name, address, and branch location on all printed thermal receipts.',
                                   style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                                 ),
                               ],
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              'SUPER ADMIN',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 10,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
                         ],
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
                       // Merchant Name Input
                       TextFormField(
@@ -1024,7 +1053,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
                       // Merchant Address Input
                       TextFormField(
@@ -1032,10 +1061,10 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Merchant Street Address',
                           hintText: 'e.g., Plot 48 Spintex Road, Accra',
-                          prefixIcon: const Icon(Icons.place_rounded),
+                          prefixIcon: Icon(Icons.place_rounded),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
                       // Shop Location Input
                       TextFormField(
@@ -1044,21 +1073,20 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                           labelText: 'Shop Location / Branch',
                           hintText: 'e.g., Accra Mall Branch #12',
                           helperText: 'Displayed on receipt as: Location: <Shop Location>',
-                          prefixIcon: const Icon(Icons.storefront_rounded),
+                          prefixIcon: Icon(Icons.storefront_rounded),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
-                      // Live Thermal Receipt Header Preview
+                      // Live Thermal Receipt Header Preview (Responsive Paper Slip)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(16),
+                        padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: 14),
                         decoration: BoxDecoration(
                           color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-                            style: BorderStyle.solid,
                           ),
                         ),
                         child: Column(
@@ -1069,7 +1097,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                                 const Icon(Icons.print_rounded, size: 14, color: AppColors.textSecondary),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'LIVE THERMAL RECEIPT HEADER PREVIEW',
+                                  'LIVE THERMAL RECEIPT PREVIEW',
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w800,
@@ -1080,20 +1108,19 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            const Text(
-                              '================================',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
+                            _buildDottedDivider(),
+                            const SizedBox(height: 6),
                             const Text(
                               'SwagPay',
                               style: TextStyle(
                                 fontFamily: 'Courier',
-                                fontSize: 14,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w900,
                                 color: Color(0xFF1570A6),
                                 letterSpacing: 1.0,
                               ),
                             ),
+                            const SizedBox(height: 2),
                             Text(
                               previewMerchantName,
                               textAlign: TextAlign.center,
@@ -1104,60 +1131,61 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                                 letterSpacing: 0.5,
                               ),
                             ),
+                            const SizedBox(height: 2),
                             Text(
                               previewMerchantAddress,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontFamily: 'Courier', fontSize: 11),
+                              style: const TextStyle(fontFamily: 'Courier', fontSize: 11.5),
                             ),
+                            const SizedBox(height: 2),
                             Text(
                               'Location: $previewShopLocation',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontFamily: 'Courier', fontSize: 11),
+                              style: const TextStyle(fontFamily: 'Courier', fontSize: 11.5),
                             ),
-                            const Text(
-                              '================================',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
+                            const SizedBox(height: 6),
+                            _buildDottedDivider(),
+                            const SizedBox(height: 4),
                             const Text(
                               'PURCHASE',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF0284C7)),
+                              style: TextStyle(
+                                fontFamily: 'Courier',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0284C7),
+                              ),
                             ),
-                            const Text(
-                              '--------------------------------',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11),
+                            const SizedBox(height: 4),
+                            _buildDottedDivider(),
+                            const SizedBox(height: 4),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: const [
+                                  Text('Cashier: Ama', style: TextStyle(fontFamily: 'Courier', fontSize: 11)),
+                                  Text('STATUS: Approved by PIN', style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
                             ),
-                            const Text(
-                              'Cashier:    Ama',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11),
-                            ),
-                            const Text(
-                              '--------------------------------',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11),
-                            ),
-                            const Text(
-                              'STATUS:     Approved by PIN',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                            const Text(
-                              '================================',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
+                            const SizedBox(height: 6),
+                            _buildDottedDivider(),
+                            const SizedBox(height: 4),
                             const Text(
                               'MTN-FIN-9876543210',
                               style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
                             ),
+                            const SizedBox(height: 2),
                             const Text(
                               '*CUSTOMER COPY*',
                               style: TextStyle(fontFamily: 'Courier', fontSize: 10.5, fontWeight: FontWeight.bold),
                             ),
-                            const Text(
-                              '================================',
-                              style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
+                            const SizedBox(height: 4),
+                            _buildDottedDivider(),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
                       if (_profileStatusMessage != null) ...[
                         Container(
@@ -1190,81 +1218,112 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                       ],
 
-                      // Action Buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: 48,
-                              child: ElevatedButton.icon(
-                                onPressed: _isSavingProfile ? null : _handleSaveMerchantProfile,
-                                icon: _isSavingProfile
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                      )
-                                    : const Icon(Icons.save_rounded, size: 18),
-                                label: Text(
-                                  _isSavingProfile ? 'Saving Profile...' : 'Save Receipt Profile',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      // Responsive Action Buttons
+                      if (isMobile) ...[
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: _isSavingProfile ? null : _handleSaveMerchantProfile,
+                            icon: _isSavingProfile
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Icon(Icons.save_rounded, size: 18),
+                            label: Text(
+                              _isSavingProfile ? 'Saving Profile...' : 'Save Receipt Profile',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            onPressed: _isSavingProfile ? null : _loadDefaultSample,
+                            icon: const Icon(Icons.settings_backup_restore_rounded, size: 16),
+                            label: const Text('Reset to Default Sample'),
+                          ),
+                        ),
+                      ] else ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 48,
+                                child: ElevatedButton.icon(
+                                  onPressed: _isSavingProfile ? null : _handleSaveMerchantProfile,
+                                  icon: _isSavingProfile
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : const Icon(Icons.save_rounded, size: 18),
+                                  label: Text(
+                                    _isSavingProfile ? 'Saving Profile...' : 'Save Receipt Profile',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          OutlinedButton.icon(
-                            onPressed: _isSavingProfile ? null : _loadDefaultSample,
-                            icon: const Icon(Icons.settings_backup_restore_rounded, size: 16),
-                            label: const Text('Load Sample'),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              onPressed: _isSavingProfile ? null : _loadDefaultSample,
+                              icon: const Icon(Icons.settings_backup_restore_rounded, size: 16),
+                              label: const Text('Load Sample'),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Active Account Summary Card
+              // Active Account Summary Card (Responsive Wrap)
               Card(
                 elevation: 0,
                 color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   side: BorderSide(
                     color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                   ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(isMobile ? 16 : 20),
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.primary, size: 28),
+                        child: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.primary, size: 24),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               user?.fullName ?? 'Administrator',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               user?.email ?? 'admin@swagpay.com',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 12.5,
                                 color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
                               ),
                             ),
@@ -1272,7 +1331,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                         decoration: BoxDecoration(
                           color: AppColors.success.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
@@ -1282,7 +1341,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                           style: TextStyle(
                             color: AppColors.successDark,
                             fontWeight: FontWeight.w800,
-                            fontSize: 11,
+                            fontSize: 10.5,
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -1291,12 +1350,19 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // Password Change Form Card
               Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  ),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(28),
+                  padding: EdgeInsets.all(isMobile ? 16 : 24),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -1304,23 +1370,34 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.lock_reset_rounded, color: AppColors.primary, size: 22),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'Change Password',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            Container(
+                              padding: const EdgeInsets.all(9),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.lock_reset_rounded, color: AppColors.primary, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Change Password',
+                                    style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.bold),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Ensure your new password contains at least 6 characters.',
+                                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Ensure your new password contains at least 6 characters for enterprise security compliance.',
-                          style: TextStyle(
-                            color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
                         // Current Password
                         TextFormField(
@@ -1340,7 +1417,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 14),
 
                         // New Password
                         TextFormField(
@@ -1361,7 +1438,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 14),
 
                         // Confirm New Password
                         TextFormField(
@@ -1382,12 +1459,12 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
                         // Status Alert
                         if (_statusMessage != null) ...[
                           Container(
-                            padding: const EdgeInsets.all(14),
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: _isSuccess ? AppColors.success.withValues(alpha: 0.12) : AppColors.error.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
@@ -1416,7 +1493,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
                         ],
 
                         // Submit Button

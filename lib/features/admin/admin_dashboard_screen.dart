@@ -87,7 +87,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       onRefresh: () => ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh(),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
+        padding: EdgeInsets.fromLTRB(
+          MediaQuery.of(context).size.width < 600 ? 14 : 28,
+          16,
+          MediaQuery.of(context).size.width < 600 ? 14 : 28,
+          28,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -110,20 +115,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                         color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
                       ),
                     ),
-                    if (repo.clientRemoteIp.isNotEmpty && repo.clientRemoteIp != '127.0.0.1') ...[
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'Client IP: ${repo.clientRemoteIp}',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'Courier', color: AppColors.primaryLight),
-                        ),
-                      ),
-                    ],
                   ],
                 );
 
@@ -442,15 +433,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 title: '${repo.getTellers().length} Registered Cashier Accounts',
                                 subtitle: 'Cashiers configured with universal terminal access.',
                               ),
-                              const Divider(height: 20),
-                              _buildAlertItem(
-                                icon: Icons.security_rounded,
-                                color: AppColors.primary,
-                                title: 'Active Remote Client IP',
-                                subtitle: repo.clientRemoteIp.isNotEmpty && repo.clientRemoteIp != '127.0.0.1'
-                                    ? '${repo.clientRemoteIp} (Audited via Fly.io edge)'
-                                    : 'Direct local session (${repo.clientRemoteIp.isNotEmpty ? repo.clientRemoteIp : "127.0.0.1"})',
-                              ),
                             ],
                           ),
                         ),
@@ -751,38 +733,46 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      t.reference,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color: AppColors.primary,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          t.reference,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: AppColors.primary,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    InkWell(
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: t.reference));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Copied reference "${t.reference}"'), duration: const Duration(seconds: 1)),
-                        );
-                      },
-                      child: const Icon(Icons.copy_rounded, size: 13),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: t.reference));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Copied reference "${t.reference}"'), duration: const Duration(seconds: 1)),
+                          );
+                        },
+                        child: const Icon(Icons.copy_rounded, size: 13),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               StatusBadge(status: t.status),
             ],
           ),
