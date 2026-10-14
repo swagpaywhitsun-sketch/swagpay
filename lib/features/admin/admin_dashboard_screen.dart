@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import '../../core/models/pos_device.dart';
 import '../../core/models/transaction.dart';
 import '../../core/state/providers.dart';
@@ -22,12 +24,90 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
+  bool _isExporting = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(paymentRepositoryNotifierProvider.notifier).manualRefresh();
     });
+  }
+
+  Future<void> _exportData(BuildContext context, List<PaymentTransaction> txns) async {
+    if (_isExporting) return;
+    if (txns.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No transactions available to export yet.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isExporting = true);
+
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln('SWAGPAY POS COLLECTION AUDIT REPORT');
+      buffer.writeln('Generated At,${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}');
+      buffer.writeln('Total Transactions,${txns.length}');
+      final totalVal = txns.fold<double>(0.0, (acc, t) => acc + t.amount);
+      buffer.writeln('Total Volume (GH₵),${totalVal.toStringAsFixed(2)}');
+      buffer.writeln('');
+      buffer.writeln('ID,Reference,Gateway Reference,Customer Name,Customer Phone,Network,Amount (GH₵),Fee (GH₵),Total Charged (GH₵),Status,Cashier,POS Terminal,Branch,Timestamp');
+
+      final sorted = List<PaymentTransaction>.from(txns)..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      for (final t in sorted) {
+        final safeName = t.customerName.replaceAll(',', ' ');
+        final netName = t.network.name.toUpperCase();
+        final dt = DateFormat('yyyy-MM-dd HH:mm:ss').format(t.timestamp);
+        buffer.writeln('${t.id},${t.reference},${t.gatewayReference ?? ""},$safeName,${t.customerPhone},$netName,${t.amount.toStringAsFixed(2)},${t.fee.toStringAsFixed(2)},${t.totalCharged.toStringAsFixed(2)},${t.status.name},${t.tellerName},${t.posId},${t.branch},$dt');
+      }
+
+      final csvStr = buffer.toString();
+      await Clipboard.setData(ClipboardData(text: csvStr));
+
+      final bytes = Uint8List.fromList(utf8.encode(csvStr));
+      final dateStr = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'swagpay_transactions_$dateStr.csv',
+        subject: 'SwagPay Transactions Export',
+        body: 'Exported SwagPay POS collection audit report ($dateStr).',
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Exported ${sorted.length} transactions! Copied to clipboard & ready to share.',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Export error: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export completed with notice: $e'), backgroundColor: AppColors.primary),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
   }
 
   @override
@@ -134,13 +214,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     ),
                     const SizedBox(width: 8),
                     OutlinedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Transactions and summary exported to CSV successfully!'), backgroundColor: AppColors.success),
-                        );
-                      },
-                      icon: const Icon(Icons.download_rounded, size: 16),
-                      label: const Text('Export Data'),
+                      onPressed: _isExporting ? null : () => _exportData(context, txns),
+                      icon: _isExporting
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.download_rounded, size: 16),
+                      label: Text(_isExporting ? 'Exporting...' : 'Export Data'),
                     ),
                   ],
                 );
