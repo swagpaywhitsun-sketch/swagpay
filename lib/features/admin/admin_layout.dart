@@ -143,7 +143,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF1E1E22) : const Color(0xFF1E293B),
         elevation: 0,
-        toolbarHeight: 56,
+        toolbarHeight: 60,
         shape: Border(
           bottom: BorderSide(
             color: isDark ? const Color(0xFF2E2E32) : const Color(0xFF334155),
@@ -151,6 +151,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
           ),
         ),
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             if (isWide)
               IconButton(
@@ -163,7 +164,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 onPressed: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
               ),
             const SizedBox(width: 4),
-            // Real Brand Logo
+            // Brand Logo
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
@@ -201,85 +202,12 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 letterSpacing: -0.3,
               ),
             ),
-            if (isWide) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1570A6),
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: const Text(
-                  'ENTERPRISE POS',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
         actions: [
-          Consumer(
-            builder: (context, ref, _) {
-              final repo = ref.watch(paymentRepositoryProvider);
-              final isSyncing = repo.isLoading;
-              return Tooltip(
-                message: isSyncing ? 'Syncing live data from server...' : 'Live Synced • Click to sync now',
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    ref.read(paymentRepositoryProvider).refreshFromBackend();
-                  },
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: isWide ? 10 : 8, vertical: isWide ? 6 : 5),
-                    margin: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSyncing ? AppColors.primaryLight : Colors.white24,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isSyncing)
-                          const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        else
-                          const PulsingBeacon(color: Color(0xFF10B981), size: 7),
-                        if (isWide) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            isSyncing ? 'SYNCING' : 'LIVE',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
           NotificationDropdownButton(isDark: isDark),
-          const SizedBox(width: 10),
-          // User Avatar with Settings Dropdown
+          const SizedBox(width: 8),
+          // Clean, uncluttered User Avatar & Profile with Dropdown
           PopupMenuButton<String>(
             tooltip: 'Account Menu & Settings',
             offset: const Offset(0, 52),
@@ -288,6 +216,11 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
             onSelected: (val) {
               if (val == 'avatar') {
                 _showAvatarPicker(context);
+              } else if (val == 'sync') {
+                ref.read(paymentRepositoryProvider).refreshFromBackend();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Syncing data from server...'), backgroundColor: AppColors.primary),
+                );
               } else if (val == 'settings') {
                 context.go('/admin/settings');
               } else if (val == 'reports') {
@@ -344,6 +277,16 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 ),
               ),
               const PopupMenuItem<String>(
+                value: 'sync',
+                child: Row(
+                  children: [
+                    Icon(Icons.sync_rounded, size: 18, color: AppColors.primary),
+                    SizedBox(width: 10),
+                    Text('Sync Live Database', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
                 value: 'settings',
                 child: Row(
                   children: [
@@ -387,34 +330,103 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
             ],
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    UserAvatarWidget(
-                      avatarData: ref.watch(userAvatarProvider),
-                      name: user?.fullName ?? 'Admin',
-                      radius: 13,
+              child: isWide
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              UserAvatarWidget(
+                                avatarData: ref.watch(userAvatarProvider),
+                                name: user?.fullName ?? 'Administrator',
+                                radius: 14,
+                              ),
+                              Positioned(
+                                right: -1,
+                                bottom: -1,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF1E1E22) : const Color(0xFF1E293B),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 9),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                user?.fullName ?? 'Administrator',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const Text(
+                                'Administrator',
+                                style: TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white70, size: 18),
+                        ],
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          UserAvatarWidget(
+                            avatarData: ref.watch(userAvatarProvider),
+                            name: user?.fullName ?? 'Administrator',
+                            radius: 16,
+                          ),
+                          Positioned(
+                            right: -1,
+                            bottom: -1,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isDark ? const Color(0xFF1E1E22) : const Color(0xFF1E293B),
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      user?.fullName ?? 'Admin',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70, size: 20),
-                  ],
-                ),
-              ),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: isWide ? 16 : 10),
         ],
       ),
       body: Row(

@@ -1,11 +1,11 @@
 {
-    "name": "swagpay",
-    "short_name": "swagpay",
+    "name": "SwagPay - Enterprise POS",
+    "short_name": "SwagPay",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
     "theme_color": "#1570A6",
-    "description": "A new Flutter project.",
+    "description": "SwagPay Counter Terminal & Enterprise POS Portal",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
