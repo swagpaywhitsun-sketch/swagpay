@@ -481,8 +481,10 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         children: [
@@ -498,7 +500,9 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(width: 12),
                       Container(width: 1, height: 12, color: Colors.white.withValues(alpha: 0.2)),
+                      const SizedBox(width: 12),
                       Row(
                         children: [
                           const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF4ADE80)),
@@ -513,7 +517,9 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(width: 12),
                       Container(width: 1, height: 12, color: Colors.white.withValues(alpha: 0.2)),
+                      const SizedBox(width: 12),
                       Row(
                         children: [
                           const Icon(Icons.wifi_tethering_rounded, size: 14, color: Colors.white70),
@@ -529,6 +535,7 @@ class _TellerDashboardScreenState extends ConsumerState<TellerDashboardScreen> {
                         ],
                       ),
                     ],
+                  ),
                   ),
                 ),
               ],

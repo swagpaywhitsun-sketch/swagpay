@@ -320,21 +320,28 @@ class TellerReportsScreen extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const PulsingBeacon(color: Color(0xFF10B981), size: 8),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${user?.fullName ?? "CASHIER"} • SHIFT ACTIVE'.toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                              color: Color(0xFF10B981),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const PulsingBeacon(color: Color(0xFF10B981), size: 8),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${user?.fullName ?? "CASHIER"} • SHIFT ACTIVE'.toUpperCase(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                  color: Color(0xFF10B981),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
